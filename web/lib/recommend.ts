@@ -148,17 +148,18 @@ export function recommend(anchors?: string | string[], k = 3): Look[] {
   looks.sort((a, b) => b.score - a.score);
 
   // Selection. Two diversity rules:
-  //  1) no two results share the same (main upper, bottom) pair, and
+  //  1) no two results share the same set of *chosen* pieces, and
   //  2) reserve one slot for the best Layered look. Layered outfits have more
   //     pieces -> more scored pairs -> a lower *average* cohesion, so without a
   //     quota they get crowded out of the top-k by 2-piece "Simple" looks even
   //     though layering is the hero capability. (Guard: only when a Layered look
   //     actually exists under the current anchor/pools, and k > 1.)
-  const sigOf = (L: Look) => {
-    const mainUpper = L.items.find((i) => i.category === "upper")?.id ?? "";
-    const bottom = L.items.find((i) => i.category === "bottom")?.id ?? "";
-    return `${mainUpper}|${bottom}`;
-  };
+  // The signature excludes the user's pinned picks + accessories, so diversity is
+  // judged on what the recommender ADDED. (Keying on (upper,bottom) collapsed to a
+  // single result whenever the user pinned both an upper and a bottom.)
+  const anchorSet = new Set(anchorIds);
+  const sigOf = (L: Look) =>
+    L.items.filter((i) => !anchorSet.has(i.id) && !isAccessory(i.id)).map((i) => i.id).sort().join("|");
   const chosen: Look[] = [];
   const seen = new Set<string>();
   const take = (L: Look) => { chosen.push(L); seen.add(sigOf(L)); };

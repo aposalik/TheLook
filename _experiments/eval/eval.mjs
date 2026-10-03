@@ -121,4 +121,4 @@ for (const a of out) {
 }
 writeFileSync(join(HERE, "REPORT.md"), md);
 console.log(JSON.stringify(agg, null, 2));
-console.log("\nwrote baseline.json + REPORT.md");
+console.log("\nwrote latest.json + REPORT.md (baseline.json left frozen)");
