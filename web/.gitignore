@@ -32,6 +32,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but DO commit the placeholder template (never a real .env.local)
+!.env.local.example
+!.env.example
 
 # vercel
 .vercel
