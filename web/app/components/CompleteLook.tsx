@@ -9,6 +9,9 @@ export default function CompleteLook({ catalog }: { catalog: Item[] }) {
   const [anchor, setAnchor] = useState<string | null>(null);
   const [looks, setLooks] = useState<Look[] | null>(null);
   const [loading, setLoading] = useState(false);
+  const [renders, setRenders] = useState<Record<number, string>>({});
+  const [rendering, setRendering] = useState<number | null>(null);
+  const [renderErr, setRenderErr] = useState<Record<number, string>>({});
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -23,7 +26,28 @@ export default function CompleteLook({ catalog }: { catalog: Item[] }) {
     const r = await fetch(`/api/recommend?anchor=${encodeURIComponent(id)}`);
     const j = await r.json();
     setLooks(j.looks as Look[]);
+    setRenders({}); setRenderErr({});
     setLoading(false);
+  }
+
+  async function tryLook(L: Look, i: number) {
+    if (!photo) return;
+    setRendering(i);
+    setRenderErr((e) => ({ ...e, [i]: "" }));
+    try {
+      const r = await fetch("/api/tryon-look", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ photoBase64: photo, itemIds: L.items.map((it) => it.id) }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "render failed");
+      setRenders((m) => ({ ...m, [i]: j.resultUrl }));
+    } catch (e) {
+      setRenderErr((m) => ({ ...m, [i]: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      setRendering(null);
+    }
   }
 
   return (
@@ -70,6 +94,21 @@ export default function CompleteLook({ catalog }: { catalog: Item[] }) {
                   ))}
                 </div>
                 <p className="mt-3 text-sm text-neutral-700">{L.reason}</p>
+
+                <div className="mt-4 flex items-start gap-4">
+                  <button
+                    onClick={() => tryLook(L, i)}
+                    disabled={!photo || rendering !== null}
+                    title={photo ? "" : "Upload a full-body photo first"}
+                    className="rounded-lg bg-black px-4 py-2 text-sm text-white disabled:opacity-40"
+                  >
+                    {rendering === i ? "Rendering…" : "Try this look on"}
+                  </button>
+                  {renderErr[i] && <p className="text-sm text-red-600 break-words">{renderErr[i]}</p>}
+                  {renders[i] && (
+                    <img src={renders[i]} alt="you in this look" className="max-h-80 rounded-lg border object-contain" />
+                  )}
+                </div>
               </div>
             ))}
           </div>
