@@ -3,8 +3,14 @@ import { recommend } from "@/lib/recommend";
 
 export const runtime = "nodejs";
 
+// Accepts the selected items as ?anchors=a,b,c (preferred, multi-select),
+// repeated ?anchor=a&anchor=b, or a single ?anchor=a (back-compat).
 export async function GET(req: NextRequest) {
-  const anchor = req.nextUrl.searchParams.get("anchor") ?? undefined;
-  const looks = recommend(anchor, 3);
-  return NextResponse.json({ anchor: anchor ?? null, looks });
+  const sp = req.nextUrl.searchParams;
+  const anchors = [
+    ...(sp.get("anchors")?.split(",") ?? []),
+    ...sp.getAll("anchor"),
+  ].map((s) => s.trim()).filter(Boolean);
+  const looks = recommend(anchors, 3);
+  return NextResponse.json({ anchors, looks });
 }
