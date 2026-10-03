@@ -1,0 +1,841 @@
+{
+  "agg": {
+    "anchors": 17,
+    "avgCohesion": 0.38751972789115663,
+    "avgMeanPair": 0.38751972789115663,
+    "avgMinPair": 0.33175714285714286,
+    "weakLookShare": 0.14285714285714285,
+    "avgDiversity": 0.38394024276377214,
+    "avgFormulaVariety": 2
+  },
+  "anchors": [
+    {
+      "anchors": [
+        "top_shirt-blue"
+      ],
+      "diversity": 0.42380952380952375,
+      "formulaVariety": 3,
+      "looks": [
+        {
+          "meanPair": 0.42156666666666665,
+          "minPair": 0.3524,
+          "formula": "With layer",
+          "itemIds": [
+            "top_shirt-blue",
+            "outerwear_cardigan-brown",
+            "bottom_jeans-lightblue",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Shirt Blue under the Cardigan Brown, Jeans Lightblue. A relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.42156666666666665
+        },
+        {
+          "meanPair": 0.42031666666666667,
+          "minPair": 0.362,
+          "formula": "Layered",
+          "itemIds": [
+            "top_sweater-navy",
+            "top_shirt-blue",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with the Shirt Blue worn open on top, Trousers Brown.",
+          "cohesion": 0.42031666666666667
+        },
+        {
+          "meanPair": 0.4179,
+          "minPair": 0.362,
+          "formula": "Simple",
+          "itemIds": [
+            "top_shirt-blue",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Shirt Blue with Trousers Brown.",
+          "cohesion": 0.4179
+        }
+      ]
+    },
+    {
+      "anchors": [
+        "top_shirt-gray"
+      ],
+      "diversity": 0.4126984126984127,
+      "formulaVariety": 1,
+      "looks": [
+        {
+          "meanPair": 0.39815,
+          "minPair": 0.3687,
+          "formula": "Layered",
+          "itemIds": [
+            "top_sweater-navy",
+            "top_shirt-gray",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with the Shirt Gray worn open on top, Trousers Brown.",
+          "cohesion": 0.39815
+        },
+        {
+          "meanPair": 0.3937833333333334,
+          "minPair": 0.3636,
+          "formula": "Layered",
+          "itemIds": [
+            "top_sweater-navy",
+            "top_shirt-gray",
+            "bottom_jeans-lightblue",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with the Shirt Gray worn open on top, Jeans Lightblue. A relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.3937833333333334
+        },
+        {
+          "meanPair": 0.39281666666666665,
+          "minPair": 0.3608,
+          "formula": "Layered",
+          "itemIds": [
+            "top_polo-cream",
+            "top_shirt-gray",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Polo Cream with the Shirt Gray worn open on top, Trousers Brown.",
+          "cohesion": 0.39281666666666665
+        }
+      ]
+    },
+    {
+      "anchors": [
+        "top_polo-cream"
+      ],
+      "diversity": 0.44444444444444453,
+      "formulaVariety": 2,
+      "looks": [
+        {
+          "meanPair": 0.37243333333333334,
+          "minPair": 0.3608,
+          "formula": "Simple",
+          "itemIds": [
+            "top_polo-cream",
+            "bottom_jeans-lightblue",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Polo Cream with Jeans Lightblue. One consistent smart-casual level, a relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.37243333333333334
+        },
+        {
+          "meanPair": 0.4133333333333334,
+          "minPair": 0.3608,
+          "formula": "Layered",
+          "itemIds": [
+            "top_polo-cream",
+            "top_shirt-blue",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Polo Cream with the Shirt Blue worn open on top, Trousers Brown.",
+          "cohesion": 0.4133333333333334
+        },
+        {
+          "meanPair": 0.3461666666666667,
+          "minPair": 0.1603,
+          "formula": "Layered",
+          "itemIds": [
+            "top_polo-cream",
+            "top_shirt-blue",
+            "bottom_baggy-jeans",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Polo Cream with the Shirt Blue worn open on top, Baggy Jeans. A relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.3461666666666667
+        }
+      ]
+    },
+    {
+      "anchors": [
+        "top_sweater-navy"
+      ],
+      "diversity": 0.4666666666666667,
+      "formulaVariety": 2,
+      "looks": [
+        {
+          "meanPair": 0.3840333333333333,
+          "minPair": 0.3636,
+          "formula": "Simple",
+          "itemIds": [
+            "top_sweater-navy",
+            "bottom_jeans-lightblue",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with Jeans Lightblue. One consistent smart-casual level, a relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.3840333333333333
+        },
+        {
+          "meanPair": 0.42031666666666667,
+          "minPair": 0.362,
+          "formula": "Layered",
+          "itemIds": [
+            "top_sweater-navy",
+            "top_shirt-blue",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with the Shirt Blue worn open on top, Trousers Brown.",
+          "cohesion": 0.42031666666666667
+        },
+        {
+          "meanPair": 0.3498666666666666,
+          "minPair": 0.3275,
+          "formula": "Simple",
+          "itemIds": [
+            "top_sweater-navy",
+            "bottom_baggy-jeans",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with Baggy Jeans. One consistent smart-casual level, a relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.3498666666666666
+        }
+      ]
+    },
+    {
+      "anchors": [
+        "top_vest-brown"
+      ],
+      "diversity": 0.4126984126984127,
+      "formulaVariety": 2,
+      "looks": [
+        {
+          "meanPair": 0.4039333333333333,
+          "minPair": 0.3612,
+          "formula": "Layered",
+          "itemIds": [
+            "top_sweater-navy",
+            "top_vest-brown",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with the Vest Brown worn open on top, Trousers Brown.",
+          "cohesion": 0.4039333333333333
+        },
+        {
+          "meanPair": 0.4001666666666667,
+          "minPair": 0.3612,
+          "formula": "Layered",
+          "itemIds": [
+            "top_sweater-navy",
+            "top_vest-brown",
+            "bottom_jeans-lightblue",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with the Vest Brown worn open on top, Jeans Lightblue. A relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.4001666666666667
+        },
+        {
+          "meanPair": 0.3911833333333334,
+          "minPair": 0.3524,
+          "formula": "With layer",
+          "itemIds": [
+            "top_vest-brown",
+            "outerwear_cardigan-brown",
+            "bottom_jeans-lightblue",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Vest Brown under the Cardigan Brown, Jeans Lightblue. A relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.3911833333333334
+        }
+      ]
+    },
+    {
+      "anchors": [
+        "outerwear_cardigan-brown"
+      ],
+      "diversity": 0.4126984126984127,
+      "formulaVariety": 1,
+      "looks": [
+        {
+          "meanPair": 0.42156666666666665,
+          "minPair": 0.3524,
+          "formula": "With layer",
+          "itemIds": [
+            "top_shirt-blue",
+            "outerwear_cardigan-brown",
+            "bottom_jeans-lightblue",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Shirt Blue under the Cardigan Brown, Jeans Lightblue. A relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.42156666666666665
+        },
+        {
+          "meanPair": 0.4043833333333333,
+          "minPair": 0.3524,
+          "formula": "With layer",
+          "itemIds": [
+            "top_shirt-blue",
+            "outerwear_cardigan-brown",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Shirt Blue under the Cardigan Brown, Trousers Brown.",
+          "cohesion": 0.4043833333333333
+        },
+        {
+          "meanPair": 0.4033333333333333,
+          "minPair": 0.3524,
+          "formula": "With layer",
+          "itemIds": [
+            "top_sweater-navy",
+            "outerwear_cardigan-brown",
+            "bottom_jeans-lightblue",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy under the Cardigan Brown, Jeans Lightblue. A relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.4033333333333333
+        }
+      ]
+    },
+    {
+      "anchors": [
+        "bottom_trousers-brown"
+      ],
+      "diversity": 0.24444444444444446,
+      "formulaVariety": 2,
+      "looks": [
+        {
+          "meanPair": 0.42031666666666667,
+          "minPair": 0.362,
+          "formula": "Layered",
+          "itemIds": [
+            "top_sweater-navy",
+            "top_shirt-blue",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with the Shirt Blue worn open on top, Trousers Brown.",
+          "cohesion": 0.42031666666666667
+        },
+        {
+          "meanPair": 0.4179,
+          "minPair": 0.362,
+          "formula": "Simple",
+          "itemIds": [
+            "top_shirt-blue",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Shirt Blue with Trousers Brown.",
+          "cohesion": 0.4179
+        },
+        {
+          "meanPair": 0.4133333333333334,
+          "minPair": 0.3608,
+          "formula": "Layered",
+          "itemIds": [
+            "top_polo-cream",
+            "top_shirt-blue",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Polo Cream with the Shirt Blue worn open on top, Trousers Brown.",
+          "cohesion": 0.4133333333333334
+        }
+      ]
+    },
+    {
+      "anchors": [
+        "bottom_jeans-lightblue"
+      ],
+      "diversity": 0.44444444444444453,
+      "formulaVariety": 3,
+      "looks": [
+        {
+          "meanPair": 0.37243333333333334,
+          "minPair": 0.3608,
+          "formula": "Simple",
+          "itemIds": [
+            "top_polo-cream",
+            "bottom_jeans-lightblue",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Polo Cream with Jeans Lightblue. One consistent smart-casual level, a relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.37243333333333334
+        },
+        {
+          "meanPair": 0.42156666666666665,
+          "minPair": 0.3524,
+          "formula": "With layer",
+          "itemIds": [
+            "top_shirt-blue",
+            "outerwear_cardigan-brown",
+            "bottom_jeans-lightblue",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Shirt Blue under the Cardigan Brown, Jeans Lightblue. A relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.42156666666666665
+        },
+        {
+          "meanPair": 0.4158666666666666,
+          "minPair": 0.362,
+          "formula": "Layered",
+          "itemIds": [
+            "top_sweater-navy",
+            "top_shirt-blue",
+            "bottom_jeans-lightblue",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with the Shirt Blue worn open on top, Jeans Lightblue. A relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.4158666666666666
+        }
+      ]
+    },
+    {
+      "anchors": [
+        "bottom_corduroy-gray"
+      ],
+      "diversity": 0.3666666666666667,
+      "formulaVariety": 2,
+      "looks": [
+        {
+          "meanPair": 0.3511166666666667,
+          "minPair": 0.2483,
+          "formula": "Layered",
+          "itemIds": [
+            "top_sweater-navy",
+            "top_shirt-blue",
+            "bottom_corduroy-gray",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with the Shirt Blue worn open on top, Corduroy Gray.",
+          "cohesion": 0.3511166666666667
+        },
+        {
+          "meanPair": 0.3428,
+          "minPair": 0.3122,
+          "formula": "Simple",
+          "itemIds": [
+            "top_shirt-blue",
+            "bottom_corduroy-gray",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Shirt Blue with Corduroy Gray.",
+          "cohesion": 0.3428
+        },
+        {
+          "meanPair": 0.33203333333333335,
+          "minPair": 0.2662,
+          "formula": "Simple",
+          "itemIds": [
+            "top_shirt-gray",
+            "bottom_corduroy-gray",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Shirt Gray with Corduroy Gray.",
+          "cohesion": 0.33203333333333335
+        }
+      ]
+    },
+    {
+      "anchors": [
+        "bottom_baggy-jeans"
+      ],
+      "diversity": 0.44444444444444453,
+      "formulaVariety": 3,
+      "looks": [
+        {
+          "meanPair": 0.3817,
+          "minPair": 0.3275,
+          "formula": "Layered",
+          "itemIds": [
+            "top_sweater-navy",
+            "top_shirt-blue",
+            "bottom_baggy-jeans",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with the Shirt Blue worn open on top, Baggy Jeans. A relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.3817
+        },
+        {
+          "meanPair": 0.37965,
+          "minPair": 0.3468,
+          "formula": "With layer",
+          "itemIds": [
+            "top_shirt-blue",
+            "outerwear_cardigan-brown",
+            "bottom_baggy-jeans",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Shirt Blue under the Cardigan Brown, Baggy Jeans. A relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.37965
+        },
+        {
+          "meanPair": 0.3784666666666667,
+          "minPair": 0.351,
+          "formula": "Simple",
+          "itemIds": [
+            "top_shirt-gray",
+            "bottom_baggy-jeans",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Shirt Gray with Baggy Jeans. A relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.3784666666666667
+        }
+      ]
+    },
+    {
+      "anchors": [
+        "shoe_sneakers-red"
+      ],
+      "diversity": 0.5380952380952382,
+      "formulaVariety": 2,
+      "looks": [
+        {
+          "meanPair": 0.3840333333333333,
+          "minPair": 0.3636,
+          "formula": "Simple",
+          "itemIds": [
+            "top_sweater-navy",
+            "bottom_jeans-lightblue",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with Jeans Lightblue. One consistent smart-casual level, a relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.3840333333333333
+        },
+        {
+          "meanPair": 0.37243333333333334,
+          "minPair": 0.3608,
+          "formula": "Simple",
+          "itemIds": [
+            "top_polo-cream",
+            "bottom_jeans-lightblue",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Polo Cream with Jeans Lightblue. One consistent smart-casual level, a relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.37243333333333334
+        },
+        {
+          "meanPair": 0.42031666666666667,
+          "minPair": 0.362,
+          "formula": "Layered",
+          "itemIds": [
+            "top_sweater-navy",
+            "top_shirt-blue",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with the Shirt Blue worn open on top, Trousers Brown.",
+          "cohesion": 0.42031666666666667
+        }
+      ]
+    },
+    {
+      "anchors": [
+        "accessory_sunglasses-brown"
+      ],
+      "diversity": 0.5380952380952382,
+      "formulaVariety": 2,
+      "looks": [
+        {
+          "meanPair": 0.3840333333333333,
+          "minPair": 0.3636,
+          "formula": "Simple",
+          "itemIds": [
+            "top_sweater-navy",
+            "bottom_jeans-lightblue",
+            "shoe_sneakers-red",
+            "accessory_sunglasses-brown"
+          ],
+          "reason": "Sweater Navy with Jeans Lightblue. One consistent smart-casual level, a relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.3840333333333333
+        },
+        {
+          "meanPair": 0.37243333333333334,
+          "minPair": 0.3608,
+          "formula": "Simple",
+          "itemIds": [
+            "top_polo-cream",
+            "bottom_jeans-lightblue",
+            "shoe_sneakers-red",
+            "accessory_sunglasses-brown"
+          ],
+          "reason": "Polo Cream with Jeans Lightblue. One consistent smart-casual level, a relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.37243333333333334
+        },
+        {
+          "meanPair": 0.42031666666666667,
+          "minPair": 0.362,
+          "formula": "Layered",
+          "itemIds": [
+            "top_sweater-navy",
+            "top_shirt-blue",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_sunglasses-brown"
+          ],
+          "reason": "Sweater Navy with the Shirt Blue worn open on top, Trousers Brown.",
+          "cohesion": 0.42031666666666667
+        }
+      ]
+    },
+    {
+      "anchors": [
+        "top_shirt-blue",
+        "bottom_baggy-jeans"
+      ],
+      "diversity": 0.33333333333333337,
+      "formulaVariety": 2,
+      "looks": [
+        {
+          "meanPair": 0.3817,
+          "minPair": 0.3275,
+          "formula": "Layered",
+          "itemIds": [
+            "top_sweater-navy",
+            "top_shirt-blue",
+            "bottom_baggy-jeans",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with the Shirt Blue worn open on top, Baggy Jeans. A relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.3817
+        },
+        {
+          "meanPair": 0.37965,
+          "minPair": 0.3468,
+          "formula": "With layer",
+          "itemIds": [
+            "top_shirt-blue",
+            "outerwear_cardigan-brown",
+            "bottom_baggy-jeans",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Shirt Blue under the Cardigan Brown, Baggy Jeans. A relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.37965
+        },
+        {
+          "meanPair": 0.3461666666666667,
+          "minPair": 0.1603,
+          "formula": "Layered",
+          "itemIds": [
+            "top_polo-cream",
+            "top_shirt-blue",
+            "bottom_baggy-jeans",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Polo Cream with the Shirt Blue worn open on top, Baggy Jeans. A relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.3461666666666667
+        }
+      ]
+    },
+    {
+      "anchors": [
+        "top_polo-cream",
+        "bottom_trousers-brown"
+      ],
+      "diversity": 0,
+      "formulaVariety": 1,
+      "looks": [
+        {
+          "meanPair": 0.4133333333333334,
+          "minPair": 0.3608,
+          "formula": "Layered",
+          "itemIds": [
+            "top_polo-cream",
+            "top_shirt-blue",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Polo Cream with the Shirt Blue worn open on top, Trousers Brown.",
+          "cohesion": 0.4133333333333334
+        }
+      ]
+    },
+    {
+      "anchors": [
+        "top_vest-brown",
+        "bottom_corduroy-gray"
+      ],
+      "diversity": 0.33333333333333337,
+      "formulaVariety": 2,
+      "looks": [
+        {
+          "meanPair": 0.3343,
+          "minPair": 0.1877,
+          "formula": "Layered",
+          "itemIds": [
+            "top_sweater-navy",
+            "top_vest-brown",
+            "bottom_corduroy-gray",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with the Vest Brown worn open on top, Corduroy Gray.",
+          "cohesion": 0.3343
+        },
+        {
+          "meanPair": 0.3100833333333334,
+          "minPair": 0.1877,
+          "formula": "With layer",
+          "itemIds": [
+            "top_vest-brown",
+            "outerwear_cardigan-brown",
+            "bottom_corduroy-gray",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Vest Brown under the Cardigan Brown, Corduroy Gray.",
+          "cohesion": 0.3100833333333334
+        },
+        {
+          "meanPair": 0.2814666666666667,
+          "minPair": 0.1261,
+          "formula": "Layered",
+          "itemIds": [
+            "top_polo-cream",
+            "top_vest-brown",
+            "bottom_corduroy-gray",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Polo Cream with the Vest Brown worn open on top, Corduroy Gray.",
+          "cohesion": 0.2814666666666667
+        }
+      ]
+    },
+    {
+      "anchors": [
+        "top_sweater-navy",
+        "shoe_sneakers-red"
+      ],
+      "diversity": 0.4666666666666667,
+      "formulaVariety": 2,
+      "looks": [
+        {
+          "meanPair": 0.3840333333333333,
+          "minPair": 0.3636,
+          "formula": "Simple",
+          "itemIds": [
+            "top_sweater-navy",
+            "bottom_jeans-lightblue",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with Jeans Lightblue. One consistent smart-casual level, a relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.3840333333333333
+        },
+        {
+          "meanPair": 0.42031666666666667,
+          "minPair": 0.362,
+          "formula": "Layered",
+          "itemIds": [
+            "top_sweater-navy",
+            "top_shirt-blue",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with the Shirt Blue worn open on top, Trousers Brown.",
+          "cohesion": 0.42031666666666667
+        },
+        {
+          "meanPair": 0.3498666666666666,
+          "minPair": 0.3275,
+          "formula": "Simple",
+          "itemIds": [
+            "top_sweater-navy",
+            "bottom_baggy-jeans",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with Baggy Jeans. One consistent smart-casual level, a relaxed piece balanced by a neater one — looks clean and intentional.",
+          "cohesion": 0.3498666666666666
+        }
+      ]
+    },
+    {
+      "anchors": [
+        "bottom_trousers-brown",
+        "bottom_baggy-jeans"
+      ],
+      "diversity": 0.24444444444444446,
+      "formulaVariety": 2,
+      "looks": [
+        {
+          "meanPair": 0.42031666666666667,
+          "minPair": 0.362,
+          "formula": "Layered",
+          "itemIds": [
+            "top_sweater-navy",
+            "top_shirt-blue",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Sweater Navy with the Shirt Blue worn open on top, Trousers Brown.",
+          "cohesion": 0.42031666666666667
+        },
+        {
+          "meanPair": 0.4179,
+          "minPair": 0.362,
+          "formula": "Simple",
+          "itemIds": [
+            "top_shirt-blue",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Shirt Blue with Trousers Brown.",
+          "cohesion": 0.4179
+        },
+        {
+          "meanPair": 0.4133333333333334,
+          "minPair": 0.3608,
+          "formula": "Layered",
+          "itemIds": [
+            "top_polo-cream",
+            "top_shirt-blue",
+            "bottom_trousers-brown",
+            "shoe_sneakers-red",
+            "accessory_bag-blue"
+          ],
+          "reason": "Polo Cream with the Shirt Blue worn open on top, Trousers Brown.",
+          "cohesion": 0.4133333333333334
+        }
+      ]
+    }
+  ]
+}
