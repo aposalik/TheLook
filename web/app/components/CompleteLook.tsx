@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
+import { useCart } from "@/lib/cart";
 
 type Item = { id: string; slot: string; title: string; image: string; category?: string; layer?: string | null };
 type Look = { formula: string; items: Item[]; roles: string[]; score: number; cohesion: number; reason: string };
@@ -12,6 +14,7 @@ export default function CompleteLook({ catalog }: { catalog: Item[] }) {
   const [renders, setRenders] = useState<Record<number, string>>({});
   const [rendering, setRendering] = useState<number | null>(null);
   const [renderErr, setRenderErr] = useState<Record<number, string>>({});
+  const cart = useCart();
 
   function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
@@ -52,8 +55,15 @@ export default function CompleteLook({ catalog }: { catalog: Item[] }) {
 
   return (
     <main className="mx-auto max-w-5xl p-6">
-      <h1 className="text-2xl font-semibold">TheLook — Complete the Look</h1>
-      <p className="mb-6 text-sm text-neutral-500">Pick one item you want to wear; TheLook builds the outfits that go with it.</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">TheLook — Complete the Look</h1>
+          <p className="mb-6 text-sm text-neutral-500">Pick one item you want to wear; TheLook builds the outfits that go with it.</p>
+        </div>
+        <Link href="/cart" className="rounded-lg border px-3 py-1.5 text-sm hover:bg-neutral-50">
+          Bag{cart.count > 0 && <span className="ml-1 rounded-full bg-black px-1.5 text-xs text-white">{cart.count}</span>}
+        </Link>
+      </div>
 
       <div className="mb-6">
         <label className="mb-1 block text-sm font-medium">Your photo <span className="font-normal text-neutral-400">(for try-on, optional for now)</span></label>
@@ -103,6 +113,12 @@ export default function CompleteLook({ catalog }: { catalog: Item[] }) {
                     className="rounded-lg bg-black px-4 py-2 text-sm text-white disabled:opacity-40"
                   >
                     {rendering === i ? "Rendering…" : "Try this look on"}
+                  </button>
+                  <button
+                    onClick={() => cart.add(L.items.map((it) => it.id))}
+                    className="rounded-lg border px-4 py-2 text-sm hover:bg-neutral-50"
+                  >
+                    Add set to bag
                   </button>
                   {renderErr[i] && <p className="text-sm text-red-600 break-words">{renderErr[i]}</p>}
                   {renders[i] && (
