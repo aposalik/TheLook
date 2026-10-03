@@ -20,19 +20,27 @@ function compat(a: string, b: string): number {
 
 const uppers = ITEMS.filter((i) => i.category === "upper");
 const bottoms = ITEMS.filter((i) => i.category === "bottom");
+const shoes = ITEMS.filter((i) => i.category === "shoe" || i.slot === "shoe");
+const accessories = ITEMS.filter((i) => i.category === "accessory" || i.slot === "accessory");
 const bases = uppers.filter((i) => i.layer === "base");
 const mids = uppers.filter((i) => i.layer === "mid");
 const outers = uppers.filter((i) => i.layer === "outer");
 const soloUppers = uppers.filter((i) => i.layer === "base" || i.layer === "mid");
+const isAccessory = (id: string) => accessories.some((a) => a.id === id);
 
 type SlotSpec = { role: string; pool: Item[] };
 type Formula = { name: string; slots: SlotSpec[] };
 
-// 3 formulas that fit a capsule with no true tee/shoes; extend when those slots exist.
+// Shoes complete every outfit, so they're a required scored slot (guarded: if the
+// catalog has none, the slot is omitted rather than zeroing the cartesian product).
+// Accessories are optional and appended post-scoring as enrichment cards (they can't
+// be rendered by Cloth-v4 anyway), so they never constrain the core outfit.
+const shoeSlot: SlotSpec[] = shoes.length ? [{ role: "shoes", pool: shoes }] : [];
+
 const FORMULAS: Formula[] = [
-  { name: "Layered", slots: [{ role: "base", pool: bases }, { role: "overshirt", pool: mids }, { role: "bottom", pool: bottoms }] },
-  { name: "Simple", slots: [{ role: "top", pool: soloUppers }, { role: "bottom", pool: bottoms }] },
-  { name: "With layer", slots: [{ role: "base", pool: [...bases, ...mids] }, { role: "outer", pool: outers }, { role: "bottom", pool: bottoms }] },
+  { name: "Layered", slots: [{ role: "base", pool: bases }, { role: "overshirt", pool: mids }, { role: "bottom", pool: bottoms }, ...shoeSlot] },
+  { name: "Simple", slots: [{ role: "top", pool: soloUppers }, { role: "bottom", pool: bottoms }, ...shoeSlot] },
+  { name: "With layer", slots: [{ role: "base", pool: [...bases, ...mids] }, { role: "outer", pool: outers }, { role: "bottom", pool: bottoms }, ...shoeSlot] },
 ];
 
 function cartesian(pools: Item[][]): Item[][] {
@@ -73,14 +81,30 @@ function buildReason(f: string, items: Item[], roles: string[]): string {
   return `${core}. ${whyStr.charAt(0).toUpperCase()}${whyStr.slice(1)} — looks clean and intentional.`;
 }
 
+/** Best accessory for a look: the one with the highest mean compatibility to its pieces. */
+function bestAccessory(items: Item[], forceId?: string): Item | null {
+  if (forceId) return accessories.find((a) => a.id === forceId) ?? null;
+  let best: Item | null = null, bestScore = -1;
+  for (const acc of accessories) {
+    const mean = items.reduce((s, it) => s + compat(it.id, acc.id), 0) / items.length;
+    if (mean > bestScore) { bestScore = mean; best = acc; }
+  }
+  return best;                                                  // low scores still show (styling suggestion)
+}
+
 /** Top-k distinct complete outfits, optionally forced to include an anchor item. */
 export function recommend(anchorId?: string, k = 3): Look[] {
+  // An accessory anchor can't be a core-outfit constraint (it's never in a combo),
+  // so we build the best looks and force that accessory into each as the enrichment.
+  const accessoryAnchor = anchorId && isAccessory(anchorId) ? anchorId : undefined;
+  const coreAnchor = anchorId && !accessoryAnchor ? anchorId : undefined;
+
   const looks: Look[] = [];
   for (const f of FORMULAS) {
     for (const combo of cartesian(f.slots.map((s) => s.pool))) {
       const ids = combo.map((c) => c.id);
       if (new Set(ids).size !== ids.length) continue;          // distinct pieces
-      if (anchorId && !ids.includes(anchorId)) continue;        // must include the picked item
+      if (coreAnchor && !ids.includes(coreAnchor)) continue;    // must include the picked item
       const roles = f.slots.map((s) => s.role);
       const { score, cohesion } = scoreOutfit(combo);
       looks.push({ formula: f.name, items: combo, roles, score, cohesion, reason: buildReason(f.name, combo, roles) });
@@ -99,6 +123,15 @@ export function recommend(anchorId?: string, k = 3): Look[] {
     seen.add(sig);
     chosen.push(L);
     if (chosen.length >= k) break;
+  }
+
+  // enrich each look with one accessory card (can't be rendered, so it's appended
+  // after scoring and doesn't affect cohesion). If an accessory was the anchor, force it.
+  if (accessories.length) {
+    for (const L of chosen) {
+      const acc = bestAccessory(L.items, accessoryAnchor);
+      if (acc && !L.items.some((i) => i.id === acc.id)) { L.items.push(acc); L.roles.push("accessory"); }
+    }
   }
   return chosen;
 }
