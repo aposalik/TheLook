@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { readFile, writeFile, mkdir, access } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
-import { uploadFile, runCloth, pollCloth, type ClothParams } from "@/lib/youcam";
+import { uploadFile, runCloth, pollCloth, toJpeg, type ClothParams } from "@/lib/youcam";
 import catalog from "@/data/catalog.json";
 
 export const runtime = "nodejs";
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
     const cachedFile = path.join(RESULTS_DIR, `${key}.jpg`);
     if (await exists(cachedFile)) return NextResponse.json({ resultUrl: `/results/${key}.jpg`, category, cached: true });
 
-    const srcId = await uploadFile(photoBytes, "user.jpg");
+    const srcId = await uploadFile(await toJpeg(photoBytes), "user.jpg");
     const refBytes = await readFile(path.join(process.cwd(), "public", "garments", `${garmentId}.jpg`));
     const refId = await uploadFile(refBytes, `${garmentId}.jpg`);
 
