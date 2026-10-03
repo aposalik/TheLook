@@ -112,18 +112,31 @@ export function recommend(anchorId?: string, k = 3): Look[] {
   }
   looks.sort((a, b) => b.score - a.score);
 
-  // diversify: no two results share the same (main upper, bottom) pair
-  const chosen: Look[] = [];
-  const seen = new Set<string>();
-  for (const L of looks) {
+  // Selection. Two diversity rules:
+  //  1) no two results share the same (main upper, bottom) pair, and
+  //  2) reserve one slot for the best Layered look. Layered outfits have more
+  //     pieces -> more scored pairs -> a lower *average* cohesion, so without a
+  //     quota they get crowded out of the top-k by 2-piece "Simple" looks even
+  //     though layering is the hero capability. (Guard: only when a Layered look
+  //     actually exists under the current anchor/pools, and k > 1.)
+  const sigOf = (L: Look) => {
     const mainUpper = L.items.find((i) => i.category === "upper")?.id ?? "";
     const bottom = L.items.find((i) => i.category === "bottom")?.id ?? "";
-    const sig = `${mainUpper}|${bottom}`;
-    if (seen.has(sig)) continue;
-    seen.add(sig);
-    chosen.push(L);
+    return `${mainUpper}|${bottom}`;
+  };
+  const chosen: Look[] = [];
+  const seen = new Set<string>();
+  const take = (L: Look) => { chosen.push(L); seen.add(sigOf(L)); };
+
+  const bestLayered = looks.find((L) => L.formula === "Layered");   // looks is score-sorted
+  if (bestLayered && k > 1) take(bestLayered);
+
+  for (const L of looks) {
+    if (chosen.includes(L) || seen.has(sigOf(L))) continue;
+    take(L);
     if (chosen.length >= k) break;
   }
+  chosen.sort((a, b) => b.score - a.score);                        // display in score order
 
   // enrich each look with one accessory card (can't be rendered, so it's appended
   // after scoring and doesn't affect cohesion). If an accessory was the anchor, force it.
