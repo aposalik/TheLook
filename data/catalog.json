@@ -1,5 +1,33 @@
 [
   {
+    "id": "accessory_bag-blue",
+    "slot": "accessory",
+    "title": "Bag Blue",
+    "color": "#262d5c",
+    "palette": "warm",
+    "image": "/cutouts/accessory_bag-blue.png",
+    "src": "_experiments/capsule/accessory_bag-blue.jpg",
+    "category": "accessory",
+    "layer": null,
+    "formality": 2,
+    "fit": "regular",
+    "color_role": "accent"
+  },
+  {
+    "id": "accessory_sunglasses-brown",
+    "slot": "accessory",
+    "title": "Sunglasses Brown",
+    "color": "#2e2b1b",
+    "palette": "warm",
+    "image": "/cutouts/accessory_sunglasses-brown.png",
+    "src": "_experiments/capsule/accessory_sunglasses-brown.jpg",
+    "category": "accessory",
+    "layer": null,
+    "formality": 2,
+    "fit": "regular",
+    "color_role": "neutral"
+  },
+  {
     "id": "bottom_baggy-jeans",
     "slot": "bottom",
     "title": "Baggy Jeans",
@@ -68,6 +96,20 @@
     "formality": 3,
     "fit": "regular",
     "color_role": "neutral"
+  },
+  {
+    "id": "shoe_sneakers-red",
+    "slot": "shoe",
+    "title": "Sneakers Red",
+    "color": "#9c5251",
+    "palette": "warm",
+    "image": "/cutouts/shoe_sneakers-red.png",
+    "src": "_experiments/capsule/shoe_sneakers-red.jpg",
+    "category": "shoe",
+    "layer": null,
+    "formality": 1,
+    "fit": "regular",
+    "color_role": "accent"
   },
   {
     "id": "top_polo-cream",

@@ -37,6 +37,11 @@ TAGS = {
     "bottom_jeans-lightblue":  {"category": "bottom","layer": None,   "formality": 2, "fit": "baggy",   "color_role": "neutral"},
     "bottom_corduroy-gray":    {"category": "bottom","layer": None,   "formality": 2, "fit": "regular", "color_role": "neutral"},
     "bottom_baggy-jeans":      {"category": "bottom","layer": None,   "formality": 1, "fit": "baggy",   "color_role": "neutral"},
+    # shoes & accessories: card-only styling pieces (Cloth-v4 has no shoe/accessory
+    # category, so they enrich the recommendation but are never individually rendered).
+    "shoe_sneakers-red":       {"category": "shoe",     "layer": None, "formality": 1, "fit": "regular", "color_role": "accent"},
+    "accessory_sunglasses-brown":{"category": "accessory","layer": None,"formality": 2, "fit": "regular", "color_role": "neutral"},
+    "accessory_bag-blue":      {"category": "accessory", "layer": None, "formality": 2, "fit": "regular", "color_role": "accent"},
 }
 
 def dominant(cut_rgba):
