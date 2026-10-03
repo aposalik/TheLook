@@ -83,7 +83,19 @@ const agg = {
   avgFormulaVariety: avg(out.map((a) => a.formulaVariety)),
 };
 
-writeFileSync(join(HERE, "baseline.json"), JSON.stringify({ agg, anchors: out }, null, 2));
+// baseline.json is the FROZEN reference (committed once). Each run writes latest.json
+// and, if a baseline exists, prints a before/after diff so changes are measured.
+writeFileSync(join(HERE, "latest.json"), JSON.stringify({ agg, anchors: out }, null, 2));
+try {
+  const base = JSON.parse(readFileSync(join(HERE, "baseline.json"), "utf8")).agg;
+  console.log("\nbefore → after (baseline → this run):");
+  for (const k of Object.keys(agg)) {
+    if (k === "anchors") continue;
+    const b = base[k], a = agg[k];
+    const arrow = a > b ? "↑" : a < b ? "↓" : "=";
+    console.log(`  ${k.padEnd(18)} ${(b).toFixed(3)} → ${(a).toFixed(3)}  ${arrow}`);
+  }
+} catch { /* no baseline yet */ }
 
 // ---- markdown report ----
 const pct = (x) => `${(x * 100).toFixed(0)}%`;

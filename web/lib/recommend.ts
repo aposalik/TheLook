@@ -18,6 +18,25 @@ function compat(a: string, b: string): number {
   return M[a]?.[b] ?? M[b]?.[a] ?? 0.3;
 }
 
+// The Polyvore MLP squeezes compat into a narrow band (~0.30–0.45 on this
+// catalog), so raw cohesion differences are tiny and the ±0.05 style-rule
+// bonuses would silently dominate ranking. Rescale each pair against the
+// catalog's own 5th–95th percentile so cohesion spans ~0–1 and the rules
+// become proportional tie-breakers, not deciders.
+const CVALS = Object.values(M).flatMap((row) => Object.values(row)).sort((a, b) => a - b);
+const pctl = (p: number) => CVALS.length ? CVALS[Math.min(CVALS.length - 1, Math.max(0, Math.round(p * (CVALS.length - 1))))]! : 0;
+const CLO = pctl(0.05), CHI = pctl(0.95);
+const normC = (c: number) => (CHI > CLO ? Math.max(0, Math.min(1, (c - CLO) / (CHI - CLO))) : c);
+
+// Not every pairing matters equally: the top↔bottom relationship is the
+// backbone of an outfit, shoes-to-bottom next, the rest incidental.
+function pairWeight(a: Item, b: Item): number {
+  const key = [a.category ?? a.slot, b.category ?? b.slot].sort().join("|");
+  if (key === "bottom|upper") return 2;
+  if (key === "bottom|shoe") return 1.5;
+  return 1;
+}
+
 const uppers = ITEMS.filter((i) => i.category === "upper");
 const bottoms = ITEMS.filter((i) => i.category === "bottom");
 const shoes = ITEMS.filter((i) => i.category === "shoe" || i.slot === "shoe");
@@ -50,11 +69,19 @@ function cartesian(pools: Item[][]): Item[][] {
 export type Look = { formula: string; items: Item[]; roles: string[]; score: number; cohesion: number; reason: string };
 
 function scoreOutfit(items: Item[]): { score: number; cohesion: number } {
-  const ids = items.map((i) => i.id);
-  let sum = 0, n = 0;
-  for (let i = 0; i < ids.length; i++) for (let j = i + 1; j < ids.length; j++) { sum += compat(ids[i]!, ids[j]!); n++; }
-  const cohesion = n ? sum / n : 0;
+  // Rescaled, weighted pairwise compat + a weakest-pair term so one clashing
+  // piece can't be averaged away (a bad pair ruins an outfit in real life).
+  let wsum = 0, wtot = 0, min = 1, n = 0;
+  for (let i = 0; i < items.length; i++)
+    for (let j = i + 1; j < items.length; j++) {
+      const c = normC(compat(items[i]!.id, items[j]!.id));
+      const w = pairWeight(items[i]!, items[j]!);
+      wsum += w * c; wtot += w; min = Math.min(min, c); n++;
+    }
+  const weightedMean = wtot ? wsum / wtot : 0;
+  const cohesion = n ? 0.7 * weightedMean + 0.3 * min : 0;                 // 70% overall, 30% weakest link
   let score = cohesion;
+  // Style rules — now proportional tie-breakers on a ~0–1 cohesion, not deciders.
   const accents = items.filter((i) => i.color_role === "accent").length;
   score += accents <= 1 ? 0.05 : -0.12;                                   // color rule: ≤1 accent
   const fs = items.map((i) => i.formality).filter((x): x is number => typeof x === "number");
