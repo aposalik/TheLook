@@ -1,4 +1,4 @@
-# FitRoom — System Design
+# TheLook — System Design
 
 ## 1. Core design insight
 The catalog is a **fixed store**, and in "Complete the Look" the user only *picks* from it (never uploads

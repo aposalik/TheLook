@@ -1,11 +1,11 @@
-# Contributing to FitRoom
+# Contributing to TheLook
 
 We work **branch → pull request → review → merge**. Nobody pushes to `main` directly.
 
 ## One-time setup
 ```bash
-git clone https://github.com/aposalik/fitroom-youcam-vto.git
-cd fitroom-youcam-vto/web
+git clone https://github.com/aposalik/TheLook.git
+cd TheLook/web
 npm install
 cp .env.local.example .env.local   # then paste YOUR OWN YouCam API key + secret
 npm run dev                          # http://localhost:3000

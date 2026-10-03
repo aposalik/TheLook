@@ -1,4 +1,4 @@
-# FitRoom — YouCam API Skin AI & eCommerce VTO Hackathon
+# TheLook — YouCam API Skin AI & eCommerce VTO Hackathon
 
 Solo hackathon project by Salik (0xALTHOR). Web PWA mini-storefront built on Perfect Corp / YouCam APIs.
 

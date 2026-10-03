@@ -1,5 +1,5 @@
 """
-FitRoom — outfit recommender (credit-free core).
+TheLook — outfit recommender (credit-free core).
 
 Pipeline:  rembg clean -> CLIP embed (cached) -> compatibility-MLP rank -> complete-the-look.
 Uses EESHAK02/style-recommender's OpenCLIP ViT-B-32 + shipped Polyvore-trained compat MLP.

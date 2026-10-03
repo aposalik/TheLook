@@ -1,4 +1,4 @@
-# FitRoom — Kanban Board Reference
+# TheLook — Kanban Board Reference
 
 Board columns (GitHub Projects → Board view, "Status" field):
 `Backlog → To Do → In Progress (WIP max 2) → Review/Test → Done`  + `Blocked` tag
@@ -21,7 +21,7 @@ group by Status.
 
 ### Epic 0 — Spike / Walking skeleton (Week 1) [priority-high]
 1. Register on Devpost, claim API key + 1,000 credits
-2. Lock the niche/audience — one sentence: "For ___, FitRoom lets them ___"
+2. Lock the niche/audience — one sentence: "For ___, TheLook lets them ___"
 3. Scaffold Next.js app + deploy empty shell to Vercel
 4. Thin backend proxy: one API route holding the secret key
 5. Walking skeleton: upload photo → apparel VTO via proxy → show image (ugly OK)

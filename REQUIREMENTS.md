@@ -1,4 +1,4 @@
-# FitRoom — Requirements
+# TheLook — Requirements
 
 Product direction: **"Complete the Look"** — shopper picks one item from a curated store, the app
 recommends the other **clothing** items that complete the outfit and proves the look on *their own photo*,

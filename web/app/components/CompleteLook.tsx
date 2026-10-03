@@ -28,8 +28,8 @@ export default function CompleteLook({ catalog }: { catalog: Item[] }) {
 
   return (
     <main className="mx-auto max-w-5xl p-6">
-      <h1 className="text-2xl font-semibold">FitRoom — Complete the Look</h1>
-      <p className="mb-6 text-sm text-neutral-500">Pick one item you want to wear; FitRoom builds the outfits that go with it.</p>
+      <h1 className="text-2xl font-semibold">TheLook — Complete the Look</h1>
+      <p className="mb-6 text-sm text-neutral-500">Pick one item you want to wear; TheLook builds the outfits that go with it.</p>
 
       <div className="mb-6">
         <label className="mb-1 block text-sm font-medium">Your photo <span className="font-normal text-neutral-400">(for try-on, optional for now)</span></label>

@@ -39,7 +39,7 @@ export default function TryOn({ catalog }: { catalog: Item[] }) {
 
   return (
     <main className="mx-auto max-w-5xl p-6">
-      <h1 className="text-2xl font-semibold">FitRoom — walking skeleton</h1>
+      <h1 className="text-2xl font-semibold">TheLook — walking skeleton</h1>
       <p className="text-sm text-neutral-500 mb-6">Upload a full-body photo, pick one garment, render it on yourself.</p>
 
       <div className="grid gap-6 md:grid-cols-[320px_1fr]">

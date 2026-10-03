@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "FitRoom",
+  title: "TheLook",
   description: "Complete the look — virtual try-on storefront.",
 };
 

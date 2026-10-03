@@ -1,7 +1,7 @@
-# FitRoom — Plan
+# TheLook — Plan
 
 ## Product concept
-A web PWA mini-storefront (working name **FitRoom**). Small catalog: a few makeup items + a few apparel items. A shopper can:
+A web PWA mini-storefront (working name **TheLook**). Small catalog: a few makeup items + a few apparel items. A shopper can:
 1. **Try makeup live** — real-time AR mirror (lipstick / foundation / eyeshadow shade swaps)
 2. **Try clothes on their photo** — upload/capture → generative render wearing the garment
 3. **Get recommendations** — skin undertone analysis → "these shades + these colors suit you" (the non-obvious idea that ties makeup + apparel into one story; satisfies the rubric's "decision/recommendation" expectation)
@@ -9,7 +9,7 @@ A web PWA mini-storefront (working name **FitRoom**). Small catalog: a few makeu
 
 ## Open decision (lock in Week 1)
 Niche / audience. Candidates: K-beauty shop, menswear capsule brand, "get-ready-for-an-event" concierge, etc.
-Write one sentence: "For ___, FitRoom lets them ___."
+Write one sentence: "For ___, TheLook lets them ___."
 
 ## Methodology — Kanban
 - Tool: **GitHub Projects** (board lives next to the repo; judges see an organized repo).

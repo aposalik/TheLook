@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# FitRoom — one-shot GitHub setup: repo + labels + milestones + issues + (optional) Project board.
+# TheLook — one-shot GitHub setup: repo + labels + milestones + issues + (optional) Project board.
 #
 # PREREQS
 #   - gh CLI authed:            gh auth status
@@ -13,10 +13,10 @@
 #
 set -euo pipefail
 
-REPO="${REPO:-fitroom-youcam-vto}"
+REPO="${REPO:-TheLook}"
 VISIBILITY="${VISIBILITY:-private}"        # private | public
 OWNER="$(gh api user --jq .login)"
-PROJECT_TITLE="FitRoom VTO"
+PROJECT_TITLE="TheLook VTO"
 
 echo "==> Owner: $OWNER   Repo: $REPO   Visibility: $VISIBILITY"
 
@@ -25,7 +25,7 @@ if gh repo view "$OWNER/$REPO" >/dev/null 2>&1; then
   echo "==> Repo already exists, skipping create."
 else
   gh repo create "$OWNER/$REPO" --"$VISIBILITY" \
-    --description "FitRoom — YouCam API Skin AI & eCommerce VTO Hackathon (Perfect Corp, Devpost #31400)"
+    --description "TheLook — YouCam API Skin AI & eCommerce VTO Hackathon (Perfect Corp, Devpost #31400)"
 fi
 
 # 2) Labels --------------------------------------------------------------------

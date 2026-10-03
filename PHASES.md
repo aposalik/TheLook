@@ -1,4 +1,4 @@
-# FitRoom — Development Phases (v1, clothes-only)
+# TheLook — Development Phases (v1, clothes-only)
 
 Go phase by phase. Don't start a phase until the previous one's **Done bar** is met.
 Deadline: **2026-11-02**. Today: 2026-10-02 (~4 weeks). Credit budget: 1,000 (spend only where noted).

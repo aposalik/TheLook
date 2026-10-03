@@ -1,4 +1,4 @@
-# FitRoom — Tech Notes & Key Decisions
+# TheLook — Tech Notes & Key Decisions
 
 ## The real-time reality (the core constraint)
 Two try-on technologies, fundamentally different:
