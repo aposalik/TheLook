@@ -1,5 +1,26 @@
 // Server-side YouCam (Perfect Corp) Cloth-v4 client. Secret key stays here, never shipped to client.
+import sharp from "sharp";
+
 const BASE = "https://yce-api-01.makeupar.com";
+
+/**
+ * Re-encode any uploaded image to a clean JPEG that Cloth-v4 can decode.
+ * Browsers hand us whatever the user picked — HEIC (iPhone default), PNG, WebP,
+ * AVIF — and Cloth-v4 returns `error_decode_image` on formats it can't read.
+ * This normalizes to JPEG, applies EXIF orientation (fixes sideways phone photos),
+ * and caps very large images. Throws a friendly error if the bytes aren't an image.
+ */
+export async function toJpeg(bytes: Buffer): Promise<Buffer> {
+  try {
+    return await sharp(bytes)
+      .rotate()                                                        // apply EXIF orientation
+      .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 92 })
+      .toBuffer();
+  } catch {
+    throw new Error("Could not read that image. Please upload a JPG, PNG, or HEIC photo.");
+  }
+}
 
 function authHeaders() {
   const key = process.env.PERFECTCORP_KEY;
@@ -8,7 +29,7 @@ function authHeaders() {
 }
 
 /** Upload raw image bytes via the File API, return a file_id usable in a task. */
-export async function uploadFile(bytes: Buffer, fileName: string, contentType = "image/jpg"): Promise<string> {
+export async function uploadFile(bytes: Buffer, fileName: string, contentType = "image/jpeg"): Promise<string> {
   const init = await fetch(`${BASE}/s2s/v2.0/file`, {
     method: "POST",
     headers: { ...authHeaders(), "content-type": "application/json" },
