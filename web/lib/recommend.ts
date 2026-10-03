@@ -82,8 +82,7 @@ function buildReason(f: string, items: Item[], roles: string[]): string {
 }
 
 /** Best accessory for a look: the one with the highest mean compatibility to its pieces. */
-function bestAccessory(items: Item[], forceId?: string): Item | null {
-  if (forceId) return accessories.find((a) => a.id === forceId) ?? null;
+function bestAccessory(items: Item[]): Item | null {
   let best: Item | null = null, bestScore = -1;
   for (const acc of accessories) {
     const mean = items.reduce((s, it) => s + compat(it.id, acc.id), 0) / items.length;
@@ -92,24 +91,33 @@ function bestAccessory(items: Item[], forceId?: string): Item | null {
   return best;                                                  // low scores still show (styling suggestion)
 }
 
-/** Top-k distinct complete outfits, optionally forced to include an anchor item. */
-export function recommend(anchorId?: string, k = 3): Look[] {
-  // An accessory anchor can't be a core-outfit constraint (it's never in a combo),
-  // so we build the best looks and force that accessory into each as the enrichment.
-  const accessoryAnchor = anchorId && isAccessory(anchorId) ? anchorId : undefined;
-  const coreAnchor = anchorId && !accessoryAnchor ? anchorId : undefined;
+/**
+ * Top-k distinct complete outfits built around one OR MORE selected items.
+ * Accepts a single id (back-compat) or an array of selected ids. Non-accessory
+ * picks are locked into every suggestion; accessory picks are forced into the
+ * enrichment slot. If the picks can't all coexist (e.g. two bottoms), we fall
+ * back to suggestions that include as many of them as possible.
+ */
+export function recommend(anchors?: string | string[], k = 3): Look[] {
+  const anchorIds = (Array.isArray(anchors) ? anchors : anchors ? [anchors] : []).filter(Boolean);
+  const accessoryAnchors = anchorIds.filter(isAccessory);
+  const coreAnchors = anchorIds.filter((id) => !isAccessory(id));
+  const coreIncluded = (ids: string[]) => coreAnchors.filter((a) => ids.includes(a)).length;
 
-  const looks: Look[] = [];
+  const built: Look[] = [];
   for (const f of FORMULAS) {
     for (const combo of cartesian(f.slots.map((s) => s.pool))) {
       const ids = combo.map((c) => c.id);
       if (new Set(ids).size !== ids.length) continue;          // distinct pieces
-      if (coreAnchor && !ids.includes(coreAnchor)) continue;    // must include the picked item
       const roles = f.slots.map((s) => s.role);
       const { score, cohesion } = scoreOutfit(combo);
-      looks.push({ formula: f.name, items: combo, roles, score, cohesion, reason: buildReason(f.name, combo, roles) });
+      built.push({ formula: f.name, items: combo, roles, score, cohesion, reason: buildReason(f.name, combo, roles) });
     }
   }
+  // Prefer outfits that include ALL core picks; if none can (conflicting slots),
+  // relax to those including the most. With no picks, everything is eligible.
+  const maxInc = coreAnchors.length ? Math.max(0, ...built.map((L) => coreIncluded(L.items.map((i) => i.id)))) : 0;
+  const looks = (coreAnchors.length ? built.filter((L) => coreIncluded(L.items.map((i) => i.id)) === maxInc) : built);
   looks.sort((a, b) => b.score - a.score);
 
   // Selection. Two diversity rules:
@@ -138,12 +146,19 @@ export function recommend(anchorId?: string, k = 3): Look[] {
   }
   chosen.sort((a, b) => b.score - a.score);                        // display in score order
 
-  // enrich each look with one accessory card (can't be rendered, so it's appended
-  // after scoring and doesn't affect cohesion). If an accessory was the anchor, force it.
+  // enrich each look with accessory cards (can't be rendered, so appended after
+  // scoring; don't affect cohesion). Force every picked accessory; if none were
+  // picked, suggest the single best-matching one.
   if (accessories.length) {
     for (const L of chosen) {
-      const acc = bestAccessory(L.items, accessoryAnchor);
-      if (acc && !L.items.some((i) => i.id === acc.id)) { L.items.push(acc); L.roles.push("accessory"); }
+      for (const accId of accessoryAnchors) {
+        const acc = accessories.find((a) => a.id === accId);
+        if (acc && !L.items.some((i) => i.id === acc.id)) { L.items.push(acc); L.roles.push("accessory"); }
+      }
+      if (!L.items.some((i) => isAccessory(i.id))) {
+        const acc = bestAccessory(L.items);
+        if (acc) { L.items.push(acc); L.roles.push("accessory"); }
+      }
     }
   }
   return chosen;
