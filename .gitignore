@@ -1,0 +1,35 @@
+# ── secrets (NEVER commit) ───────────────────────────────
+.env.local
+.env*.local
+**/.env.local
+**/.env*.local
+
+# ── node / next ──────────────────────────────────────────
+node_modules/
+**/node_modules/
+.next/
+**/.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# ── python experiments ───────────────────────────────────
+_experiments/.venv/
+_experiments/.emb_cache/
+**/__pycache__/
+*.pyc
+# third-party clones used only by the offline pipeline (not vendored)
+_experiments/rembg
+_experiments/rembg/
+_experiments/style-recommender
+_experiments/style-recommender/
+
+# ── generated / cached / personal media (not source) ─────
+web/public/results/
+_experiments/testimg/
+_experiments/auto-outfit-test/.DS_Store
+
+# ── os / editor ──────────────────────────────────────────
+.DS_Store
+**/.DS_Store
+*.log

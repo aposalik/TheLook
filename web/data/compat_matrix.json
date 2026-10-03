@@ -1,0 +1,112 @@
+{
+  "bottom_baggy-jeans": {
+    "bottom_corduroy-gray": 0.1998,
+    "bottom_jeans-lightblue": 0.3217,
+    "bottom_trousers-brown": 0.2784,
+    "outerwear_cardigan-brown": 0.3468,
+    "top_polo-cream": 0.1603,
+    "top_shirt-blue": 0.4197,
+    "top_shirt-gray": 0.4087,
+    "top_sweater-navy": 0.3275,
+    "top_vest-brown": 0.3019
+  },
+  "bottom_corduroy-gray": {
+    "bottom_baggy-jeans": 0.1998,
+    "bottom_jeans-lightblue": 0.2885,
+    "bottom_trousers-brown": 0.2149,
+    "outerwear_cardigan-brown": 0.2227,
+    "top_polo-cream": 0.1261,
+    "top_shirt-blue": 0.3122,
+    "top_shirt-gray": 0.2662,
+    "top_sweater-navy": 0.2483,
+    "top_vest-brown": 0.1877
+  },
+  "bottom_jeans-lightblue": {
+    "bottom_baggy-jeans": 0.3217,
+    "bottom_corduroy-gray": 0.2885,
+    "bottom_trousers-brown": 0.4496,
+    "outerwear_cardigan-brown": 0.4832,
+    "top_polo-cream": 0.3929,
+    "top_shirt-blue": 0.5222,
+    "top_shirt-gray": 0.4287,
+    "top_sweater-navy": 0.4174,
+    "top_vest-brown": 0.4044
+  },
+  "bottom_trousers-brown": {
+    "bottom_baggy-jeans": 0.2784,
+    "bottom_corduroy-gray": 0.2149,
+    "bottom_jeans-lightblue": 0.4496,
+    "outerwear_cardigan-brown": 0.3742,
+    "top_polo-cream": 0.4423,
+    "top_shirt-blue": 0.523,
+    "top_shirt-gray": 0.429,
+    "top_sweater-navy": 0.4382,
+    "top_vest-brown": 0.4011
+  },
+  "outerwear_cardigan-brown": {
+    "bottom_baggy-jeans": 0.3468,
+    "bottom_corduroy-gray": 0.2227,
+    "bottom_jeans-lightblue": 0.4832,
+    "bottom_trousers-brown": 0.3742,
+    "top_polo-cream": 0.3469,
+    "top_shirt-blue": 0.446,
+    "top_shirt-gray": 0.3451,
+    "top_sweater-navy": 0.4323,
+    "top_vest-brown": 0.3823
+  },
+  "top_polo-cream": {
+    "bottom_baggy-jeans": 0.1603,
+    "bottom_corduroy-gray": 0.1261,
+    "bottom_jeans-lightblue": 0.3929,
+    "bottom_trousers-brown": 0.4423,
+    "outerwear_cardigan-brown": 0.3469,
+    "top_shirt-blue": 0.4232,
+    "top_shirt-gray": 0.3804,
+    "top_sweater-navy": 0.3429,
+    "top_vest-brown": 0.2988
+  },
+  "top_shirt-blue": {
+    "bottom_baggy-jeans": 0.4197,
+    "bottom_corduroy-gray": 0.3122,
+    "bottom_jeans-lightblue": 0.5222,
+    "bottom_trousers-brown": 0.523,
+    "outerwear_cardigan-brown": 0.446,
+    "top_polo-cream": 0.4232,
+    "top_shirt-gray": 0.5026,
+    "top_sweater-navy": 0.4589,
+    "top_vest-brown": 0.451
+  },
+  "top_shirt-gray": {
+    "bottom_baggy-jeans": 0.4087,
+    "bottom_corduroy-gray": 0.2662,
+    "bottom_jeans-lightblue": 0.4287,
+    "bottom_trousers-brown": 0.429,
+    "outerwear_cardigan-brown": 0.3451,
+    "top_polo-cream": 0.3804,
+    "top_shirt-blue": 0.5026,
+    "top_sweater-navy": 0.4062,
+    "top_vest-brown": 0.3825
+  },
+  "top_sweater-navy": {
+    "bottom_baggy-jeans": 0.3275,
+    "bottom_corduroy-gray": 0.2483,
+    "bottom_jeans-lightblue": 0.4174,
+    "bottom_trousers-brown": 0.4382,
+    "outerwear_cardigan-brown": 0.4323,
+    "top_polo-cream": 0.3429,
+    "top_shirt-blue": 0.4589,
+    "top_shirt-gray": 0.4062,
+    "top_vest-brown": 0.4833
+  },
+  "top_vest-brown": {
+    "bottom_baggy-jeans": 0.3019,
+    "bottom_corduroy-gray": 0.1877,
+    "bottom_jeans-lightblue": 0.4044,
+    "bottom_trousers-brown": 0.4011,
+    "outerwear_cardigan-brown": 0.3823,
+    "top_polo-cream": 0.2988,
+    "top_shirt-blue": 0.451,
+    "top_shirt-gray": 0.3825,
+    "top_sweater-navy": 0.4833
+  }
+}
