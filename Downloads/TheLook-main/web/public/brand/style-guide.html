@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TheLook — Brand Style Guide</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: #F7F5F0; color: #1A1A1A; line-height: 1.6; }
+  .page { max-width: 960px; margin: 0 auto; padding: 48px 32px; }
+  h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.8px; }
+  h2 { font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: #8A8480; margin-bottom: 20px; padding-bottom: 8px; border-bottom: 1px solid #E8E3DB; }
+  .section { margin-bottom: 56px; }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; }
+
+  /* COLORS */
+  .swatch { border-radius: 16px; overflow: hidden; width: 140px; }
+  .swatch-color { height: 80px; }
+  .swatch-info { background: white; padding: 10px 12px; border: 1px solid #E8E3DB; border-top: none; border-radius: 0 0 16px 16px; }
+  .swatch-name { font-size: 12px; font-weight: 600; }
+  .swatch-hex { font-size: 11px; color: #8A8480; font-family: monospace; }
+  .swatch-role { font-size: 10px; color: #8A8480; margin-top: 2px; }
+
+  /* TYPOGRAPHY */
+  .type-row { margin-bottom: 20px; padding: 20px 24px; background: white; border-radius: 16px; border: 1px solid #E8E3DB; }
+  .type-meta { font-size: 10px; font-family: monospace; color: #8A8480; margin-top: 4px; }
+
+  /* SPACING */
+  .spacing-row { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+  .spacing-item { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .spacing-block { background: #C4A882; border-radius: 4px; width: 100%; }
+  .spacing-label { font-size: 10px; font-family: monospace; color: #8A8480; }
+
+  /* BUTTONS */
+  .btn-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn { display: inline-flex; align-items: center; gap-8px; border: none; cursor: pointer; font-family: inherit; font-weight: 600; transition: all 0.15s; }
+  .btn-primary { background: #1A1A1A; color: white; padding: 10px 20px; border-radius: 12px; font-size: 14px; }
+  .btn-secondary { background: white; color: #1A1A1A; padding: 10px 20px; border-radius: 12px; font-size: 14px; border: 1px solid #E8E3DB; }
+  .btn-sand { background: #EDE5D8; color: #1A1A1A; padding: 10px 20px; border-radius: 12px; font-size: 14px; }
+  .btn-ghost { background: transparent; color: #8A8480; padding: 10px 20px; border-radius: 12px; font-size: 14px; border: 1px solid #E8E3DB; }
+  .btn-sm { padding: 6px 12px; border-radius: 10px; font-size: 12px; }
+  .btn-lg { padding: 14px 28px; border-radius: 16px; font-size: 16px; }
+  .btn-spec { font-size: 10px; font-family: monospace; color: #8A8480; margin-top: 4px; text-align: center; }
+
+  /* LOGO */
+  .logo-row { display: flex; flex-wrap: wrap; gap: 24px; }
+  .logo-card { padding: 32px; border-radius: 16px; border: 1px solid #E8E3DB; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .logo-card.dark { background: #1A1A1A; border-color: #333; }
+  .logo-card.light { background: #F7F5F0; }
+  .logo-card.white { background: #FFFFFF; }
+  .logo-label { font-size: 10px; font-family: monospace; color: #8A8480; }
+  .logo-card.dark .logo-label { color: #666; }
+
+  /* RADIUS */
+  .radius-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+  .radius-item { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .radius-box { width: 64px; height: 64px; background: #EDE5D8; border: 2px solid #C4A882; }
+
+  /* SHADOWS */
+  .shadow-row { display: flex; gap: 20px; flex-wrap: wrap; }
+  .shadow-card { width: 120px; height: 80px; background: white; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #8A8480; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:48px;">
+    <div>
+      <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="40" height="40" rx="10" fill="#1A1A1A"/>
+          <path d="M20 8 C20 8 20 6 22 6 C24 6 24 8 24 9.5" stroke="#C4A882" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+          <path d="M24 9.5 C26 11 30 15 31 17 C31.5 18 31 19 30 19 L10 19 C9 19 8.5 18 9 17 C10 15 14 11 16 9.5 C17.5 8.5 18.5 8 20 8" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <line x1="10" y1="19" x2="30" y2="19" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round"/>
+          <path d="M29 11 L29.5 12.5 L31 13 L29.5 13.5 L29 15 L28.5 13.5 L27 13 L28.5 12.5 Z" fill="#C4A882"/>
+        </svg>
+        <h1>TheLook</h1>
+      </div>
+      <p style="color:#8A8480; font-size:14px;">Brand Style Guide · v1.0 · UI-D2</p>
+    </div>
+    <div style="text-align:right; font-size:12px; color:#8A8480; font-family:monospace;">
+      Premium Neutral<br/>Earthy Capsule Vibe
+    </div>
+  </div>
+
+  <!-- COLORS -->
+  <div class="section">
+    <h2>Color Palette</h2>
+    <div class="row">
+      <div class="swatch">
+        <div class="swatch-color" style="background:#1A1A1A;"></div>
+        <div class="swatch-info"><div class="swatch-name">Ink</div><div class="swatch-hex">#1A1A1A</div><div class="swatch-role">Primary text, buttons, marks</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#F7F5F0;"></div>
+        <div class="swatch-info"><div class="swatch-name">Parchment</div><div class="swatch-hex">#F7F5F0</div><div class="swatch-role">App background</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#FFFFFF; border:1px solid #E8E3DB;"></div>
+        <div class="swatch-info"><div class="swatch-name">White</div><div class="swatch-hex">#FFFFFF</div><div class="swatch-role">Card / surface</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#C4A882;"></div>
+        <div class="swatch-info"><div class="swatch-name">Sand</div><div class="swatch-hex">#C4A882</div><div class="swatch-role">Accent, highlights, sparkle</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#EDE5D8;"></div>
+        <div class="swatch-info"><div class="swatch-name">Sand Light</div><div class="swatch-hex">#EDE5D8</div><div class="swatch-role">Badges, hover fills, tags</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#E8E3DB;"></div>
+        <div class="swatch-info"><div class="swatch-name">Border</div><div class="swatch-hex">#E8E3DB</div><div class="swatch-role">All borders, dividers</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#8A8480;"></div>
+        <div class="swatch-info"><div class="swatch-name">Muted</div><div class="swatch-hex">#8A8480</div><div class="swatch-role">Secondary text, labels</div></div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-color" style="background:#EF4444;"></div>
+        <div class="swatch-info"><div class="swatch-name">Error</div><div class="swatch-hex">#EF4444</div><div class="swatch-role">Error states only</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TYPOGRAPHY -->
+  <div class="section">
+    <h2>Typography — Geist (Google Fonts fallback: Inter)</h2>
+    <div class="type-row">
+      <div style="font-size:32px; font-weight:700; letter-spacing:-1px;">Fitting Room</div>
+      <div class="type-meta">Display · 32px · weight 700 · tracking -1px · use: page titles</div>
+    </div>
+    <div class="type-row">
+      <div style="font-size:20px; font-weight:600; letter-spacing:-0.5px;">Catalog Collection</div>
+      <div class="type-meta">Heading · 20px · weight 600 · tracking -0.5px · use: section headers</div>
+    </div>
+    <div class="type-row">
+      <div style="font-size:16px; font-weight:600;">You Are Wearing</div>
+      <div class="type-meta">Subheading · 16px · weight 600 · use: panel headers</div>
+    </div>
+    <div class="type-row">
+      <div style="font-size:14px; font-weight:400;">Pick garments to build or anchor your outfit</div>
+      <div class="type-meta">Body · 14px · weight 400 · use: descriptions, body copy</div>
+    </div>
+    <div class="type-row">
+      <div style="font-size:12px; font-weight:500; color:#8A8480;">Polo Cream · neutral · F2</div>
+      <div class="type-meta">Caption · 12px · weight 500 · color Muted · use: labels, metadata</div>
+    </div>
+    <div class="type-row">
+      <div style="font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; color:#8A8480;">TOP · BOTTOM · OUTERWEAR</div>
+      <div class="type-meta">Micro label · 10px · weight 700 · uppercase · tracking 0.1em · use: slot badges</div>
+    </div>
+  </div>
+
+  <!-- SPACING -->
+  <div class="section">
+    <h2>Spacing Scale (base 4px)</h2>
+    <div class="spacing-row">
+      <div class="spacing-item"><div class="spacing-block" style="height:4px; width:24px;"></div><div class="spacing-label">4px</div></div>
+      <div class="spacing-item"><div class="spacing-block" style="height:8px; width:32px;"></div><div class="spacing-label">8px</div></div>
+      <div class="spacing-item"><div class="spacing-block" style="height:12px; width:40px;"></div><div class="spacing-label">12px</div></div>
+      <div class="spacing-item"><div class="spacing-block" style="height:16px; width:48px;"></div><div class="spacing-label">16px</div></div>
+      <div class="spacing-item"><div class="spacing-block" style="height:20px; width:56px;"></div><div class="spacing-label">20px</div></div>
+      <div class="spacing-item"><div class="spacing-block" style="height:24px; width:64px;"></div><div class="spacing-label">24px</div></div>
+      <div class="spacing-item"><div class="spacing-block" style="height:32px; width:72px;"></div><div class="spacing-label">32px</div></div>
+      <div class="spacing-item"><div class="spacing-block" style="height:40px; width:80px;"></div><div class="spacing-label">40px</div></div>
+      <div class="spacing-item"><div class="spacing-block" style="height:48px; width:88px;"></div><div class="spacing-label">48px</div></div>
+    </div>
+    <p style="font-size:11px; color:#8A8480; margin-top:16px; font-family:monospace;">Card padding: 24px · Section gap: 24px · Page padding: 32px · Max width: 1440px</p>
+  </div>
+
+  <!-- BORDER RADIUS -->
+  <div class="section">
+    <h2>Border Radius</h2>
+    <div class="radius-row">
+      <div class="radius-item"><div class="radius-box" style="border-radius:4px;"></div><div class="spacing-label">4px · badges</div></div>
+      <div class="radius-item"><div class="radius-box" style="border-radius:8px;"></div><div class="spacing-label">8px · tags</div></div>
+      <div class="radius-item"><div class="radius-box" style="border-radius:12px;"></div><div class="spacing-label">12px · buttons</div></div>
+      <div class="radius-item"><div class="radius-box" style="border-radius:16px;"></div><div class="spacing-label">16px · inputs</div></div>
+      <div class="radius-item"><div class="radius-box" style="border-radius:20px;"></div><div class="spacing-label">20px · cards</div></div>
+      <div class="radius-item"><div class="radius-box" style="border-radius:24px;"></div><div class="spacing-label">24px · panels</div></div>
+      <div class="radius-item"><div class="radius-box" style="border-radius:9999px; width:80px; height:32px;"></div><div class="spacing-label">9999px · pills</div></div>
+    </div>
+  </div>
+
+  <!-- BUTTONS -->
+  <div class="section">
+    <h2>Button Styles</h2>
+    <div style="display:flex; flex-direction:column; gap:24px;">
+      <div>
+        <p style="font-size:11px; color:#8A8480; margin-bottom:12px; font-family:monospace;">Primary — bg #1A1A1A · text white · radius 12px</p>
+        <div class="btn-row">
+          <div><button class="btn btn-primary btn-sm">Small</button><div class="btn-spec">10px 12px · r10 · 12px</div></div>
+          <div><button class="btn btn-primary">Default</button><div class="btn-spec">10px 20px · r12 · 14px</div></div>
+          <div><button class="btn btn-primary btn-lg">Large</button><div class="btn-spec">14px 28px · r16 · 16px</div></div>
+          <div><button class="btn btn-primary" style="opacity:0.4;" disabled>Disabled</button><div class="btn-spec">opacity 40%</div></div>
+        </div>
+      </div>
+      <div>
+        <p style="font-size:11px; color:#8A8480; margin-bottom:12px; font-family:monospace;">Secondary — bg white · border #E8E3DB · hover border #C4A882</p>
+        <div class="btn-row">
+          <div><button class="btn btn-secondary btn-sm">Small</button></div>
+          <div><button class="btn btn-secondary">Default</button></div>
+          <div><button class="btn btn-secondary btn-lg">Large</button></div>
+        </div>
+      </div>
+      <div>
+        <p style="font-size:11px; color:#8A8480; margin-bottom:12px; font-family:monospace;">Sand — bg #EDE5D8 · text #1A1A1A · use: generate / secondary actions</p>
+        <div class="btn-row">
+          <div><button class="btn btn-sand btn-sm">Generate</button></div>
+          <div><button class="btn btn-sand">Generate Outfit</button></div>
+        </div>
+      </div>
+      <div>
+        <p style="font-size:11px; color:#8A8480; margin-bottom:12px; font-family:monospace;">Ghost — transparent · border #E8E3DB · text Muted · use: tertiary</p>
+        <div class="btn-row">
+          <div><button class="btn btn-ghost btn-sm">Cancel</button></div>
+          <div><button class="btn btn-ghost">Clear Bag</button></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SHADOWS -->
+  <div class="section">
+    <h2>Elevation / Shadows</h2>
+    <div class="shadow-row">
+      <div><div class="shadow-card" style="box-shadow:none; border:1px solid #E8E3DB;">Flat</div><div class="btn-spec">border only</div></div>
+      <div><div class="shadow-card" style="box-shadow:0 1px 3px rgba(0,0,0,0.06);">sm</div><div class="btn-spec">0 1px 3px / 6%</div></div>
+      <div><div class="shadow-card" style="box-shadow:0 4px 12px rgba(0,0,0,0.08);">md</div><div class="btn-spec">0 4px 12px / 8%</div></div>
+      <div><div class="shadow-card" style="box-shadow:0 8px 24px rgba(0,0,0,0.10);">lg</div><div class="btn-spec">0 8px 24px / 10%</div></div>
+      <div><div class="shadow-card" style="box-shadow:0 16px 48px rgba(0,0,0,0.14);">xl</div><div class="btn-spec">0 16px 48px / 14%</div></div>
+    </div>
+  </div>
+
+  <!-- LOGO -->
+  <div class="section">
+    <h2>Logo Usage</h2>
+    <div class="logo-row">
+      <div class="logo-card white">
+        <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="10" fill="#1A1A1A"/><path d="M20 8 C20 8 20 6 22 6 C24 6 24 8 24 9.5" stroke="#C4A882" stroke-width="1.6" stroke-linecap="round" fill="none"/><path d="M24 9.5 C26 11 30 15 31 17 C31.5 18 31 19 30 19 L10 19 C9 19 8.5 18 9 17 C10 15 14 11 16 9.5 C17.5 8.5 18.5 8 20 8" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><line x1="10" y1="19" x2="30" y2="19" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round"/><path d="M29 11 L29.5 12.5 L31 13 L29.5 13.5 L29 15 L28.5 13.5 L27 13 L28.5 12.5 Z" fill="#C4A882"/></svg>
+        <div class="logo-label">Mark · on white</div>
+      </div>
+      <div class="logo-card light">
+        <svg width="180" height="40" viewBox="0 0 180 40" fill="none"><rect width="40" height="40" rx="10" fill="#1A1A1A"/><path d="M20 8 C20 8 20 6 22 6 C24 6 24 8 24 9.5" stroke="#C4A882" stroke-width="1.6" stroke-linecap="round" fill="none"/><path d="M24 9.5 C26 11 30 15 31 17 C31.5 18 31 19 30 19 L10 19 C9 19 8.5 18 9 17 C10 15 14 11 16 9.5 C17.5 8.5 18.5 8 20 8" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><line x1="10" y1="19" x2="30" y2="19" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round"/><path d="M29 11 L29.5 12.5 L31 13 L29.5 13.5 L29 15 L28.5 13.5 L27 13 L28.5 12.5 Z" fill="#C4A882"/><text x="52" y="27" font-family="Inter,system-ui,sans-serif" font-size="18" font-weight="300" letter-spacing="-0.3" fill="#1A1A1A">The</text><text x="80" y="27" font-family="Inter,system-ui,sans-serif" font-size="18" font-weight="600" letter-spacing="-0.5" fill="#1A1A1A">Look</text></svg>
+        <div class="logo-label">Wordmark · on parchment</div>
+      </div>
+      <div class="logo-card dark">
+        <svg width="180" height="40" viewBox="0 0 180 40" fill="none"><rect width="40" height="40" rx="10" fill="#FFFFFF"/><path d="M20 8 C20 8 20 6 22 6 C24 6 24 8 24 9.5" stroke="#C4A882" stroke-width="1.6" stroke-linecap="round" fill="none"/><path d="M24 9.5 C26 11 30 15 31 17 C31.5 18 31 19 30 19 L10 19 C9 19 8.5 18 9 17 C10 15 14 11 16 9.5 C17.5 8.5 18.5 8 20 8" stroke="#1A1A1A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><line x1="10" y1="19" x2="30" y2="19" stroke="#1A1A1A" stroke-width="1.6" stroke-linecap="round"/><path d="M29 11 L29.5 12.5 L31 13 L29.5 13.5 L29 15 L28.5 13.5 L27 13 L28.5 12.5 Z" fill="#C4A882"/><text x="52" y="27" font-family="Inter,system-ui,sans-serif" font-size="18" font-weight="300" letter-spacing="-0.3" fill="#FFFFFF">The</text><text x="80" y="27" font-family="Inter,system-ui,sans-serif" font-size="18" font-weight="600" letter-spacing="-0.5" fill="#FFFFFF">Look</text></svg>
+        <div class="logo-label">Wordmark · on dark</div>
+      </div>
+    </div>
+    <div style="margin-top:20px; padding:16px 20px; background:white; border-radius:12px; border:1px solid #E8E3DB;">
+      <p style="font-size:12px; color:#8A8480; font-family:monospace; line-height:1.8;">
+        ✓ Always maintain clear space = 1× mark height on all sides<br/>
+        ✓ Minimum mark size: 24×24px · Minimum wordmark width: 120px<br/>
+        ✗ Do not recolor the sand accent (#C4A882)<br/>
+        ✗ Do not stretch or rotate the mark<br/>
+        ✗ Do not place on busy backgrounds without a backdrop
+      </p>
+    </div>
+  </div>
+
+  <!-- FOOTER -->
+  <div style="border-top:1px solid #E8E3DB; padding-top:24px; display:flex; justify-content:space-between; font-size:11px; color:#8A8480; font-family:monospace;">
+    <span>TheLook · Brand Style Guide · UI-D2</span>
+    <span>owner: @MFahadFaisal · review: @aposalik</span>
+  </div>
+
+</div>
+</body>
+</html>
