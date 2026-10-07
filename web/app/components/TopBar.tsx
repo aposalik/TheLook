@@ -1,6 +1,6 @@
 "use client";
-type Props = { cartCount: number; onBagClick: () => void };
-export default function TopBar({ cartCount, onBagClick }: Props) {
+type Props = { cartCount: number; onBagClick: () => void; savedCount: number; onLookbookClick: () => void };
+export default function TopBar({ cartCount, onBagClick, savedCount, onLookbookClick }: Props) {
   return (
     <header className="sticky top-0 z-40 border-b border-[#E8E3DB] bg-[#F7F5F0]/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between px-8 py-4">
@@ -19,6 +19,13 @@ export default function TopBar({ cartCount, onBagClick }: Props) {
           <span className="hidden sm:flex items-center gap-1.5 rounded-full border border-[#E8E3DB] bg-white px-3 py-1.5 text-xs text-[#8A8480]">
             <span className="h-1.5 w-1.5 rounded-full bg-[#C4A882]" />Mock Mode
           </span>
+          <button onClick={onLookbookClick} className="relative flex items-center gap-2 rounded-xl border border-[#E8E3DB] bg-white px-4 py-2 text-sm font-medium text-[#1A1A1A] shadow-sm transition hover:border-[#C4A882] active:scale-95">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+            </svg>
+            Looks
+            {savedCount > 0 && <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#1A1A1A] text-[11px] font-bold text-white">{savedCount}</span>}
+          </button>
           <button onClick={onBagClick} className="relative flex items-center gap-2 rounded-xl border border-[#E8E3DB] bg-white px-4 py-2 text-sm font-medium text-[#1A1A1A] shadow-sm transition hover:border-[#C4A882] active:scale-95">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />

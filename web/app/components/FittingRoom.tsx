@@ -5,11 +5,14 @@ import AvatarStage from "./AvatarStage";
 import WearingPanel from "./WearingPanel";
 import CatalogPanel from "./CatalogPanel";
 import BagDrawer from "./BagDrawer";
+import Lookbook, { type SavedLook } from "./Lookbook";
+import LookDetail, { type DetailLook } from "./LookDetail";
 
 import type { Item } from "@/lib/recommend";
 type Look = { formula: string; items: Item[]; roles: string[]; score: number; cohesion: number; reason: string };
 type Avatar = { id: string; url: string };
 const AV_KEY = "thelook_avatars";
+const LOOKS_KEY = "thelook_looks";
 
 /** Downscale an uploaded image so localStorage stays small and uploads are fast. */
 function downscale(file: File, max = 900): Promise<string> {
@@ -49,6 +52,10 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const [cart, setCart] = useState<Item[]>([]);
   const [toast, setToast] = useState<string | null>(null);
 
+  const [savedLooks, setSavedLooks] = useState<SavedLook[]>([]);
+  const [lookbookOpen, setLookbookOpen] = useState(false);
+  const [detailLook, setDetailLook] = useState<DetailLook | null>(null);
+
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
@@ -60,6 +67,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       const saved = JSON.parse(localStorage.getItem(AV_KEY) || "[]") as Avatar[];
       setAvatars(saved);
       if (saved[0]) { setActiveAvatarId(saved[0].id); setCustomPhoto(saved[0].url); }
+      setSavedLooks(JSON.parse(localStorage.getItem(LOOKS_KEY) || "[]") as SavedLook[]);
     } catch { /* ignore */ }
   }, []);
 
@@ -204,9 +212,35 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     });
   }
 
+  // ---- lookbook: save/review outfits, persisted ----
+  function persistLooks(next: SavedLook[]) {
+    setSavedLooks(next);
+    localStorage.setItem(LOOKS_KEY, JSON.stringify(next));
+  }
+  const lookItems = () => (equipped.length ? equipped : currentLook?.items ?? []);
+
+  function saveLook() {
+    const image = tryOnResult ?? mockPreview?.garment;
+    const items = lookItems();
+    if (!image || !items.length) { showToast("Render a look first"); return; }
+    persistLooks([{ id: crypto.randomUUID(), image, items, createdAt: Date.now() }, ...savedLooks]);
+    showToast("Saved to your lookbook");
+  }
+  function removeLook(id: string) { persistLooks(savedLooks.filter((l) => l.id !== id)); }
+  function openCurrentLook() {
+    const image = tryOnResult ?? mockPreview?.garment;
+    if (!image) return;
+    setDetailLook({ image, items: lookItems(), label: "Your Look" });
+  }
+  function cycleAvatar(dir: 1 | -1) {
+    if (avatars.length < 2) return;
+    const i = avatars.findIndex((a) => a.id === activeAvatarId);
+    selectAvatar(avatars[(i + dir + avatars.length) % avatars.length]!.id);
+  }
+
   return (
     <div className="min-h-screen bg-[#F7F5F0] text-[#1A1A1A] antialiased">
-      <TopBar cartCount={cart.length} onBagClick={() => setBagOpen(true)} />
+      <TopBar cartCount={cart.length} onBagClick={() => setBagOpen(true)} savedCount={savedLooks.length} onLookbookClick={() => setLookbookOpen(true)} />
       <main className="mx-auto max-w-[1440px] px-6 py-6 space-y-6">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
           <AvatarStage
@@ -222,6 +256,10 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
             onRemoveAvatar={removeAvatar}
             onPhotoUpload={handlePhotoUpload}
             onTryOn={runTryOn}
+            onPrevAvatar={() => cycleAvatar(-1)}
+            onNextAvatar={() => cycleAvatar(1)}
+            onSaveLook={saveLook}
+            onOpenLook={openCurrentLook}
           />
           <WearingPanel
             equipped={equipped}
@@ -247,6 +285,14 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         onRemove={removeFromBag}
         onClear={() => setCart([])}
       />
+      <Lookbook
+        open={lookbookOpen}
+        looks={savedLooks}
+        onClose={() => setLookbookOpen(false)}
+        onOpen={(l) => { setLookbookOpen(false); setDetailLook({ image: l.image, items: l.items, label: "Saved Look" }); }}
+        onRemove={removeLook}
+      />
+      {detailLook && <LookDetail look={detailLook} onClose={() => setDetailLook(null)} />}
       {toast && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-2xl bg-[#1A1A1A] px-4 py-3 text-sm text-white shadow-xl">
           <span className="h-1.5 w-1.5 rounded-full bg-[#C4A882]" />

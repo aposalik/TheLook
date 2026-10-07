@@ -10,85 +10,87 @@ type Props = {
   onSelectAvatar: (id: string) => void; onRemoveAvatar: (id: string) => void;
   onPhotoUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onTryOn: () => void;
+  onPrevAvatar: () => void; onNextAvatar: () => void;
+  onSaveLook: () => void; onOpenLook: () => void;
 };
 
 export default function AvatarStage({
   activeItem, customPhoto, tryOnResult, mockPreview, isLoading, error,
   avatars, activeAvatarId, onSelectAvatar, onRemoveAvatar, onPhotoUpload, onTryOn,
+  onPrevAvatar, onNextAvatar, onSaveLook, onOpenLook,
 }: Props) {
+  const resultImg = tryOnResult ?? mockPreview?.garment ?? null; // a rendered look (clickable + savable)
+  const previewImg = resultImg ?? customPhoto;                   // what fills the 9:16 stage
+  const canSwitch = avatars.length > 1;
+
   return (
     <section className="flex flex-col rounded-3xl border border-[#E8E3DB] bg-white shadow-sm overflow-hidden">
       <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E3DB]">
         <div>
-          <h2 className="text-base font-semibold text-[#1A1A1A]">Avatar & Preview</h2>
-          <p className="text-xs text-[#8A8480] mt-0.5">Upload your photos — saved here and switchable anytime</p>
+          <h2 className="text-base font-semibold text-[#1A1A1A]">Avatar &amp; Preview</h2>
+          <p className="text-xs text-[#8A8480] mt-0.5">Upload 9:16 photos — saved &amp; switchable</p>
         </div>
         <label className="cursor-pointer rounded-lg bg-[#1A1A1A] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#333]">
           + Upload photo<input type="file" accept="image/*" onChange={onPhotoUpload} className="hidden" />
         </label>
       </div>
 
-      {/* saved avatars strip (switchable) */}
+      {/* 9:16 portrait stage */}
+      <div className="relative mx-auto my-4 w-full max-w-[360px] px-4">
+        <div className="relative overflow-hidden rounded-2xl border border-[#E8E3DB] bg-[#F7F5F0]" style={{ aspectRatio: "9 / 16" }}>
+          {isLoading ? (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-center p-6">
+              <div className="relative h-16 w-16">
+                <div className="absolute inset-0 rounded-full border-4 border-[#EDE5D8]" />
+                <div className="absolute inset-0 rounded-full border-4 border-[#C4A882] border-t-transparent animate-spin" />
+              </div>
+              <p className="text-sm font-semibold text-[#1A1A1A]">Generating Try-On…</p>
+              <p className="text-xs text-[#8A8480]">YouCam Cloth-v4</p>
+            </div>
+          ) : resultImg ? (
+            <button onClick={onOpenLook} className="group absolute inset-0 h-full w-full" title="See the pieces in this look">
+              <img src={resultImg} alt="Try-on result" className="h-full w-full object-cover" />
+              <span className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-3 py-1 text-[11px] text-white opacity-0 transition group-hover:opacity-100">Tap to see the pieces</span>
+              {mockPreview && <span className="absolute left-3 top-3 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white">Mock</span>}
+            </button>
+          ) : previewImg ? (
+            <img src={previewImg} alt="Your avatar" className="absolute inset-0 h-full w-full object-cover" />
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center p-8">
+              <div className="h-16 w-16 rounded-2xl bg-[#EDE5D8] flex items-center justify-center">
+                <svg className="h-8 w-8 text-[#C4A882]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
+              </div>
+              <p className="text-sm font-semibold text-[#1A1A1A]">No avatar yet</p>
+              <p className="text-xs text-[#8A8480] max-w-[200px]">Upload a full-body 9:16 photo to start.</p>
+            </div>
+          )}
+
+          {/* carousel arrows (switch avatars) */}
+          {canSwitch && !isLoading && (
+            <>
+              <button onClick={onPrevAvatar} aria-label="Previous avatar" className="absolute left-2 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-[#1A1A1A] shadow hover:bg-white">‹</button>
+              <button onClick={onNextAvatar} aria-label="Next avatar" className="absolute right-2 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-[#1A1A1A] shadow hover:bg-white">›</button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* saved avatars strip */}
       {avatars.length > 0 && (
-        <div className="flex flex-wrap gap-2 px-6 pt-4">
+        <div className="flex flex-wrap justify-center gap-2 px-6">
           {avatars.map((av) => (
             <div key={av.id} className="relative">
-              <button
-                onClick={() => onSelectAvatar(av.id)}
-                className={`block h-14 w-14 overflow-hidden rounded-xl border transition ${av.id === activeAvatarId ? "border-[#1A1A1A] ring-2 ring-[#C4A882]" : "border-[#E8E3DB] hover:border-[#C4A882]"}`}
-              >
+              <button onClick={() => onSelectAvatar(av.id)} className={`block h-12 w-12 overflow-hidden rounded-lg border transition ${av.id === activeAvatarId ? "border-[#1A1A1A] ring-2 ring-[#C4A882]" : "border-[#E8E3DB] hover:border-[#C4A882]"}`}>
                 <img src={av.url} alt="avatar" className="h-full w-full object-cover" />
               </button>
-              <button
-                onClick={() => onRemoveAvatar(av.id)}
-                aria-label="Remove avatar"
-                className="absolute -right-1.5 -top-1.5 h-5 w-5 rounded-full bg-[#1A1A1A] text-[11px] leading-5 text-white"
-              >×</button>
+              <button onClick={() => onRemoveAvatar(av.id)} aria-label="Remove avatar" className="absolute -right-1.5 -top-1.5 h-5 w-5 rounded-full bg-[#1A1A1A] text-[11px] leading-5 text-white">×</button>
             </div>
           ))}
         </div>
       )}
 
-      <div className="relative mx-6 my-4 flex flex-1 min-h-[420px] items-center justify-center rounded-2xl border border-dashed border-[#E8E3DB] bg-[#F7F5F0]/60">
-        {isLoading ? (
-          <div className="flex flex-col items-center gap-4 text-center p-8">
-            <div className="relative h-16 w-16">
-              <div className="absolute inset-0 rounded-full border-4 border-[#EDE5D8]" />
-              <div className="absolute inset-0 rounded-full border-4 border-[#C4A882] border-t-transparent animate-spin" />
-            </div>
-            <p className="text-sm font-semibold text-[#1A1A1A]">Generating Try-On…</p>
-            <p className="text-xs text-[#8A8480]">Rendering apparel via YouCam Cloth-v4</p>
-          </div>
-        ) : mockPreview ? (
-          <div className="flex flex-col items-center p-4 gap-3">
-            <img src={mockPreview.garment} alt={mockPreview.title} className="max-h-[360px] w-full object-contain rounded-lg" />
-            <div className="flex items-center gap-2 rounded-full border border-[#EDE5D8] bg-[#F7F5F0] px-4 py-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#C4A882]" />
-              <span className="text-[11px] text-[#8A8480]">Mock mode — real render needs a live API key</span>
-            </div>
-          </div>
-        ) : tryOnResult ? (
-          <div className="flex flex-col items-center p-4">
-            <img src={tryOnResult} alt="Try-on result" className="max-h-[400px] rounded-xl object-contain shadow-md" />
-          </div>
-        ) : customPhoto ? (
-          <div className="flex flex-col items-center p-4">
-            <img src={customPhoto} alt="Your avatar" className="max-h-[400px] rounded-xl object-contain shadow-sm" />
-            <span className="mt-3 rounded-full bg-[#EDE5D8] px-3 py-1 text-[11px] font-medium text-[#8A8480]">Build a look below, then press Show on me</span>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3 text-center p-8">
-            <div className="h-16 w-16 rounded-2xl bg-[#EDE5D8] flex items-center justify-center">
-              <svg className="h-8 w-8 text-[#C4A882]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>
-            </div>
-            <p className="text-sm font-semibold text-[#1A1A1A]">No avatar yet</p>
-            <p className="text-xs text-[#8A8480] max-w-[220px]">Upload a full-body photo to start — it&apos;s saved so you can switch between looks.</p>
-          </div>
-        )}
-      </div>
-
-      <div className="flex items-center justify-between px-6 pb-5 pt-3 border-t border-[#E8E3DB]">
-        <p className="text-xs text-[#8A8480]">Anchor: <span className="font-medium text-[#1A1A1A]">{activeItem?.title ?? "None selected"}</span></p>
+      <div className="mt-4 flex items-center justify-between gap-3 px-6 pb-5 pt-3 border-t border-[#E8E3DB]">
+        <button onClick={onSaveLook} disabled={!resultImg} title={resultImg ? "Save to your lookbook" : "Render a look first"} className="rounded-xl border border-[#E8E3DB] bg-white px-4 py-2.5 text-sm font-medium text-[#1A1A1A] transition hover:border-[#C4A882] active:scale-95 disabled:opacity-40">Save look</button>
         <button onClick={onTryOn} disabled={isLoading || !customPhoto} className="flex items-center gap-2 rounded-xl bg-[#1A1A1A] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#333] active:scale-95 disabled:opacity-40">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
