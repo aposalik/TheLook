@@ -1,6 +1,6 @@
 import { getCatalog } from "@/lib/recommend";
-import CompleteLook from "./components/CompleteLook";
+import FittingRoom from "./components/FittingRoom";
 
 export default function Home() {
-  return <CompleteLook catalog={getCatalog()} />;
+  return <FittingRoom catalog={getCatalog()} />;
 }

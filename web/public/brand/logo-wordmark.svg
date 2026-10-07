@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 40" fill="none" width="180" height="40">
+  <!-- Mark: rounded square -->
+  <rect width="40" height="40" rx="10" fill="#1A1A1A"/>
+  <!-- Hanger hook -->
+  <path d="M20 8 C20 8 20 6 22 6 C24 6 24 8 24 9.5" stroke="#C4A882" stroke-width="1.6" stroke-linecap="round" fill="none"/>
+  <!-- Hanger body -->
+  <path d="M24 9.5 C26 11 30 15 31 17 C31.5 18 31 19 30 19 L10 19 C9 19 8.5 18 9 17 C10 15 14 11 16 9.5 C17.5 8.5 18.5 8 20 8" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <!-- Hanger bar -->
+  <line x1="10" y1="19" x2="30" y2="19" stroke="#FFFFFF" stroke-width="1.6" stroke-linecap="round"/>
+  <!-- Sparkle -->
+  <path d="M29 11 L29.5 12.5 L31 13 L29.5 13.5 L29 15 L28.5 13.5 L27 13 L28.5 12.5 Z" fill="#C4A882"/>
+
+  <!-- Wordmark: "The" light + "Look" semibold -->
+  <text x="52" y="27" font-family="'Geist', 'Inter', system-ui, sans-serif" font-size="18" font-weight="300" letter-spacing="-0.3" fill="#1A1A1A">The</text>
+  <text x="80" y="27" font-family="'Geist', 'Inter', system-ui, sans-serif" font-size="18" font-weight="600" letter-spacing="-0.5" fill="#1A1A1A">Look</text>
+</svg>
