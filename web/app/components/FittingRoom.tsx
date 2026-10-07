@@ -43,6 +43,9 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const [isTryOnLoading, setIsTryOnLoading] = useState(false);
   const [tryOnError, setTryOnError] = useState<string | null>(null);
 
+  const [model3dUrl, setModel3dUrl] = useState<string | null>(null);
+  const [is3dLoading, setIs3dLoading] = useState(false);
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [bagOpen, setBagOpen] = useState(false);
@@ -84,7 +87,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     const av = avatars.find((a) => a.id === id);
     if (!av) return;
     setActiveAvatarId(id); setCustomPhoto(av.url);
-    setTryOnResult(null); setMockPreview(null);
+    setTryOnResult(null); setMockPreview(null); setModel3dUrl(null);
   }
 
   function removeAvatar(id: string) {
@@ -102,6 +105,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setActiveItem(item);
     setTryOnResult(null);
     setMockPreview(null);
+    setModel3dUrl(null);
     setEquipped((prev) => {
       const exists = prev.some((i) => i.id === item.id);
       if (exists) return prev.filter((i) => i.id !== item.id);
@@ -187,7 +191,31 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     if (!customPhoto) { showToast("Upload your photo first"); return; }
     const items = equipped.length ? equipped : currentLook?.items ?? [];
     if (!items.length) { showToast("Build or generate a look first"); return; }
+    setModel3dUrl(null);
     await renderLook(customPhoto, items);
+  }
+
+  // "See as 3D": reconstruct a 3D model from whatever is currently shown
+  // (the try-on render, mock preview, or the avatar photo) via /api/to3d.
+  async function seeAs3D() {
+    const img = tryOnResult ?? mockPreview?.garment ?? customPhoto;
+    if (!img) { showToast("Render a look or upload a photo first"); return; }
+    setIs3dLoading(true);
+    try {
+      const res = await fetch("/api/to3d", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl: img }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setModel3dUrl(data.modelUrl);
+      showToast(data.mock ? "3D preview (sample model — add a Meshy key for the real you)" : "3D model ready");
+    } catch (e) {
+      showToast(`3D failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setIs3dLoading(false);
+    }
   }
 
   function addToBag() {
@@ -222,6 +250,10 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
             onRemoveAvatar={removeAvatar}
             onPhotoUpload={handlePhotoUpload}
             onTryOn={runTryOn}
+            model3dUrl={model3dUrl}
+            is3dLoading={is3dLoading}
+            onSeeAs3D={seeAs3D}
+            onExit3D={() => setModel3dUrl(null)}
           />
           <WearingPanel
             equipped={equipped}

@@ -1,5 +1,6 @@
 "use client";
 import type { Item } from "@/lib/recommend";
+import ModelViewer from "./ModelViewer";
 
 type Avatar = { id: string; url: string };
 type Props = {
@@ -10,12 +11,16 @@ type Props = {
   onSelectAvatar: (id: string) => void; onRemoveAvatar: (id: string) => void;
   onPhotoUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onTryOn: () => void;
+  model3dUrl: string | null; is3dLoading: boolean;
+  onSeeAs3D: () => void; onExit3D: () => void;
 };
 
 export default function AvatarStage({
   activeItem, customPhoto, tryOnResult, mockPreview, isLoading, error,
   avatars, activeAvatarId, onSelectAvatar, onRemoveAvatar, onPhotoUpload, onTryOn,
+  model3dUrl, is3dLoading, onSeeAs3D, onExit3D,
 }: Props) {
+  const canConvert = !!(tryOnResult || mockPreview || customPhoto);
   return (
     <section className="flex flex-col rounded-3xl border border-[#E8E3DB] bg-white shadow-sm overflow-hidden">
       <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E3DB]">
@@ -50,7 +55,23 @@ export default function AvatarStage({
       )}
 
       <div className="relative mx-6 my-4 flex flex-1 min-h-[420px] items-center justify-center rounded-2xl border border-dashed border-[#E8E3DB] bg-[#F7F5F0]/60">
-        {isLoading ? (
+        {is3dLoading ? (
+          <div className="flex flex-col items-center gap-4 text-center p-8">
+            <div className="relative h-16 w-16">
+              <div className="absolute inset-0 rounded-full border-4 border-[#EDE5D8]" />
+              <div className="absolute inset-0 rounded-full border-4 border-[#C4A882] border-t-transparent animate-spin" />
+            </div>
+            <p className="text-sm font-semibold text-[#1A1A1A]">Building 3D model…</p>
+            <p className="text-xs text-[#8A8480]">Reconstructing from your photo</p>
+          </div>
+        ) : model3dUrl ? (
+          <div className="w-full p-4">
+            <ModelViewer src={model3dUrl} />
+            <div className="mt-3 flex justify-center">
+              <button onClick={onExit3D} className="rounded-xl border border-[#E8E3DB] bg-white px-4 py-2 text-xs font-medium text-[#1A1A1A] hover:border-[#C4A882]">← Back to photo</button>
+            </div>
+          </div>
+        ) : isLoading ? (
           <div className="flex flex-col items-center gap-4 text-center p-8">
             <div className="relative h-16 w-16">
               <div className="absolute inset-0 rounded-full border-4 border-[#EDE5D8]" />
@@ -87,8 +108,15 @@ export default function AvatarStage({
         )}
       </div>
 
-      <div className="flex items-center justify-between px-6 pb-5 pt-3 border-t border-[#E8E3DB]">
-        <p className="text-xs text-[#8A8480]">Anchor: <span className="font-medium text-[#1A1A1A]">{activeItem?.title ?? "None selected"}</span></p>
+      <div className="flex items-center justify-between gap-3 px-6 pb-5 pt-3 border-t border-[#E8E3DB]">
+        <button
+          onClick={onSeeAs3D}
+          disabled={!canConvert || is3dLoading || isLoading}
+          title={canConvert ? "Reconstruct a 3D model" : "Render a look or upload a photo first"}
+          className="rounded-xl border border-[#E8E3DB] bg-white px-4 py-2.5 text-sm font-medium text-[#1A1A1A] transition hover:border-[#C4A882] active:scale-95 disabled:opacity-40"
+        >
+          {is3dLoading ? "Building 3D…" : "See as 3D"}
+        </button>
         <button onClick={onTryOn} disabled={isLoading || !customPhoto} className="flex items-center gap-2 rounded-xl bg-[#1A1A1A] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[#333] active:scale-95 disabled:opacity-40">
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
