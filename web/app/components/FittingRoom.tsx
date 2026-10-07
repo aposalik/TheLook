@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import TopBar from "./TopBar";
 import AvatarStage from "./AvatarStage";
 import WearingPanel from "./WearingPanel";
@@ -8,13 +8,35 @@ import BagDrawer from "./BagDrawer";
 
 import type { Item } from "@/lib/recommend";
 type Look = { formula: string; items: Item[]; roles: string[]; score: number; cohesion: number; reason: string };
+type Avatar = { id: string; url: string };
+const AV_KEY = "thelook_avatars";
+
+/** Downscale an uploaded image so localStorage stays small and uploads are fast. */
+function downscale(file: File, max = 900): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const s = Math.min(1, max / Math.max(img.width, img.height));
+        const c = document.createElement("canvas");
+        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+        resolve(c.toDataURL("image/jpeg", 0.85));
+      };
+      img.onerror = reject; img.src = r.result as string;
+    };
+    r.onerror = reject; r.readAsDataURL(file);
+  });
+}
 
 export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const [equipped, setEquipped] = useState<Item[]>([]);
   const [activeItem, setActiveItem] = useState<Item | null>(null);
   const [currentLook, setCurrentLook] = useState<Look | null>(null);
 
-  const [selectedAvatar, setSelectedAvatar] = useState("a1");
+  const [avatars, setAvatars] = useState<Avatar[]>([]);
+  const [activeAvatarId, setActiveAvatarId] = useState<string | null>(null);
   const [customPhoto, setCustomPhoto] = useState<string | null>(null);
   const [tryOnResult, setTryOnResult] = useState<string | null>(null);
   const [mockPreview, setMockPreview] = useState<{ photo: string; garment: string; title: string } | null>(null);
@@ -32,18 +54,48 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setTimeout(() => setToast(null), 3000);
   }
 
-  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+  // ---- saved avatars: persisted to localStorage, switchable ----
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(AV_KEY) || "[]") as Avatar[];
+      setAvatars(saved);
+      if (saved[0]) { setActiveAvatarId(saved[0].id); setCustomPhoto(saved[0].url); }
+    } catch { /* ignore */ }
+  }, []);
+
+  function persistAvatars(next: Avatar[]) {
+    setAvatars(next);
+    localStorage.setItem(AV_KEY, JSON.stringify(next));
+  }
+
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const photo = reader.result as string;
-      setCustomPhoto(photo);
-      setTryOnResult(null);
-      setMockPreview(null);
-      showToast("Photo uploaded — build a look, then hit Try on");
-    };
-    reader.readAsDataURL(file);
+    const url = await downscale(file);
+    const av: Avatar = { id: crypto.randomUUID(), url };
+    persistAvatars([...avatars, av]);
+    setActiveAvatarId(av.id);
+    setCustomPhoto(url);
+    setTryOnResult(null); setMockPreview(null);
+    showToast("Photo saved — build a look, then Show on me");
+  }
+
+  function selectAvatar(id: string) {
+    const av = avatars.find((a) => a.id === id);
+    if (!av) return;
+    setActiveAvatarId(id); setCustomPhoto(av.url);
+    setTryOnResult(null); setMockPreview(null);
+  }
+
+  function removeAvatar(id: string) {
+    const next = avatars.filter((a) => a.id !== id);
+    persistAvatars(next);
+    if (activeAvatarId === id) {
+      const first = next[0] ?? null;
+      setActiveAvatarId(first?.id ?? null);
+      setCustomPhoto(first?.url ?? null);
+      setTryOnResult(null); setMockPreview(null);
+    }
   }
 
   function toggleEquip(item: Item) {
@@ -164,10 +216,11 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
             mockPreview={mockPreview}
             isLoading={isTryOnLoading}
             error={tryOnError}
-            selectedAvatar={selectedAvatar}
-            onAvatarChange={(id) => { setSelectedAvatar(id); setTryOnResult(null); setMockPreview(null); }}
+            avatars={avatars}
+            activeAvatarId={activeAvatarId}
+            onSelectAvatar={selectAvatar}
+            onRemoveAvatar={removeAvatar}
             onPhotoUpload={handlePhotoUpload}
-            onClearPhoto={() => { setCustomPhoto(null); setTryOnResult(null); setMockPreview(null); }}
             onTryOn={runTryOn}
           />
           <WearingPanel
