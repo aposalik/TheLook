@@ -3,16 +3,18 @@ import { useEffect, useState } from "react";
 import TopBar from "./TopBar";
 import AvatarStage from "./AvatarStage";
 import WearingPanel from "./WearingPanel";
-import CatalogPanel from "./CatalogPanel";
+import WardrobeCatalog from "./WardrobeCatalog";
+import AddItemModal, { type RowKey } from "./AddItemModal";
 import BagDrawer from "./BagDrawer";
 import Lookbook, { type SavedLook } from "./Lookbook";
 import LookDetail, { type DetailLook } from "./LookDetail";
 
-import type { Item } from "@/lib/recommend";
-type Look = { formula: string; items: Item[]; roles: string[]; score: number; cohesion: number; reason: string };
+import type { Item, Look, StylePreferences } from "@/lib/recommend";
 type Avatar = { id: string; url: string };
 const AV_KEY = "thelook_avatars";
 const LOOKS_KEY = "thelook_looks";
+const WARDROBE_KEY = "thelook_wardrobe";
+const PREFS_KEY = "thelook_style_preferences";
 
 /** Downscale an uploaded image so localStorage stays small and uploads are fast. */
 function downscale(file: File, max = 900): Promise<string> {
@@ -56,6 +58,11 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const [lookbookOpen, setLookbookOpen] = useState(false);
   const [detailLook, setDetailLook] = useState<DetailLook | null>(null);
 
+  const [userItems, setUserItems] = useState<Item[]>([]);
+  const [preferences, setPreferences] = useState<StylePreferences>({ occasion: "any", goal: "balanced" });
+  const [stylistSource, setStylistSource] = useState<"gemini" | "deterministic" | null>(null);
+  const [addModal, setAddModal] = useState<RowKey | null>(null);
+
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
@@ -65,11 +72,31 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(AV_KEY) || "[]") as Avatar[];
+      // Browser persistence is an external store; hydrate it once after mount.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setAvatars(saved);
       if (saved[0]) { setActiveAvatarId(saved[0].id); setCustomPhoto(saved[0].url); }
       setSavedLooks(JSON.parse(localStorage.getItem(LOOKS_KEY) || "[]") as SavedLook[]);
+      setUserItems(JSON.parse(localStorage.getItem(WARDROBE_KEY) || "[]") as Item[]);
+      setPreferences(JSON.parse(localStorage.getItem(PREFS_KEY) || '{"occasion":"any","goal":"balanced"}') as StylePreferences);
     } catch { /* ignore */ }
   }, []);
+
+  function persistUserItems(next: Item[]) {
+    setUserItems(next);
+    localStorage.setItem(WARDROBE_KEY, JSON.stringify(next));
+  }
+
+  function addUserItem(item: Item) {
+    persistUserItems([item, ...userItems]);
+    showToast(`Added "${item.title}" to your wardrobe`);
+  }
+
+  function removeUserItem(id: string) {
+    persistUserItems(userItems.filter((i) => i.id !== id));
+    setEquipped((prev) => prev.filter((i) => i.id !== id));
+    if (activeItem?.id === id) setActiveItem(null);
+  }
 
   function persistAvatars(next: Avatar[]) {
     setAvatars(next);
@@ -113,10 +140,22 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setEquipped((prev) => {
       const exists = prev.some((i) => i.id === item.id);
       if (exists) return prev.filter((i) => i.id !== item.id);
-      return [...prev.filter((i) => i.slot !== item.slot), item];
+      // Allow a real layered outfit: one base, one mid and one outer. Bottoms,
+      // shoes and dresses remain mutually exclusive; accessories can stack.
+      const key = (value: Item) => {
+        const category = value.category ?? value.slot;
+        if (category === "upper" || value.slot === "top" || value.slot === "outerwear") return `upper:${value.layer ?? "base"}`;
+        if (category === "accessory") return `accessory:${value.id}`;
+        return category;
+      };
+      const next = prev.filter((existing) => key(existing) !== key(item));
+      return [...next, item];
     });
-    // NB: no auto-render here — each Cloth-v4 render costs a credit, so rendering
-    // only happens on the explicit "Try on" action (runTryOn).
+  }
+
+  function updatePreferences(next: StylePreferences) {
+    setPreferences(next);
+    localStorage.setItem(PREFS_KEY, JSON.stringify(next));
   }
 
   function removeEquipped(item: Item) {
@@ -124,32 +163,42 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     if (activeItem?.id === item.id) setActiveItem(null);
   }
 
-  // GET /api/recommend?anchors=a,b,c
+  // Deterministic constructor creates five grounded candidates. Gemini Vision
+  // can rerank/explain them, but a failure always falls back to deterministic results.
   async function generateOutfit() {
     const anchorIds = equipped.length > 0
       ? equipped.map((i) => i.id)
       : activeItem ? [activeItem.id] : [catalog[0]?.id].filter(Boolean) as string[];
-
     if (anchorIds.length === 0) return;
     setIsGenerating(true);
     setGenerateError(null);
+    setStylistSource(null);
 
     try {
-      const params = new URLSearchParams({ anchors: anchorIds.join(",") });
-      const res = await fetch(`/api/recommend?${params}`);
+      const res = await fetch("/api/recommend", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ anchors: anchorIds, wardrobeItems: userItems, preferences }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      let looks: Look[] = data.looks ?? [];
+      if (!looks.length) throw new Error("No compatible outfits found. Try removing a conflicting piece.");
 
-      const looks: Look[] = data.looks ?? [];
-      if (looks.length === 0) {
-        setGenerateError("No outfits found. Try selecting a different item.");
-        return;
-      }
+      const stylist = await fetch("/api/stylist/rerank", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ candidates: looks, preferences }),
+      });
+      const styled = await stylist.json();
+      if (stylist.ok && Array.isArray(styled.looks) && styled.looks.length) looks = styled.looks;
+      setStylistSource(styled.source === "gemini" ? "gemini" : "deterministic");
+
       const top = looks[0]!;
       setCurrentLook(top);
       setEquipped(top.items);
       setActiveItem(top.items[0] ?? null);
-      showToast(`Outfit generated — ${(top.cohesion * 100).toFixed(0)}% cohesion`);
+      showToast(`${styled.source === "gemini" ? "Gemini stylist" : "Outfit engine"} picked the best look · ${(top.cohesion * 100).toFixed(0)}% cohesion`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setGenerateError(msg);
@@ -171,7 +220,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       const res = await fetch("/api/tryon-look", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photoBase64: photo, itemIds: items.map((i) => i.id) }),
+        body: JSON.stringify({ photoBase64: photo, itemIds: items.map((i) => i.id), items }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -269,15 +318,27 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
             onGenerate={generateOutfit}
             onRemove={removeEquipped}
             onAddToBag={addToBag}
+            preferences={preferences}
+            onPreferencesChange={updatePreferences}
+            stylistSource={stylistSource}
           />
         </div>
-        <CatalogPanel
+        <WardrobeCatalog
           catalog={catalog}
+          userItems={userItems}
           equipped={equipped}
           activeId={activeItem?.id ?? null}
           onToggle={toggleEquip}
+          onAdd={(row) => setAddModal(row)}
+          onRemoveUserItem={removeUserItem}
         />
       </main>
+      <AddItemModal
+        open={addModal !== null}
+        category={addModal ?? "tops"}
+        onClose={() => setAddModal(null)}
+        onSave={addUserItem}
+      />
       <BagDrawer
         open={bagOpen}
         items={cart}

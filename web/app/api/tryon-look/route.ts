@@ -5,86 +5,92 @@ import crypto from "crypto";
 import { uploadFile, runCloth, pollCloth, toJpeg } from "@/lib/youcam";
 import { buildUpperCollage } from "@/lib/collage";
 import catalog from "@/data/catalog.json";
+import type { Item } from "@/lib/recommend";
 
 export const runtime = "nodejs";
-
-type Item = { id: string; slot: string; title: string; image: string; category?: string; layer?: string | null };
-
 const RESULTS_DIR = path.join(process.cwd(), "public", "results");
 const GARMENTS_DIR = path.join(process.cwd(), "public", "garments");
 const LAYER_RANK: Record<string, number> = { base: 0, mid: 1, outer: 2 };
 
 async function exists(p: string) { try { await access(p); return true; } catch { return false; } }
-async function garmentBytes(id: string) { return readFile(path.join(GARMENTS_DIR, `${id}.jpg`)); }
+async function itemBytes(item: Item): Promise<Buffer> {
+  if (item.image?.startsWith("data:image/")) {
+    const bytes = Buffer.from(item.image.split(",").pop()!, "base64");
+    if (bytes.length > 8_000_000) throw new Error("Uploaded garment is too large");
+    return toJpeg(bytes);
+  }
+  return readFile(path.join(GARMENTS_DIR, `${item.id}.jpg`));
+}
 async function reupload(url: string) {
-  const bytes = Buffer.from(await (await fetch(url)).arrayBuffer());
-  return uploadFile(bytes, "step.jpg");
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Could not download intermediate render (${response.status})`);
+  return uploadFile(Buffer.from(await response.arrayBuffer()), "step.jpg");
 }
 
-// Render a full look onto the user's photo. Dress -> single full_body render.
-// Otherwise: composite uppers into one layered reference, render it (upper_body),
-// then chain the bottom (lower_body) onto that result. Each sub-step is Phase-0 proven.
 export async function POST(req: NextRequest) {
   try {
-    const { photoBase64, itemIds } = await req.json();
-    if (!photoBase64 || !Array.isArray(itemIds) || itemIds.length === 0)
-      return NextResponse.json({ error: "photoBase64 and itemIds[] required" }, { status: 400 });
+    const body = await req.json() as { photoBase64?: string; itemIds?: string[]; items?: Item[] };
+    if (!body.photoBase64) return NextResponse.json({ error: "photoBase64 required" }, { status: 400 });
+    const supplied = Array.isArray(body.items) ? body.items.slice(0, 12) : [];
+    const byId = new Map<string, Item>([...(catalog as Item[]), ...supplied].map((item) => [item.id, item]));
+    const itemIds = Array.isArray(body.itemIds) && body.itemIds.length ? body.itemIds : supplied.map((item) => item.id);
+    const items = itemIds.map((id) => byId.get(id)).filter(Boolean) as Item[];
+    if (!items.length || items.length !== itemIds.length) return NextResponse.json({ error: "unknown item in look" }, { status: 400 });
 
-    const items = (itemIds as string[]).map((id) => (catalog as Item[]).find((c) => c.id === id)).filter(Boolean) as Item[];
-    if (items.length !== itemIds.length) return NextResponse.json({ error: "unknown item in look" }, { status: 400 });
-
-    const dress = items.find((i) => i.slot === "dress");
-    const bottom = items.find((i) => i.slot === "bottom" || i.category === "bottom");
-    const uppers = items
+    const renderable = items.filter((item) => !["shoe", "accessory"].includes(item.category ?? item.slot));
+    const dress = renderable.find((i) => i.slot === "dress" || i.category === "dress");
+    const bottom = renderable.find((i) => i.slot === "bottom" || i.category === "bottom");
+    const uppers = renderable
       .filter((i) => i.slot === "top" || i.slot === "outerwear" || i.category === "upper")
       .sort((a, b) => (LAYER_RANK[a.layer ?? "base"] ?? 0) - (LAYER_RANK[b.layer ?? "base"] ?? 0));
+    if (!dress && !bottom && !uppers.length) return NextResponse.json({ error: "The look has no renderable clothing" }, { status: 400 });
 
-    const steps: string[] = [];
-    const photoBytes = Buffer.from(String(photoBase64).split(",").pop() as string, "base64");
-    const key = crypto.createHash("sha1").update(photoBytes).update([...itemIds].sort().join(",")).digest("hex").slice(0, 16);
+    const photoBytes = Buffer.from(body.photoBase64.split(",").pop()!, "base64");
+    const itemFingerprint = items.map((item) => `${item.id}:${crypto.createHash("sha1").update(item.image || "").digest("hex").slice(0, 8)}`).sort().join("|");
+    const key = crypto.createHash("sha1").update(photoBytes).update(itemFingerprint).digest("hex").slice(0, 16);
     await mkdir(RESULTS_DIR, { recursive: true });
 
-    // Mock mode (no credits): show the layered reference we *would* render, so UI/flow works free.
     if (process.env.MOCK === "1" || !process.env.PERFECTCORP_KEY) {
-      let preview: Buffer;
-      if (dress) preview = await garmentBytes(dress.id);
-      else if (uppers.length >= 2) preview = await buildUpperCollage(uppers.map((u) => u.id));
-      else preview = await garmentBytes((uppers[0] ?? bottom)!.id);
+      const preview = dress ? await itemBytes(dress)
+        : uppers.length >= 2 ? await buildUpperCollage(uppers)
+        : await itemBytes((uppers[0] ?? bottom)!);
       const file = path.join(RESULTS_DIR, `mock-${key}.jpg`);
       await writeFile(file, preview);
-      return NextResponse.json({ resultUrl: `/results/mock-${key}.jpg`, mock: true, steps: ["collage-preview (mock)"] });
+      return NextResponse.json({ resultUrl: `/results/mock-${key}.jpg`, mock: true, steps: ["reference-preview (mock)"] });
     }
 
     const cached = path.join(RESULTS_DIR, `${key}.jpg`);
     if (await exists(cached)) return NextResponse.json({ resultUrl: `/results/${key}.jpg`, cached: true, steps: ["cache"] });
 
     const srcId = await uploadFile(await toJpeg(photoBytes), "user.jpg");
+    const steps: string[] = [];
     let finalUrl: string;
-
     if (dress) {
-      const refId = await uploadFile(await garmentBytes(dress.id), "dress.jpg");
+      const refId = await uploadFile(await itemBytes(dress), "dress.jpg");
       finalUrl = await pollCloth(await runCloth({ src_file_id: srcId, ref_file_id: refId, garment_category: "full_body" }));
       steps.push("full_body:dress");
     } else {
-      // 1) uppers -> one layered reference -> upper_body render
-      const upperRef = uppers.length >= 2 ? await buildUpperCollage(uppers.map((u) => u.id)) : await garmentBytes(uppers[0]!.id);
-      const upperRefId = await uploadFile(upperRef, "upper.jpg");
-      let cur = await pollCloth(await runCloth({ src_file_id: srcId, ref_file_id: upperRefId, garment_category: "upper_body" }));
-      steps.push(uppers.length >= 2 ? `upper_body:collage(${uppers.length})` : "upper_body:single");
-      // 2) chain the bottom onto the upper result
+      let currentUrl: string | null = null;
+      if (uppers.length) {
+        const upperRef = uppers.length >= 2 ? await buildUpperCollage(uppers) : await itemBytes(uppers[0]!);
+        const refId = await uploadFile(upperRef, "upper.jpg");
+        currentUrl = await pollCloth(await runCloth({ src_file_id: srcId, ref_file_id: refId, garment_category: "upper_body" }));
+        steps.push(uppers.length >= 2 ? `upper_body:collage(${uppers.length})` : "upper_body:single");
+      }
       if (bottom) {
-        const bottomSrc = await reupload(cur);
-        const bottomRefId = await uploadFile(await garmentBytes(bottom.id), "bottom.jpg");
-        cur = await pollCloth(await runCloth({ src_file_id: bottomSrc, ref_file_id: bottomRefId, garment_category: "lower_body" }));
+        const sourceId = currentUrl ? await reupload(currentUrl) : srcId;
+        const refId = await uploadFile(await itemBytes(bottom), "bottom.jpg");
+        currentUrl = await pollCloth(await runCloth({ src_file_id: sourceId, ref_file_id: refId, garment_category: "lower_body" }));
         steps.push("lower_body:bottom");
       }
-      finalUrl = cur;
+      finalUrl = currentUrl!;
     }
 
-    const bytes = Buffer.from(await (await fetch(finalUrl)).arrayBuffer());
-    await writeFile(cached, bytes);
+    const response = await fetch(finalUrl);
+    if (!response.ok) throw new Error(`Could not persist render (${response.status})`);
+    await writeFile(cached, Buffer.from(await response.arrayBuffer()));
     return NextResponse.json({ resultUrl: `/results/${key}.jpg`, steps });
-  } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
   }
 }
