@@ -28,6 +28,8 @@ _experiments/style-recommender/
 web/public/results/
 _experiments/testimg/
 _experiments/auto-outfit-test/.DS_Store
+_experiments/eval/latest.json
+_progress/*-fix.json
 
 # ── os / editor ──────────────────────────────────────────
 .DS_Store
