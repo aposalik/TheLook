@@ -39,6 +39,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const [equipped, setEquipped] = useState<Item[]>([]);
   const [activeItem, setActiveItem] = useState<Item | null>(null);
   const [currentLook, setCurrentLook] = useState<Look | null>(null);
+  const [recommendedLooks, setRecommendedLooks] = useState<Look[]>([]);
 
   const [avatars, setAvatars] = useState<Avatar[]>([]);
   const [activeAvatarId, setActiveAvatarId] = useState<string | null>(null);
@@ -195,10 +196,11 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       setStylistSource(styled.source === "gemini" ? "gemini" : "deterministic");
 
       const top = looks[0]!;
+      setRecommendedLooks(looks.slice(0, 3));
       setCurrentLook(top);
       setEquipped(top.items);
       setActiveItem(top.items[0] ?? null);
-      showToast(`${styled.source === "gemini" ? "Gemini stylist" : "Outfit engine"} picked the best look · ${(top.cohesion * 100).toFixed(0)}% cohesion`);
+      showToast(`${styled.source === "gemini" ? "Gemini stylist" : "Outfit engine"} ranked ${Math.min(3, looks.length)} looks · ${(top.cohesion * 100).toFixed(0)}% top cohesion`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setGenerateError(msg);
@@ -210,6 +212,15 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
 
   // POST /api/tryon-look { photoBase64, itemIds } — renders the WHOLE outfit
   // (collage the uppers + chain the bottom), not a single garment.
+  function chooseRecommendedLook(look: Look) {
+    setCurrentLook(look);
+    setEquipped(look.items);
+    setActiveItem(look.items[0] ?? null);
+    setTryOnResult(null);
+    setMockPreview(null);
+    showToast(`${look.stylistTitle ?? look.formula} selected`);
+  }
+
   async function renderLook(photo: string, items: Item[]) {
     setIsTryOnLoading(true);
     setTryOnError(null);
@@ -321,6 +332,8 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
             preferences={preferences}
             onPreferencesChange={updatePreferences}
             stylistSource={stylistSource}
+            recommendedLooks={recommendedLooks}
+            onSelectLook={chooseRecommendedLook}
           />
         </div>
         <WardrobeCatalog

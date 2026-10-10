@@ -1,7 +1,6 @@
 "use client";
 
-import type { Item, StylePreferences } from "@/lib/recommend";
-type Look = { formula: string; cohesion: number; reason: string; aiReason?: string; stylistTitle?: string }; 
+import type { Item, Look, StylePreferences } from "@/lib/recommend";
 
 type Props = {
   equipped: Item[];
@@ -14,9 +13,11 @@ type Props = {
   preferences: StylePreferences;
   onPreferencesChange: (preferences: StylePreferences) => void;
   stylistSource: "gemini" | "deterministic" | null;
+  recommendedLooks: Look[];
+  onSelectLook: (look: Look) => void;
 };
 
-export default function WearingPanel({ equipped, currentLook, isGenerating, generateError, onGenerate, onRemove, onAddToBag, preferences, onPreferencesChange, stylistSource }: Props) {
+export default function WearingPanel({ equipped, currentLook, isGenerating, generateError, onGenerate, onRemove, onAddToBag, preferences, onPreferencesChange, stylistSource, recommendedLooks, onSelectLook }: Props) {
   return (
     <section className="flex flex-col rounded-3xl border border-[#E8E3DB] bg-white shadow-sm overflow-hidden">
       <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E3DB]">
@@ -80,6 +81,39 @@ export default function WearingPanel({ equipped, currentLook, isGenerating, gene
           </select>
         </label>
       </div>
+
+      {recommendedLooks.length > 0 && (
+        <div className="px-6 pt-4">
+          <div className="mb-2 flex items-center justify-between">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[#8A8480]">Top 3 suggestions</p>
+            <p className="text-[10px] text-[#8A8480]">Choose before “Show on me”</p>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {recommendedLooks.map((look, index) => {
+              const selected = currentLook === look;
+              return (
+                <button
+                  key={`${look.formula}-${look.items.map((item) => item.id).join("-")}`}
+                  type="button"
+                  onClick={() => onSelectLook(look)}
+                  aria-pressed={selected}
+                  className={`rounded-2xl border p-2 text-left transition ${selected ? "border-[#C4A882] bg-[#EDE5D8] shadow-sm" : "border-[#E8E3DB] bg-white hover:border-[#C4A882]/70"}`}
+                >
+                  <div className="mb-2 flex -space-x-2 overflow-hidden">
+                    {look.items.slice(0, 4).map((item) => (
+                      <span key={item.id} className="h-9 w-9 overflow-hidden rounded-full border-2 border-white bg-[#F7F5F0] p-0.5">
+                        <img src={item.image} alt="" className="h-full w-full object-contain" />
+                      </span>
+                    ))}
+                  </div>
+                  <p className="truncate text-[11px] font-semibold text-[#1A1A1A]">{index + 1}. {look.stylistTitle ?? look.formula}</p>
+                  <p className="mt-0.5 text-[10px] text-[#8A8480]">{(look.cohesion * 100).toFixed(0)}% cohesion</p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Equipped items */}
       <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2.5 min-h-[200px] max-h-[320px]">

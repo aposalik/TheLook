@@ -37,6 +37,7 @@ export type Look = {
   reason: string;
   deterministicReason?: string;
   aiReason?: string;
+  stylistTitle?: string;
 };
 
 const FIXED = catalogData as Item[];
