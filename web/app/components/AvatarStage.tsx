@@ -39,13 +39,34 @@ export default function AvatarStage({
       <div className="relative mx-auto my-4 w-full max-w-[360px] px-4">
         <div className="relative overflow-hidden rounded-2xl border border-[#E8E3DB] bg-[#F7F5F0]" style={{ aspectRatio: "9 / 16" }}>
           {isLoading ? (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-center p-6">
-              <div className="relative h-16 w-16">
-                <div className="absolute inset-0 rounded-full border-4 border-[#EDE5D8]" />
-                <div className="absolute inset-0 rounded-full border-4 border-[#C4A882] border-t-transparent animate-spin" />
+            <div className="tryon-generator absolute inset-0 isolate overflow-hidden bg-[#171715] text-center text-white" role="status" aria-live="polite">
+              {customPhoto && <img src={customPhoto} alt="" className="tryon-generator__photo" aria-hidden="true" />}
+              <div className="tryon-generator__veil" />
+              <div className="tryon-generator__grain" />
+              <div className="tryon-generator__scan" />
+              <span className="tryon-generator__corner tryon-generator__corner--tl" />
+              <span className="tryon-generator__corner tryon-generator__corner--tr" />
+              <span className="tryon-generator__corner tryon-generator__corner--bl" />
+              <span className="tryon-generator__corner tryon-generator__corner--br" />
+
+              <div className="relative z-10 flex h-full flex-col items-center justify-center px-8">
+                <div className="tryon-generator__halo">
+                  <img src="/brand/thelook-logo-dark.png" alt="TheLook" className="w-36 object-contain" />
+                </div>
+                <p className="mt-8 text-[10px] font-semibold uppercase tracking-[0.34em] text-[#D9C6A8]">Virtual atelier</p>
+                <h3 className="mt-2 text-xl font-medium tracking-[-0.02em]">Generating your try-on</h3>
+                <p className="mt-2 max-w-[230px] text-xs leading-relaxed text-white/55">Draping your selected pieces and refining the final silhouette.</p>
+
+                <div className="tryon-generator__progress mt-7" aria-hidden="true"><span /></div>
+                <div className="mt-4 flex items-center gap-2 text-[10px] uppercase tracking-[0.16em] text-white/45" aria-hidden="true">
+                  <span className="tryon-generator__step">Fit</span>
+                  <span>·</span>
+                  <span className="tryon-generator__step tryon-generator__step--two">Layers</span>
+                  <span>·</span>
+                  <span className="tryon-generator__step tryon-generator__step--three">Finish</span>
+                </div>
+                <p className="mt-7 text-[10px] tracking-wide text-white/35">Powered by YouCam Cloth-v4</p>
               </div>
-              <p className="text-sm font-semibold text-[#1A1A1A]">Generating Try-On…</p>
-              <p className="text-xs text-[#8A8480]">YouCam Cloth-v4</p>
             </div>
           ) : resultImg ? (
             <button onClick={onOpenLook} className="group absolute inset-0 h-full w-full" title="See the pieces in this look">

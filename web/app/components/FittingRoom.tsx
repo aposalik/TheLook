@@ -8,6 +8,7 @@ import AddItemModal, { type RowKey } from "./AddItemModal";
 import BagDrawer from "./BagDrawer";
 import Lookbook, { type SavedLook } from "./Lookbook";
 import LookDetail, { type DetailLook } from "./LookDetail";
+import { useSoundEffects } from "../hooks/useSoundEffects";
 
 import type { Item, Look, StylePreferences } from "@/lib/recommend";
 type Avatar = { id: string; url: string };
@@ -36,6 +37,7 @@ function downscale(file: File, max = 900): Promise<string> {
 }
 
 export default function FittingRoom({ catalog }: { catalog: Item[] }) {
+  const sounds = useSoundEffects();
   const [equipped, setEquipped] = useState<Item[]>([]);
   const [activeItem, setActiveItem] = useState<Item | null>(null);
   const [currentLook, setCurrentLook] = useState<Look | null>(null);
@@ -135,6 +137,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   }
 
   function toggleEquip(item: Item) {
+    sounds.selectWardrobeItem();
     setActiveItem(item);
     setTryOnResult(null);
     setMockPreview(null);
@@ -213,6 +216,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   // POST /api/tryon-look { photoBase64, itemIds } — renders the WHOLE outfit
   // (collage the uppers + chain the bottom), not a single garment.
   function chooseRecommendedLook(look: Look) {
+    sounds.selectWardrobeItem();
     setCurrentLook(look);
     setEquipped(look.items);
     setActiveItem(look.items[0] ?? null);
@@ -222,16 +226,23 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   }
 
   async function renderLook(photo: string, items: Item[]) {
+    sounds.beginTryOn();
     setIsTryOnLoading(true);
     setTryOnError(null);
     setMockPreview(null);
     setTryOnResult(null);
 
     try {
+      // Strip the image blob from catalog items (route reads them from disk).
+      // Keep image only for user-uploaded items (source === "user") so the
+      // server can render them without a file on disk.
+      const itemsPayload = items.map((i) => (
+        i.source === "user" ? i : { ...i, image: undefined }
+      ));
       const res = await fetch("/api/tryon-look", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photoBase64: photo, itemIds: items.map((i) => i.id), items }),
+        body: JSON.stringify({ photoBase64: photo, itemIds: items.map((i) => i.id), items: itemsPayload }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -241,8 +252,10 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       } else {
         setTryOnResult(data.resultUrl);
       }
+      sounds.finishTryOn(true);
       showToast(data.mock ? "Mock preview ready" : "Try-on render complete!");
     } catch (e) {
+      sounds.finishTryOn(false);
       const msg = e instanceof Error ? e.message : String(e);
       setTryOnError(msg);
       showToast(`Try-on failed: ${msg}`);
@@ -300,7 +313,14 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
 
   return (
     <div className="min-h-screen bg-[#F7F5F0] text-[#1A1A1A] antialiased">
-      <TopBar cartCount={cart.length} onBagClick={() => setBagOpen(true)} savedCount={savedLooks.length} onLookbookClick={() => setLookbookOpen(true)} />
+      <TopBar
+        cartCount={cart.length}
+        onBagClick={() => setBagOpen(true)}
+        savedCount={savedLooks.length}
+        onLookbookClick={() => setLookbookOpen(true)}
+        soundEnabled={sounds.enabled}
+        onSoundToggle={sounds.toggle}
+      />
       <main className="mx-auto max-w-[1440px] px-6 py-6 space-y-6">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
           <AvatarStage
