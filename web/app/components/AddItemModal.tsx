@@ -76,7 +76,7 @@ async function removeBg(dataUrl: string): Promise<string> {
   });
 }
 
-async function analyzeGarment(dataUrl: string, rowHint: RowKey, fallbackName: string): Promise<GarmentAnalysis> {
+async function analyzeGarment(dataUrl: string, rowHint: RowKey, fallbackName: string): Promise<{ analysis: GarmentAnalysis; source: "gemini" | "fallback"; warning?: string }> {
   const res = await fetch("/api/wardrobe/analyze", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -84,7 +84,7 @@ async function analyzeGarment(dataUrl: string, rowHint: RowKey, fallbackName: st
   });
   const data = await res.json();
   if (!res.ok || !data.analysis) throw new Error(data.error ?? "Could not analyze garment");
-  return data.analysis as GarmentAnalysis;
+  return { analysis: data.analysis as GarmentAnalysis, source: data.source ?? "gemini", warning: data.warning };
 }
 
 async function fetchImageUrl(url: string): Promise<string> {
@@ -106,11 +106,12 @@ export default function AddItemModal({ open, category, onClose, onSave }: Props)
   const [working, setWorking] = useState(false);
   const [step, setStep] = useState<string | null>(null);
   const [analysis, setAnalysis] = useState<GarmentAnalysis | null>(null);
+  const [tagSource, setTagSource] = useState<"gemini" | "fallback" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   function resetAndClose() {
-    setPreview(null); setTitle(""); setLinkUrl(""); setAnalysis(null); setError(null);
+    setPreview(null); setTitle(""); setLinkUrl(""); setAnalysis(null); setTagSource(null); setError(null);
     setMode("device"); setWorking(false); setStep(null);
     onClose();
   }
@@ -146,9 +147,10 @@ export default function AddItemModal({ open, category, onClose, onSave }: Props)
       // 3. Gemini Vision creates the complete catalog record. The original
       // pixels are never persisted; only the processed transparent cutout is saved.
       setStep("Analyzing category, color and style…");
-      const meta = await analyzeGarment(scaled, category, fallbackName);
-      setAnalysis(meta);
-      setTitle(meta.title || fallbackName);
+      const result = await analyzeGarment(scaled, category, fallbackName);
+      setAnalysis(result.analysis);
+      setTagSource(result.source);
+      setTitle(result.analysis.title || fallbackName);
     } catch (e2) {
       setError(e2 instanceof Error ? e2.message : String(e2));
     } finally {
@@ -314,7 +316,12 @@ export default function AddItemModal({ open, category, onClose, onSave }: Props)
                 )}
               </p>
               {analysis && (
-                <div className="mt-1 flex flex-wrap gap-1">
+                <div className="mt-1 flex flex-wrap items-center gap-1">
+                  {tagSource === "gemini" ? (
+                    <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[9px] font-semibold text-emerald-700">✦ AI analyzed</span>
+                  ) : tagSource === "fallback" ? (
+                    <span className="rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[9px] font-semibold text-amber-700">Default tags</span>
+                  ) : null}
                   {[analysis.category, analysis.layer, ...analysis.styles.slice(0, 2)].filter(Boolean).map((tag) => (
                     <span key={tag} className="rounded-full bg-[#F3EADA] px-2 py-0.5 text-[9px] font-semibold text-[#735F43]">{tag}</span>
                   ))}

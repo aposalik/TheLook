@@ -29,3 +29,118 @@ body {
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 99px; }
+
+/* The try-on wait becomes a tiny virtual atelier rather than a generic spinner. */
+.tryon-generator__photo {
+  position: absolute;
+  inset: -4%;
+  width: 108%;
+  height: 108%;
+  object-fit: cover;
+  filter: grayscale(.25) blur(8px) brightness(.42);
+  transform: scale(1.04);
+  animation: tryon-breathe 7s ease-in-out infinite alternate;
+}
+
+.tryon-generator__veil {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 43%, rgb(196 168 130 / .18), transparent 34%),
+    linear-gradient(180deg, rgb(12 12 11 / .35), rgb(12 12 11 / .82));
+}
+
+.tryon-generator__grain {
+  position: absolute;
+  inset: 0;
+  opacity: .16;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.42'/%3E%3C/svg%3E");
+  mix-blend-mode: soft-light;
+}
+
+.tryon-generator__scan {
+  position: absolute;
+  z-index: 2;
+  left: 8%;
+  right: 8%;
+  height: 1px;
+  top: 14%;
+  background: linear-gradient(90deg, transparent, rgb(237 229 216 / .9), transparent);
+  box-shadow: 0 0 20px 3px rgb(196 168 130 / .3);
+  animation: tryon-scan 3.8s cubic-bezier(.55, 0, .45, 1) infinite;
+}
+
+.tryon-generator__halo {
+  display: grid;
+  place-items: center;
+  width: 184px;
+  height: 116px;
+  border: 1px solid rgb(217 198 168 / .22);
+  border-radius: 999px;
+  background: rgb(10 10 9 / .28);
+  box-shadow: inset 0 0 42px rgb(196 168 130 / .08), 0 0 50px rgb(196 168 130 / .08);
+  animation: tryon-halo 2.8s ease-in-out infinite;
+}
+
+.tryon-generator__corner {
+  position: absolute;
+  z-index: 3;
+  width: 24px;
+  height: 24px;
+  border-color: rgb(217 198 168 / .45);
+}
+.tryon-generator__corner--tl { top: 22px; left: 22px; border-top: 1px solid; border-left: 1px solid; }
+.tryon-generator__corner--tr { top: 22px; right: 22px; border-top: 1px solid; border-right: 1px solid; }
+.tryon-generator__corner--bl { bottom: 22px; left: 22px; border-bottom: 1px solid; border-left: 1px solid; }
+.tryon-generator__corner--br { right: 22px; bottom: 22px; border-right: 1px solid; border-bottom: 1px solid; }
+
+.tryon-generator__progress {
+  width: min(220px, 78%);
+  height: 2px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(255 255 255 / .12);
+}
+.tryon-generator__progress span {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, #d9c6a8 35%, #fff7e8 65%, transparent);
+  animation: tryon-progress 2.25s ease-in-out infinite;
+}
+
+.tryon-generator__step { animation: tryon-step 3s ease-in-out infinite; }
+.tryon-generator__step--two { animation-delay: 1s; }
+.tryon-generator__step--three { animation-delay: 2s; }
+
+@keyframes tryon-scan {
+  0%, 8% { transform: translateY(0); opacity: 0; }
+  18% { opacity: 1; }
+  82% { opacity: 1; }
+  92%, 100% { transform: translateY(470px); opacity: 0; }
+}
+@keyframes tryon-progress {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(340%); }
+}
+@keyframes tryon-halo {
+  0%, 100% { transform: scale(.98); border-color: rgb(217 198 168 / .16); }
+  50% { transform: scale(1.02); border-color: rgb(217 198 168 / .42); }
+}
+@keyframes tryon-step {
+  0%, 22%, 100% { color: rgb(255 255 255 / .28); }
+  33%, 55% { color: #d9c6a8; }
+}
+@keyframes tryon-breathe {
+  from { transform: scale(1.04); }
+  to { transform: scale(1.1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tryon-generator__photo,
+  .tryon-generator__scan,
+  .tryon-generator__halo,
+  .tryon-generator__progress span,
+  .tryon-generator__step { animation: none; }
+}

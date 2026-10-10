@@ -1,0 +1,15 @@
+{
+  "top_shirt-blue": {"category": "upper", "layer": "mid", "formality": 3, "fit": "regular", "color_role": "neutral", "source": "manual"},
+  "top_shirt-gray": {"category": "upper", "layer": "mid", "formality": 3, "fit": "regular", "color_role": "neutral", "source": "manual"},
+  "top_polo-cream": {"category": "upper", "layer": "base", "formality": 2, "fit": "regular", "color_role": "neutral", "source": "manual"},
+  "top_sweater-navy": {"category": "upper", "layer": "base", "formality": 2, "fit": "regular", "color_role": "neutral", "source": "manual"},
+  "top_vest-brown": {"category": "upper", "layer": "mid", "formality": 3, "fit": "regular", "color_role": "neutral", "source": "manual"},
+  "outerwear_cardigan-brown": {"category": "upper", "layer": "outer", "formality": 3, "fit": "regular", "color_role": "neutral", "source": "manual"},
+  "bottom_trousers-brown": {"category": "bottom", "layer": null, "formality": 3, "fit": "regular", "color_role": "neutral", "source": "manual"},
+  "bottom_jeans-lightblue": {"category": "bottom", "layer": null, "formality": 2, "fit": "baggy", "color_role": "neutral", "source": "manual"},
+  "bottom_corduroy-gray": {"category": "bottom", "layer": null, "formality": 2, "fit": "regular", "color_role": "neutral", "source": "manual"},
+  "bottom_baggy-jeans": {"category": "bottom", "layer": null, "formality": 1, "fit": "baggy", "color_role": "neutral", "source": "manual"},
+  "shoe_sneakers-red": {"category": "shoe", "layer": null, "formality": 1, "fit": "regular", "color_role": "accent", "source": "manual"},
+  "accessory_sunglasses-brown": {"category": "accessory", "layer": null, "formality": 2, "fit": "regular", "color_role": "neutral", "source": "manual"},
+  "accessory_bag-blue": {"category": "accessory", "layer": null, "formality": 2, "fit": "regular", "color_role": "accent", "source": "manual"}
+}

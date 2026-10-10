@@ -11,7 +11,8 @@
     "layer": null,
     "formality": 2,
     "fit": "regular",
-    "color_role": "accent"
+    "color_role": "accent",
+    "tag_source": "manual"
   },
   {
     "id": "accessory_sunglasses-brown",
@@ -25,7 +26,8 @@
     "layer": null,
     "formality": 2,
     "fit": "regular",
-    "color_role": "neutral"
+    "color_role": "neutral",
+    "tag_source": "manual"
   },
   {
     "id": "bottom_baggy-jeans",
@@ -39,7 +41,8 @@
     "layer": null,
     "formality": 1,
     "fit": "baggy",
-    "color_role": "neutral"
+    "color_role": "neutral",
+    "tag_source": "manual"
   },
   {
     "id": "bottom_corduroy-gray",
@@ -53,7 +56,8 @@
     "layer": null,
     "formality": 2,
     "fit": "regular",
-    "color_role": "neutral"
+    "color_role": "neutral",
+    "tag_source": "manual"
   },
   {
     "id": "bottom_jeans-lightblue",
@@ -67,7 +71,8 @@
     "layer": null,
     "formality": 2,
     "fit": "baggy",
-    "color_role": "neutral"
+    "color_role": "neutral",
+    "tag_source": "manual"
   },
   {
     "id": "bottom_trousers-brown",
@@ -81,7 +86,8 @@
     "layer": null,
     "formality": 3,
     "fit": "regular",
-    "color_role": "neutral"
+    "color_role": "neutral",
+    "tag_source": "manual"
   },
   {
     "id": "outerwear_cardigan-brown",
@@ -95,7 +101,8 @@
     "layer": "outer",
     "formality": 3,
     "fit": "regular",
-    "color_role": "neutral"
+    "color_role": "neutral",
+    "tag_source": "manual"
   },
   {
     "id": "shoe_sneakers-red",
@@ -109,7 +116,8 @@
     "layer": null,
     "formality": 1,
     "fit": "regular",
-    "color_role": "accent"
+    "color_role": "accent",
+    "tag_source": "manual"
   },
   {
     "id": "top_polo-cream",
@@ -123,7 +131,8 @@
     "layer": "base",
     "formality": 2,
     "fit": "regular",
-    "color_role": "neutral"
+    "color_role": "neutral",
+    "tag_source": "manual"
   },
   {
     "id": "top_shirt-blue",
@@ -137,7 +146,8 @@
     "layer": "mid",
     "formality": 3,
     "fit": "regular",
-    "color_role": "neutral"
+    "color_role": "neutral",
+    "tag_source": "manual"
   },
   {
     "id": "top_shirt-gray",
@@ -151,7 +161,8 @@
     "layer": "mid",
     "formality": 3,
     "fit": "regular",
-    "color_role": "neutral"
+    "color_role": "neutral",
+    "tag_source": "manual"
   },
   {
     "id": "top_sweater-navy",
@@ -165,7 +176,8 @@
     "layer": "base",
     "formality": 2,
     "fit": "regular",
-    "color_role": "neutral"
+    "color_role": "neutral",
+    "tag_source": "manual"
   },
   {
     "id": "top_vest-brown",
@@ -179,6 +191,7 @@
     "layer": "mid",
     "formality": 3,
     "fit": "regular",
-    "color_role": "neutral"
+    "color_role": "neutral",
+    "tag_source": "manual"
   }
 ]
