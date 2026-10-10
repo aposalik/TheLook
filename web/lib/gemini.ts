@@ -1,6 +1,6 @@
 type InlineImage = { data: string; mimeType: string };
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-3.5-flash-lite";
+const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 function extractJson(text: string): unknown {
   const cleaned = text.replace(/```json\s*|```/gi, "").trim();
@@ -36,6 +36,7 @@ export async function askGeminiJson<T>({
     {
       method: "POST",
       headers: { "content-type": "application/json", "x-goog-api-key": key },
+      cache: "no-store",
       body: JSON.stringify({
         contents: [{ role: "user", parts }],
         generationConfig: {
