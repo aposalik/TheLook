@@ -22,7 +22,7 @@ async function itemBytes(item: Item): Promise<Buffer> {
   return readFile(path.join(GARMENTS_DIR, `${item.id}.jpg`));
 }
 async function reupload(url: string) {
-  const response = await fetch(url);
+  const response = await fetch(url, { cache: "no-store" });
   if (!response.ok) throw new Error(`Could not download intermediate render (${response.status})`);
   return uploadFile(Buffer.from(await response.arrayBuffer()), "step.jpg");
 }
@@ -86,11 +86,12 @@ export async function POST(req: NextRequest) {
       finalUrl = currentUrl!;
     }
 
-    const response = await fetch(finalUrl);
+    const response = await fetch(finalUrl, { cache: "no-store" });
     if (!response.ok) throw new Error(`Could not persist render (${response.status})`);
     await writeFile(cached, Buffer.from(await response.arrayBuffer()));
     return NextResponse.json({ resultUrl: `/results/${key}.jpg`, steps });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    const msg = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
