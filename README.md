@@ -184,6 +184,10 @@ _experiments/catalog_pipeline.py Offline catalog/cutout/embedding pipeline
 scripts/generate_sound_pack.py   Reproducible original UI sound pack
 ```
 
+## Production roadmap
+
+The private Supabase/Vercel architecture, database model, rate-limit design, cleanup policy, and phase-by-phase learning plan are documented in [`PRODUCTION-ARCHITECTURE.md`](PRODUCTION-ARCHITECTURE.md).
+
 ## Collaboration
 
 `main` is protected. Use:

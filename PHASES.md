@@ -41,7 +41,11 @@ Legend: 🧱 build-time/local (free) · 🌐 app · 💳 spends YouCam credits �
 - Lookbook: saved looks persisted to localStorage, detail view.
 - **Reliability fixes:** Show On Me strips catalog image blobs from the request, opts external YouCam/Gemini calls out of Next.js fetch caching, reports the failing API stage, and safely retries pre-connection timeouts without duplicating billable tasks.
 
-## Phase 5 — Polish + submit  🌐 ← CURRENT
+## Phase 5 — Production foundation, polish + submit  🌐 ← CURRENT
+
+The production build is split into Phases A–H in [`PRODUCTION-ARCHITECTURE.md`](PRODUCTION-ARCHITECTURE.md), with a learning checkpoint after every phase.
+
+- [ ] Complete production Phases A–G: Supabase foundation, auth, private Storage, PostgreSQL migration, credit protection, Vercel deployment, and cleanup operations.
 - [ ] UX polish, responsive, loading/empty/error states, mobile check.
 - [ ] Private durable storage + render cache and public-API credit protection.
 - [x] CI workflow for lint, typecheck, and production build.
