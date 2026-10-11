@@ -13,9 +13,10 @@ Work phase by phase. Do not start the next phase until the current phase's **Don
 5. **Permanent accounts:** Google and verified email are offered for returning users and cross-device use.
 6. **No guest/account merge:** Guest and permanent accounts intentionally use different user IDs. Creating or signing into an account does not copy guest avatars or wardrobe items. The user uploads them again after signing in.
 7. **Privacy:** Every file and row belongs to one `user_id`; no visitor can read another visitor's data.
-8. **Try-on quota:** Only new, uncached **Show On Me** renders count. Outfit recommendations, uploads, cache hits, and saved-result views do not count.
-9. **Initial public limit:** At most two new try-ons per IP per UTC day and two per Supabase user per UTC day, plus global safety budgets.
-10. **Cleanup:** Expired anonymous accounts and their files are removed automatically after the retention period.
+8. **Guest capability:** Anonymous guests may upload clothes and receive recommendations, but paid YouCam **Show On Me** rendering requires a verified Google or email account.
+9. **Try-on quota:** Only new, uncached **Show On Me** renders count. Outfit recommendations, uploads, cache hits, and saved-result views do not count.
+10. **Initial public limit:** Each verified account receives at most two new try-ons per UTC day. IP data is a high-threshold abuse/velocity signal, not a two-render hard quota, so a home, office, or university does not unfairly share two renders. Global safety budgets cap total cost.
+11. **Cleanup:** Expired anonymous accounts and their files are removed automatically after the retention period.
 11. **Submission assets:** Screenshots, video, Devpost copy, and final submission happen after the hosted product flow is frozen.
 
 ## Mental model
@@ -195,37 +196,54 @@ Example user rows:
 
 ```text
 day         user_id      try_on_count   youcam_units
-2026-10-11  GUEST-123    2              6
 2026-10-11  ACCOUNT-456  1              2
+2026-10-11  ACCOUNT-789  2              6
 ```
 
-The next UTC day uses a new row, so the daily allowance resets naturally. We do not need to edit yesterday's counter back to zero.
+Anonymous users never receive a paid-render reservation. The next UTC day uses a new row, so the account allowance resets naturally. We do not edit yesterday's counter back to zero.
 
-## Why both IP and user counters exist
+## Why IP is a signal, not the customer's allowance
 
-### User-only limit is easy to bypass
+### A hard IP quota is unfair
 
-A person could clear browser storage or create multiple accounts, producing new user IDs and receiving more renders.
+A family, office, university, café, carrier-grade mobile network, or privacy relay may put many legitimate people behind one public IP. A two-render IP cap would make unrelated users consume one shared allowance.
 
-### IP-only limit is imperfect
+### IP identity is easy to rotate
 
-- A family, office, university, or café may share one public IP, so legitimate users share the allowance.
-- A VPN or mobile-network change gives an attacker a different IP.
+A VPN, proxy pool, privacy relay, or mobile-network change can give an attacker another IP. Therefore, an IP address is neither a person nor a reliable device identifier.
+
+### No perfect anonymous free-credit identity exists
+
+A guest can clear cookies/local storage, create another anonymous user, and change IP. Browser fingerprinting is privacy-sensitive and still produces false positives. The reliable product boundary is therefore:
+
+```text
+guests: private wardrobe + recommendations
+verified Google/email accounts: paid Show On Me rendering
+```
 
 ### Layered protection
 
 ```text
-user daily limit
-+ IP daily limit
-+ global daily limit
-+ global total budget
-+ duplicate-render lock
-+ Cloudflare Turnstile
+verified account: hard limit of 2 new renders/day
++ IP: broad velocity/anomaly signal, never a shared 2-render allowance
++ Turnstile: anonymous signup and paid-render human check
++ Vercel WAF: short-window burst/loop protection
++ render fingerprint: cache and duplicate in-flight lock
++ global daily and total-credit circuit breakers
 ```
 
-No single layer is perfect. Together they make abuse expensive and cap the maximum damage.
+No single layer proves that requests come from one human. Together they make abuse expensive while placing an absolute ceiling on financial damage.
 
-The initial strict policy is two per IP and two per user daily. During QA, review whether shared-network fairness requires raising only the IP ceiling while keeping the user ceiling at two.
+Start IP rules in log/observe or managed-challenge mode with conservative, high thresholds. Tune them from real traffic; do not invent a low hard threshold before measuring shared-network behavior. If Enterprise Turnstile is purchased later, its short-lived Ephemeral ID can help detect high-volume IP rotation, but Cloudflare explicitly warns that it is not guaranteed unique and should not identify individual users.
+
+### Research basis
+
+- [Supabase anonymous sign-ins](https://supabase.com/docs/guides/auth/auth-anonymous): anonymous users are real authenticated users, but Supabase recommends CAPTCHA/Turnstile because fake anonymous accounts can inflate database usage; its built-in anonymous-signup protection is IP-based.
+- [Supabase Auth rate limits](https://supabase.com/docs/guides/auth/rate-limits): Auth uses token buckets for IP-limited endpoints. These protect Auth itself; they do not replace TheLook's paid-operation quota.
+- [Cloudflare Turnstile server validation](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/): server verification is mandatory; tokens expire after five minutes and are single-use.
+- [Cloudflare Ephemeral IDs](https://developers.cloudflare.com/turnstile/additional-configuration/ephemeral-id/): they can recognize high-volume IP rotation without cookies, but are Enterprise-only and not guaranteed unique.
+- [Vercel WAF rate limiting](https://vercel.com/docs/vercel-firewall/vercel-waf/rate-limiting): all plans can apply short-window edge limits; Hobby/Pro can count by IP or JA4 digest, and counters are regional.
+- [OWASP DoS guidance](https://cheatsheetseries.owasp.org/cheatsheets/Denial_of_Service_Cheat_Sheet.html): use layered defenses, perform cheap validation before expensive work, apply graceful degradation, cache results, and cap resource-intensive operations.
 
 ## What counts as a try-on
 
@@ -271,20 +289,22 @@ The Supabase service-role key bypasses RLS. Server code using it must first veri
 ## Vercel render flow
 
 ```text
-1. Browser sends avatar ID and garment IDs.
+1. Browser sends avatar ID, garment IDs, and a fresh Turnstile token.
 2. Vercel verifies the Supabase access token.
 3. Vercel derives user ID from the verified token; it never trusts a body user_id.
-4. Vercel confirms all rows belong to that user.
-5. Vercel calculates the render fingerprint.
-6. A successful cached render returns immediately and consumes no allowance.
-7. Vercel HMAC-hashes the trusted x-forwarded-for IP.
-8. PostgreSQL atomically reserves IP, user, and global quota.
-9. A unique in-flight fingerprint prevents duplicate clicks.
-10. Vercel downloads private avatar/garment files.
-11. Vercel calls YouCam and polls for completion.
-12. Vercel uploads the result to private renders Storage.
-13. PostgreSQL marks the job completed.
-14. The browser receives a short-lived result URL and remaining allowance.
+4. Vercel rejects anonymous or unverified users before any paid work.
+5. Vercel confirms all selected rows belong to that user.
+6. Vercel calculates the render fingerprint.
+7. A successful cached render returns immediately and consumes no allowance.
+8. Vercel validates the single-use Turnstile token server-side, including hostname/action checks.
+9. Vercel HMAC-hashes the trusted x-forwarded-for IP for aggregate velocity analysis; raw IP is not stored.
+10. PostgreSQL atomically reserves the verified user's and global quota.
+11. A unique in-flight fingerprint prevents duplicate clicks.
+12. Vercel downloads private avatar/garment files.
+13. Vercel calls YouCam and polls for completion.
+14. Vercel uploads the result to private renders Storage.
+15. PostgreSQL marks the job completed.
+16. The browser receives a short-lived result URL and remaining allowance.
 ```
 
 Vercel Functions are stateless. Do not use local files or in-memory counters for production persistence.
@@ -341,6 +361,7 @@ Permanent accounts retain data until the user deletes it. The UI must provide:
 - Create an anonymous session on first visit.
 - Add account menu and session state.
 - Add Google and verified-email registration/sign-in.
+- Add Turnstile to anonymous signup and permanent registration/sign-in as supported by Supabase Auth.
 - Add explicit no-merge warning before leaving a guest session.
 - Ensure account creation/sign-in starts an empty account wardrobe.
 - Add sign-out and session-refresh handling.
@@ -403,20 +424,24 @@ Permanent accounts retain data until the user deletes it. The UI must provide:
 
 **Build**
 
-- Read Vercel's trusted `x-forwarded-for` header.
-- HMAC-hash IPs with a server-only secret.
-- Add atomic PostgreSQL quota-reservation function.
-- Enforce two new renders per IP/day and user/day.
+- Require a non-anonymous, verified Google/email account for paid rendering.
+- Read Vercel's trusted `x-forwarded-for` header and HMAC-hash IPs with a server-only secret.
+- Record IP aggregates only for broad velocity/anomaly detection; do not enforce a shared two-render IP allowance.
+- Add an atomic PostgreSQL quota-reservation function.
+- Enforce two new renders per verified user/day.
 - Add configurable global daily and total budgets.
 - Add fingerprint cache and duplicate in-flight lock.
 - Add refund behavior for pre-YouCam failures.
-- Add Turnstile before expensive public renders.
+- Validate a fresh, single-use Turnstile token server-side before expensive renders.
+- Add a Vercel WAF short-window burst rule in log mode, then tune/challenge from observed traffic.
 - Show remaining daily renders and reset time.
 - Add an emergency real-render kill switch.
 
 **Done bar**
 
-- Third uncached render receives HTTP 429.
+- Guest Show On Me requests are rejected before YouCam; recommendations remain available.
+- A verified account's third uncached render receives HTTP 429.
+- Multiple legitimate accounts on one shared IP retain their own allowance.
 - Cache hits remain available without consuming quota.
 - Parallel double-clicks create one YouCam job.
 - Raw IP addresses never enter PostgreSQL or logs.
@@ -424,7 +449,7 @@ Permanent accounts retain data until the user deletes it. The UI must provide:
 **Learning checkpoint**
 
 - Walk through the atomic transaction and race condition it prevents.
-- Explain user, IP, and global limits with concrete rows.
+- Explain why the verified-user quota is hard, IP is only a broad risk signal, and global budgets are the financial circuit breaker.
 
 ### Phase F — Vercel deployment and production validation
 
@@ -441,7 +466,7 @@ Permanent accounts retain data until the user deletes it. The UI must provide:
 **Done bar**
 
 - The public production URL completes the full user journey.
-- Private-data isolation and two-per-day limits pass production tests.
+- Private-data isolation, account-only rendering, shared-IP fairness, and two-per-verified-user limits pass production tests.
 - No persistent behavior depends on Vercel's local filesystem.
 
 **Learning checkpoint**

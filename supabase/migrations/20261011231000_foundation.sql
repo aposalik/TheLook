@@ -161,7 +161,8 @@ create table if not exists public.global_usage (
 create table if not exists public.render_settings (
   id boolean primary key default true check (id),
   real_tryon_enabled boolean not null default true,
-  ip_daily_tryon_limit integer not null default 2 check (ip_daily_tryon_limit >= 0),
+  verified_account_required boolean not null default true,
+  ip_daily_observe_threshold integer not null default 10 check (ip_daily_observe_threshold > 0),
   user_daily_tryon_limit integer not null default 2 check (user_daily_tryon_limit >= 0),
   global_daily_tryon_limit integer not null default 20 check (global_daily_tryon_limit >= 0),
   global_total_unit_limit integer not null default 700 check (global_total_unit_limit >= 0),
@@ -388,7 +389,8 @@ using ((select auth.uid()) = user_id);
 
 -- No client policies are intentionally defined for daily usage, global usage,
 -- or render settings. RLS therefore denies all browser access; trusted server
--- code uses the service-role key.
+-- code uses the service-role key. IP usage is an aggregate risk/velocity signal,
+-- not a two-render hard allowance shared by every user behind that address.
 
 -- ---------------------------------------------------------------------------
 -- Private Storage buckets

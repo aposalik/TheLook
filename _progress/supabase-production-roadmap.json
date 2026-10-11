@@ -5,9 +5,11 @@
     "Documented PostgreSQL schema, private Storage layout, RLS model, quota counters, Vercel flow, cleanup, and learning checkpoints",
     "Saved implementation Phases A through H in PRODUCTION-ARCHITECTURE.md",
     "Started Phase A on feat/supabase-foundation",
-    "Created the first versioned migration for tables, constraints, indexes, profile provisioning, private buckets, and database/storage RLS policies"
+    "Created the first versioned migration for tables, constraints, indexes, profile provisioning, private buckets, and database/storage RLS policies",
+    "Researched shared-IP and rotating-IP abuse using official Supabase, Cloudflare, Vercel, and OWASP guidance",
+    "Replaced the unfair two-renders-per-IP hard cap with verified-account-only paid rendering, two renders per verified user/day, high-threshold IP observation, Turnstile, WAF burst protection, duplicate locks, and global circuit breakers"
   ],
-  "nextStep": "Install/restore Supabase CLI access, initialize the local project, run db reset/lint, add pgTAP ownership-isolation tests, and correct any migration issues before completing Phase A",
+  "nextStep": "Push the local branches when gateway TLS is refreshed; then install/restore Supabase CLI access, initialize the local project, run db reset/lint, add pgTAP ownership-isolation tests, and correct any migration issues before completing Phase A",
   "outputFiles": [
     "PRODUCTION-ARCHITECTURE.md",
     "PHASES.md",
@@ -16,5 +18,5 @@
     "supabase/migrations/20261011231000_foundation.sql"
   ],
   "blocker": "The OpenClaw egress proxy certificate embedded in the current trust bundle expired on 2026-10-10. Git push and Supabase CLI package download fail TLS validation until the gateway refreshes its certificate. Docker is installed but its daemon is not running.",
-  "updatedAt": "2026-10-11T23:08:00+03:00"
+  "updatedAt": "2026-10-11T23:28:00+03:00"
 }
