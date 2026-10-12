@@ -34,6 +34,7 @@ Personal wardrobe
 - Multiple saved 9:16 avatar photos
 - YouCam Cloth-v4 full-look rendering with image normalization and result caching
 - Saved lookbook, outfit details, mock bag, and checkout flow
+- Style Assistant chat: weather-aware outfit picks from your own wardrobe (Gemini + Open-Meteo)
 - Premium loading sequence, responsive interface, final TheLook branding, and optional sound design
 - Mock mode for development without spending YouCam units
 
@@ -80,6 +81,35 @@ Fixed catalog pairs use an offline OpenCLIP/Polyvore compatibility matrix. Pairs
 ### Try-on
 
 The server normalizes all images to JPEG, uploads them through Perfect Corp's File API, creates Cloth-v4 tasks, polls for completion, downloads the result, and caches identical avatar/outfit combinations. Layered upper garments are composed into one reference image; bottoms are rendered as a subsequent step.
+
+## Style Assistant (AI Chat)
+
+A floating chat panel (✦, bottom-left) powered by Gemini and Open-Meteo live weather.
+
+Describe where you're going and when. The assistant checks the forecast, picks a complete outfit from **your own wardrobe**, and equips it in the fitting room when you press **Wear this look**.
+
+Example: "Going to a wedding in Istanbul this Saturday"
+→ checks Saturday's forecast → picks an occasion-appropriate outfit → explains why
+
+Follow-up messages refine the same look: "make it more casual" or "I prefer darker colors". The new look replaces the previous outfit card.
+
+```text
+POST /api/chat
+  → Gemini pass 1: { location, date, occasion, vibe, isFollowUp }   (today's date sent by the browser)
+  → Open-Meteo geocode + daily forecast (no API key)
+  → Gemini pass 2: wardrobe metadata + weather + occasion → { itemIds, explanation, stylistTitle }
+  → server keeps only IDs that were sent and enforces slot rules (one bottom, one item per upper layer, dress replaces top + bottom)
+```
+
+| Case | Behavior |
+|---|---|
+| Empty wardrobe | Asks the user to add their own clothes; demo catalog items are never used |
+| Location not found | Still picks an outfit, skips the weather card, says the weather couldn't be found |
+| Date more than 16 days ahead | Uses typical seasonal weather for the location (hemisphere-aware) |
+| Gemini returns unknown IDs | Dropped server-side; no invented items |
+| Wear this look | Equips the items only; **Show On Me** stays a manual, credit-spending action |
+
+Privacy: only garment metadata (no images, no user photo) is sent to Gemini by the assistant.
 
 ## Technology
 

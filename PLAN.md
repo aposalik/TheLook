@@ -66,5 +66,61 @@ Write one sentence: "For ___, TheLook lets them ___."
 | 4 | Oct 21 – Oct 27 | Polish + Epic 5 | Feels like a product; video + write-up drafted; SUBMIT |
 | Buffer | Oct 28 – Nov 2 | Fix + re-record | Final polish, better demo take |
 
-## The habit that wins
-Finish the walking skeleton (Epic 0) before ANY UI. If YouCam's apparel API misbehaves, find out on day 2 with 4 weeks to adapt — not on day 25 with a pretty shell and no core.
+## Session log
+
+### Wardrobe UX + Gemini fix
+- Installed `@imgly/background-removal` (client-side WASM, free)
+- AddItemModal: bg removal before preview, Gemini Vision auto-names garment, shows AI/fallback badge
+- WardrobeCatalog: removed inline × buttons, added ⚙ Manage drawer for user items, pendulum spring physics on hanger hover
+- Fixed `GEMINI_MODEL` default from `gemini-3.5-flash-lite` (404) → `gemini-2.5-flash`
+
+### Show On Me fetch failed
+- Root cause: Next.js 15/16 cancels outgoing fetches with "Request was cancelled"
+- Fix: added `cache: "no-store"` to every fetch in `lib/youcam.ts` and `lib/gemini.ts`
+- Also raised `bodySizeLimit` to `12mb` in `next.config.ts` for image payloads
+- FittingRoom strips `item.image` from catalog items before sending to `/api/tryon-look`
+
+### Demo clothes toggle
+- Demo items (catalog) show by default with a subtle grey "Demo" badge on each card
+- ⚙ Manage drawer (always visible now) has a toggle switch at the top: "Demo clothes" on/off
+- When hidden, catalog items are filtered from the visual wardrobe but still used by the recommender (outfit generation still works)
+- Toggle persisted to localStorage (`thelook_demo_hidden`), reversible at any time
+- User-uploaded items always visible regardless of toggle
+
+### Phase E — YouCam credit protection
+- `supabase/migrations/20261023000000_quota.sql`: atomic `reserve_render_quota()`, `complete_render_job()`, `fail_render_job()` PostgreSQL functions
+- `lib/quota.ts`: server-side helpers — `reserveQuota`, `completeJob`, `failJob`, `hashIp`, `trustedIp`
+- `tryon-look/route.ts`: quota reservation before any YouCam work; refund via `failJob` on pipeline error; `completeJob` records actual units; cache hits return signed URL without consuming quota; 429/503/409 on limit/budget/in-flight
+- `RATE_LIMIT_HASH_SECRET` generated and added to `.env.local`; documented in `.env.local.example`
+- TypeScript: 0 errors. Production build: clean.
+- **Action required**: apply migration in Supabase SQL Editor → paste contents of `supabase/migrations/20261023000000_quota.sql` and run
+
+- `lib/db.ts`: typed query helpers for all 4 tables (avatars, wardrobe_items, user_preferences, saved_looks + items)
+- `avatar/upload` + `wardrobe/upload`: now insert DB rows after Storage upload
+- New DELETE routes: `/api/avatar/[id]`, `/api/wardrobe/[id]`, `/api/looks/[id]` — remove DB row + Storage file
+- New signed-URL routes: `/api/avatar/[id]/url`, `/api/wardrobe/[id]/url`, `/api/renders/[path]/url`
+- New `/api/looks` (GET + POST) and `/api/preferences` (POST)
+- `FittingRoom.tsx`: `loadFromDb()` loads from DB on mount with localStorage fallback; all mutations write to DB
+- `AddItemModal.tsx`: passes full item metadata to wardrobe upload so DB row is inserted
+- TypeScript: 0 errors. Production build: clean.
+
+- Created `lib/storage.ts`: service-role helper (`uploadToStorage`, `signedUrl`, `deleteFromStorage`)
+- New route `/api/avatar/upload`: avatar JPEG → `avatars/{userId}/{avatarId}.jpg` → signed URL
+- New route `/api/wardrobe/upload`: PNG cutout → `wardrobe/{userId}/{itemId}.png` → signed URL
+- `tryon-look/route.ts`: renders now saved to `renders/{userId}/{key}.jpg` in private Storage; cache check via `signedUrl`; removed all `public/results` local writes
+- `FittingRoom.tsx`: avatar upload fires background Storage upload after local save
+- `AddItemModal.tsx`: wardrobe cutout fires background Storage upload after item save
+- Added `SUPABASE_SERVICE_ROLE_KEY` to `.env.local.example`
+- TypeScript: 0 errors
+- **Action required**: add `SUPABASE_SERVICE_ROLE_KEY` to `web/.env.local` (Supabase → Project Settings → API → service_role key)
+
+- Root cause: Supabase project has no SMTP configured → rejects all email signups with "Email address is invalid"
+- Google OAuth also not enabled in Supabase dashboard (`google: false` in /auth/v1/settings)
+- Code fixes applied:
+  - AuthDialog: maps raw GoTrue errors to friendly messages
+  - AuthProvider: detects duplicate-email fake-success (identities[] empty)
+  - Google button now hidden unless `NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED=true` in env
+- **Action required in Supabase dashboard** (`https://supabase.com/dashboard/project/otmdhnjvzqtwzhlyioqs`):
+  1. Authentication → Providers → Email → turn OFF "Confirm email" (auto-confirm) for dev testing
+  2. OR Project Settings → Authentication → SMTP → configure a real SMTP provider (Resend free tier recommended)
+  3. Authentication → Providers → Google → add OAuth credentials when ready, then set `NEXT_PUBLIC_GOOGLE_OAUTH_ENABLED=true` in `.env.local`

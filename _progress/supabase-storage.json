@@ -1,0 +1,29 @@
+{
+  "task": "Phase C — Private Storage migration",
+  "completedSteps": [
+    "Created web/lib/storage.ts: service-role Supabase Storage helper (uploadToStorage, signedUrl, deleteFromStorage)",
+    "Created web/app/api/avatar/upload/route.ts: receives avatar base64, converts to JPEG, uploads to avatars/{userId}/{avatarId}.jpg, returns storagePath + signed URL",
+    "Created web/app/api/wardrobe/upload/route.ts: receives PNG cutout base64, uploads to wardrobe/{userId}/{itemId}.png, returns storagePath + signed URL",
+    "Updated web/app/api/tryon-look/route.ts: renders now saved to renders/{userId}/{key}.jpg in private Storage; cache check via signedUrl; removed all local public/results writes",
+    "Updated FittingRoom.tsx: avatar upload fires /api/avatar/upload in background after local save; storagePath stored on Avatar object",
+    "Updated AddItemModal.tsx: wardrobe cutout fires /api/wardrobe/upload in background after item save",
+    "Added SUPABASE_SERVICE_ROLE_KEY to .env.local.example",
+    "TypeScript: 0 errors"
+  ],
+  "nextStep": "Add SUPABASE_SERVICE_ROLE_KEY to web/.env.local, then manually verify: upload avatar → check avatars bucket in Supabase dashboard, add wardrobe item → check wardrobe bucket, run Show On Me → check renders bucket. Phase D: PostgreSQL application migration (replace localStorage with DB queries).",
+  "outputFiles": [
+    "web/lib/storage.ts",
+    "web/app/api/avatar/upload/route.ts",
+    "web/app/api/wardrobe/upload/route.ts",
+    "web/app/api/tryon-look/route.ts",
+    "web/app/components/FittingRoom.tsx",
+    "web/app/components/AddItemModal.tsx",
+    "web/.env.local.example"
+  ],
+  "doneBar": {
+    "imagesPersistedAcrossRefresh": "pending manual verification — requires SUPABASE_SERVICE_ROLE_KEY in .env.local",
+    "crossUserIsolation": "enforced by RLS (storage path must start with auth.uid())",
+    "noPublicResultsWrites": "DONE — tryon-look route no longer writes to public/results"
+  },
+  "updatedAt": "2026-10-23T00:00:00+03:00"
+}

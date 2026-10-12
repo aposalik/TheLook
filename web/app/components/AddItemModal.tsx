@@ -209,6 +209,12 @@ export default function AddItemModal({ open, category, onClose, onSave }: Props)
       description: analysis?.description,
       source: "user",
     };
+    // Upload cutout to private Storage in the background (non-blocking).
+    fetch("/api/wardrobe/upload", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ imageBase64: preview, itemId: item.id, item }),
+    }).catch(() => { /* non-fatal: local copy still works */ });
     onSave(item);
     resetAndClose();
   }

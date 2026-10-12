@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "./AuthProvider";
 import TurnstileWidget from "./TurnstileWidget";
+import { googleOAuthEnabled } from "@/lib/supabase/config";
 
 type Mode = "sign-in" | "create";
 
@@ -48,11 +49,26 @@ export default function AuthDialog({ open, onClose }: { open: boolean; onClose: 
     setCaptchaAttempt((value) => value + 1);
 
     if (result.error) {
-      setMessage(result.error);
+      // Map raw Supabase/GoTrue errors to friendly messages
+      const raw = result.error.toLowerCase();
+      let friendly = result.error;
+      if (raw.includes("invalid login credentials") || raw.includes("invalid email or password"))
+        friendly = "Email or password is incorrect.";
+      else if (raw.includes("email address") && raw.includes("invalid"))
+        friendly = "That email address was rejected. Make sure it is a real address (e.g. you@gmail.com).";
+      else if (raw.includes("email not confirmed"))
+        friendly = "Please confirm your email first — check your inbox for a verification link.";
+      else if (raw.includes("user already registered"))
+        friendly = "An account with that email already exists. Try signing in instead.";
+      else if (raw.includes("password should be") || raw.includes("password must be"))
+        friendly = "Password must be at least 8 characters.";
+      else if (raw.includes("rate limit") || raw.includes("too many"))
+        friendly = "Too many attempts. Please wait a minute and try again.";
+      setMessage(friendly);
       return;
     }
     if (result.needsEmailVerification) {
-      setMessage("Check your email and confirm the account. This browser remains signed out until verification is complete.");
+      setMessage("Check your inbox for a confirmation link. Come back and sign in after verifying.");
       return;
     }
     onClose();
@@ -119,12 +135,15 @@ export default function AuthDialog({ open, onClose }: { open: boolean; onClose: 
                 <button type="button" onClick={() => { setMode("create"); setMessage(null); }} className={`rounded-lg px-3 py-2 font-semibold transition ${mode === "create" ? "bg-white shadow-sm" : "text-[#77706A]"}`}>Create account</button>
               </div>
 
-              <button type="button" onClick={startGoogle} disabled={busy} className="flex w-full items-center justify-center gap-3 rounded-xl border border-[#D8CEC1] bg-white px-4 py-3 text-sm font-semibold transition hover:border-[#A18462] disabled:opacity-50">
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-[#1A1A1A] text-[10px] text-white">G</span>
-                Continue with Google
-              </button>
-
-              <div className="my-5 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-widest text-[#9A938D]"><span className="h-px flex-1 bg-[#E8E3DB]" />or email<span className="h-px flex-1 bg-[#E8E3DB]" /></div>
+              {googleOAuthEnabled && (
+                <>
+                  <button type="button" onClick={startGoogle} disabled={busy} className="flex w-full items-center justify-center gap-3 rounded-xl border border-[#D8CEC1] bg-white px-4 py-3 text-sm font-semibold transition hover:border-[#A18462] disabled:opacity-50">
+                    <span className="grid h-5 w-5 place-items-center rounded-full bg-[#1A1A1A] text-[10px] text-white">G</span>
+                    Continue with Google
+                  </button>
+                  <div className="my-5 flex items-center gap-3 text-[10px] font-semibold uppercase tracking-widest text-[#9A938D]"><span className="h-px flex-1 bg-[#E8E3DB]" />or email<span className="h-px flex-1 bg-[#E8E3DB]" /></div>
+                </>
+              )}
 
               <form onSubmit={submitEmail} className="space-y-3">
                 <label className="block text-xs font-semibold text-[#5F5954]">Email

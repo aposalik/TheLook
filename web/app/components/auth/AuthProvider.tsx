@@ -99,6 +99,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         ...(captchaToken ? { captchaToken } : {}),
       },
     });
+    // Supabase returns a fake success with an identities[] array when the email
+    // already exists but email confirmation is on — surface it clearly.
+    if (!error && data.user && data.user.identities?.length === 0) {
+      return { error: "An account with that email already exists. Try signing in instead." };
+    }
     return {
       error: error?.message ?? null,
       needsEmailVerification: !error && !data.session,
