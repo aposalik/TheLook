@@ -46,6 +46,7 @@ Legend: 🧱 build-time/local (free) · 🌐 app · 💳 spends YouCam credits �
 The production build is split into Phases A–H in [`PRODUCTION-ARCHITECTURE.md`](PRODUCTION-ARCHITECTURE.md), with a learning checkpoint after every phase.
 
 - [ ] Complete production Phases A–G: Supabase foundation, auth, private Storage, PostgreSQL migration, credit protection, Vercel deployment, and cleanup operations.
+## Phase 5 — Polish + submit  🌐 ← CURRENT
 - [ ] UX polish, responsive, loading/empty/error states, mobile check.
 - [ ] Private durable storage + render cache and public-API credit protection.
 - [x] CI workflow for lint, typecheck, and production build.
