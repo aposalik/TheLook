@@ -8,16 +8,17 @@ Work phase by phase. Do not start the next phase until the current phase's **Don
 
 1. **Hosting:** Vercel hosts the Next.js application and server routes.
 2. **Database:** Supabase PostgreSQL stores metadata, ownership, render jobs, and usage counters.
-3. **Files:** Private Supabase Storage buckets store avatars, wardrobe cutouts, and rendered looks.
-4. **Guest access:** A first-time visitor is signed in anonymously without seeing a login page.
-5. **Permanent accounts:** Google and verified email are offered for returning users and cross-device use.
-6. **No guest/account merge:** Guest and permanent accounts intentionally use different user IDs. Creating or signing into an account does not copy guest avatars or wardrobe items. The user uploads them again after signing in.
-7. **Privacy:** Every file and row belongs to one `user_id`; no visitor can read another visitor's data.
-8. **Guest capability:** Anonymous guests may upload clothes and receive recommendations, but paid YouCam **Show On Me** rendering requires a verified Google or email account.
-9. **Try-on quota:** Only new, uncached **Show On Me** renders count. Outfit recommendations, uploads, cache hits, and saved-result views do not count.
-10. **Initial public limit:** Each verified account receives at most two new try-ons per UTC day. IP data is a high-threshold abuse/velocity signal, not a two-render hard quota, so a home, office, or university does not unfairly share two renders. Global safety budgets cap total cost.
-11. **Cleanup:** Expired anonymous accounts and their files are removed automatically after the retention period.
-11. **Submission assets:** Screenshots, video, Devpost copy, and final submission happen after the hosted product flow is frozen.
+3. **Supabase plan:** Start on Supabase Free. It is sufficient for development, testing, and an early demo; production usage must stay within its database, Storage, egress, and inactivity-pause limits.
+4. **Files:** Private Supabase Storage buckets store avatars, wardrobe cutouts, and rendered looks.
+5. **Guest access:** A first-time visitor is signed in anonymously without seeing a login page.
+6. **Permanent accounts:** Google and verified email are offered for returning users and cross-device use.
+7. **No guest/account merge:** Guest and permanent accounts intentionally use different user IDs. Creating or signing into an account does not copy guest avatars or wardrobe items. The user uploads them again after signing in.
+8. **Privacy:** Every file and row belongs to one `user_id`; no visitor can read another visitor's data.
+9. **Guest capability:** Anonymous guests may upload clothes and receive recommendations, but paid YouCam **Show On Me** rendering requires a verified Google or email account.
+10. **Try-on quota:** Only new, uncached **Show On Me** renders count. Outfit recommendations, uploads, cache hits, and saved-result views do not count.
+11. **Initial public limit:** Each verified account receives at most two new try-ons per UTC day. IP data is a high-threshold abuse/velocity signal, not a two-render hard quota, so a home, office, or university does not unfairly share two renders. Global safety budgets cap total cost.
+12. **Cleanup:** Expired anonymous accounts and their files are removed automatically after the retention period.
+13. **Submission assets:** Screenshots, video, Devpost copy, and final submission happen after the hosted product flow is frozen.
 
 ## Mental model
 
@@ -43,6 +44,8 @@ Browser / Next.js UI
         ├── call YouCam
         └── write private render results to Supabase
 ```
+
+The initial Free plan has practical limits: 500 MB database size, 1 GB file storage, 5 GB egress, 50,000 monthly active users, two active projects, and possible pausing after one week of inactivity. We will store compressed/cropped images, enforce upload limits, delete abandoned guest data, and monitor usage. Supabase Free is appropriate for development and an early demo, not a high-traffic public launch.
 
 The browser may use the Supabase publishable key. It must never receive:
 
