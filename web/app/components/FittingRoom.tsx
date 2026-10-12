@@ -9,6 +9,8 @@ import BagDrawer from "./BagDrawer";
 import Lookbook, { type SavedLook } from "./Lookbook";
 import LookDetail, { type DetailLook } from "./LookDetail";
 import { useSoundEffects } from "../hooks/useSoundEffects";
+import { useAuth } from "./auth/AuthProvider";
+import AuthDialog from "./auth/AuthDialog";
 
 import type { Item, Look, StylePreferences } from "@/lib/recommend";
 type Avatar = { id: string; url: string };
@@ -16,6 +18,10 @@ const AV_KEY = "thelook_avatars";
 const LOOKS_KEY = "thelook_looks";
 const WARDROBE_KEY = "thelook_wardrobe";
 const PREFS_KEY = "thelook_style_preferences";
+
+function userKey(base: string, userId: string) {
+  return `${base}:${userId}`;
+}
 
 /** Downscale an uploaded image so localStorage stays small and uploads are fast. */
 function downscale(file: File, max = 900): Promise<string> {
@@ -38,6 +44,7 @@ function downscale(file: File, max = 900): Promise<string> {
 
 export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const sounds = useSoundEffects();
+  const { user, isGuest, isVerifiedAccount } = useAuth();
   const [equipped, setEquipped] = useState<Item[]>([]);
   const [activeItem, setActiveItem] = useState<Item | null>(null);
   const [currentLook, setCurrentLook] = useState<Look | null>(null);
@@ -65,29 +72,55 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const [preferences, setPreferences] = useState<StylePreferences>({ occasion: "any", goal: "balanced" });
   const [stylistSource, setStylistSource] = useState<"gemini" | "deterministic" | null>(null);
   const [addModal, setAddModal] = useState<RowKey | null>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   }
 
-  // ---- saved avatars: persisted to localStorage, switchable ----
+  // Phase B scopes browser data by Supabase user ID. This keeps the guest and
+  // permanent-account wardrobes separate until Phase C/D move them to Storage/Postgres.
   useEffect(() => {
+    if (!user) return;
     try {
-      const saved = JSON.parse(localStorage.getItem(AV_KEY) || "[]") as Avatar[];
-      // Browser persistence is an external store; hydrate it once after mount.
+      const readScoped = (base: string, fallback: string) => {
+        const key = userKey(base, user.id);
+        if (isGuest && localStorage.getItem(key) === null) {
+          const legacy = localStorage.getItem(base);
+          if (legacy !== null) {
+            localStorage.setItem(key, legacy);
+            localStorage.removeItem(base);
+          }
+        }
+        return localStorage.getItem(key) ?? fallback;
+      };
+      const saved = JSON.parse(readScoped(AV_KEY, "[]")) as Avatar[];
+      // Browser persistence is an external store; hydrate on authenticated identity changes.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setAvatars(saved);
-      if (saved[0]) { setActiveAvatarId(saved[0].id); setCustomPhoto(saved[0].url); }
-      setSavedLooks(JSON.parse(localStorage.getItem(LOOKS_KEY) || "[]") as SavedLook[]);
-      setUserItems(JSON.parse(localStorage.getItem(WARDROBE_KEY) || "[]") as Item[]);
-      setPreferences(JSON.parse(localStorage.getItem(PREFS_KEY) || '{"occasion":"any","goal":"balanced"}') as StylePreferences);
-    } catch { /* ignore */ }
-  }, []);
+      setActiveAvatarId(saved[0]?.id ?? null);
+      setCustomPhoto(saved[0]?.url ?? null);
+      setTryOnResult(null);
+      setMockPreview(null);
+      setEquipped([]);
+      setActiveItem(null);
+      setCurrentLook(null);
+      setRecommendedLooks([]);
+      setSavedLooks(JSON.parse(readScoped(LOOKS_KEY, "[]")) as SavedLook[]);
+      setUserItems(JSON.parse(readScoped(WARDROBE_KEY, "[]")) as Item[]);
+      setPreferences(JSON.parse(readScoped(PREFS_KEY, '{"occasion":"any","goal":"balanced"}')) as StylePreferences);
+    } catch {
+      setAvatars([]);
+      setSavedLooks([]);
+      setUserItems([]);
+    }
+  }, [isGuest, user]);
 
   function persistUserItems(next: Item[]) {
+    if (!user) return;
     setUserItems(next);
-    localStorage.setItem(WARDROBE_KEY, JSON.stringify(next));
+    localStorage.setItem(userKey(WARDROBE_KEY, user.id), JSON.stringify(next));
   }
 
   function addUserItem(item: Item) {
@@ -102,8 +135,9 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   }
 
   function persistAvatars(next: Avatar[]) {
+    if (!user) return;
     setAvatars(next);
-    localStorage.setItem(AV_KEY, JSON.stringify(next));
+    localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(next));
   }
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -158,8 +192,9 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   }
 
   function updatePreferences(next: StylePreferences) {
+    if (!user) return;
     setPreferences(next);
-    localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+    localStorage.setItem(userKey(PREFS_KEY, user.id), JSON.stringify(next));
   }
 
   function removeEquipped(item: Item) {
@@ -265,6 +300,11 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   }
 
   async function runTryOn() {
+    if (!isVerifiedAccount) {
+      showToast("Sign in with a verified account to use Show on me");
+      setAccountOpen(true);
+      return;
+    }
     if (!customPhoto) { showToast("Upload your photo first"); return; }
     const items = equipped.length ? equipped : currentLook?.items ?? [];
     if (!items.length) { showToast("Build or generate a look first"); return; }
@@ -287,8 +327,9 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
 
   // ---- lookbook: save/review outfits, persisted ----
   function persistLooks(next: SavedLook[]) {
+    if (!user) return;
     setSavedLooks(next);
-    localStorage.setItem(LOOKS_KEY, JSON.stringify(next));
+    localStorage.setItem(userKey(LOOKS_KEY, user.id), JSON.stringify(next));
   }
   const lookItems = () => (equipped.length ? equipped : currentLook?.items ?? []);
 
@@ -320,6 +361,9 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         onLookbookClick={() => setLookbookOpen(true)}
         soundEnabled={sounds.enabled}
         onSoundToggle={sounds.toggle}
+        accountLabel={isVerifiedAccount ? (user?.email ?? "Account") : "Guest wardrobe"}
+        isGuest={isGuest}
+        onAccountClick={() => setAccountOpen(true)}
       />
       <main className="mx-auto max-w-[1440px] px-6 py-6 space-y-6">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
@@ -372,6 +416,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         onClose={() => setAddModal(null)}
         onSave={addUserItem}
       />
+      {accountOpen && <AuthDialog open onClose={() => setAccountOpen(false)} />}
       <BagDrawer
         open={bagOpen}
         items={cart}

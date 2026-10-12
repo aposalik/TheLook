@@ -4,6 +4,7 @@ import path from "path";
 import crypto from "crypto";
 import { uploadFile, runCloth, pollCloth, toJpeg, type ClothParams } from "@/lib/youcam";
 import catalog from "@/data/catalog.json";
+import { requireVerifiedAccount } from "@/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,9 @@ async function exists(p: string) { try { await access(p); return true; } catch {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireVerifiedAccount();
+    if (auth.response) return auth.response;
+
     const { photoBase64, garmentId } = await req.json();
     if (!photoBase64 || !garmentId) return NextResponse.json({ error: "photoBase64 and garmentId required" }, { status: 400 });
 

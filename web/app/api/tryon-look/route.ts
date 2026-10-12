@@ -6,6 +6,7 @@ import { uploadFile, runCloth, pollCloth, toJpeg } from "@/lib/youcam";
 import { buildUpperCollage } from "@/lib/collage";
 import catalog from "@/data/catalog.json";
 import type { Item } from "@/lib/recommend";
+import { requireVerifiedAccount } from "@/lib/auth";
 
 export const runtime = "nodejs";
 const RESULTS_DIR = path.join(process.cwd(), "public", "results");
@@ -29,6 +30,9 @@ async function reupload(url: string) {
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireVerifiedAccount();
+    if (auth.response) return auth.response;
+
     const body = await req.json() as { photoBase64?: string; itemIds?: string[]; items?: Item[] };
     if (!body.photoBase64) return NextResponse.json({ error: "photoBase64 required" }, { status: 400 });
     const supplied = Array.isArray(body.items) ? body.items.slice(0, 12) : [];

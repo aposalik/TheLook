@@ -6,8 +6,11 @@ type Props = {
   onLookbookClick: () => void;
   soundEnabled: boolean;
   onSoundToggle: () => void;
+  accountLabel: string;
+  isGuest: boolean;
+  onAccountClick: () => void;
 };
-export default function TopBar({ cartCount, onBagClick, savedCount, onLookbookClick, soundEnabled, onSoundToggle }: Props) {
+export default function TopBar({ cartCount, onBagClick, savedCount, onLookbookClick, soundEnabled, onSoundToggle, accountLabel, isGuest, onAccountClick }: Props) {
   return (
     <header className="sticky top-0 z-40 border-b border-[#E8E3DB] bg-[#F7F5F0]/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between px-4 py-1.5 sm:px-8">
@@ -20,6 +23,16 @@ export default function TopBar({ cartCount, onBagClick, savedCount, onLookbookCl
           <span className="hidden rounded-full bg-[#EDE5D8] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-[#8A8480] sm:inline-flex">Fitting Room</span>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={onAccountClick}
+            title={accountLabel}
+            className="flex max-w-40 items-center gap-2 rounded-xl border border-[#E8E3DB] bg-white px-3 py-2 text-sm font-medium text-[#1A1A1A] shadow-sm transition hover:border-[#C4A882] active:scale-95"
+          >
+            <span className={`h-2 w-2 shrink-0 rounded-full ${isGuest ? "bg-amber-500" : "bg-emerald-500"}`} aria-hidden="true" />
+            <span className="hidden truncate md:inline">{accountLabel}</span>
+            <span className="md:hidden" aria-hidden="true">Account</span>
+          </button>
           <button
             type="button"
             onClick={onSoundToggle}
