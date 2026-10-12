@@ -78,28 +78,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [createGuest, supabase]);
 
-  const leaveGuest = useCallback(async () => {
-    if (!supabase || !session?.user?.is_anonymous) return null;
-    const { error } = await supabase.auth.signOut({ scope: "local" });
-    return error?.message ?? null;
-  }, [session?.user?.is_anonymous, supabase]);
-
   const signInWithEmail = useCallback(async ({ email, password, captchaToken }: EmailCredentials): Promise<AuthResult> => {
     if (!supabase) return { error: "Supabase is not configured." };
-    const leaveError = await leaveGuest();
-    if (leaveError) return { error: leaveError };
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
       options: captchaToken ? { captchaToken } : undefined,
     });
     return { error: error?.message ?? null };
-  }, [leaveGuest, supabase]);
+  }, [supabase]);
 
   const signUpWithEmail = useCallback(async ({ email, password, captchaToken }: EmailCredentials): Promise<AuthResult> => {
     if (!supabase) return { error: "Supabase is not configured." };
-    const leaveError = await leaveGuest();
-    if (leaveError) return { error: leaveError };
     const emailRedirectTo = `${window.location.origin}/auth/callback`;
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -113,19 +103,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       error: error?.message ?? null,
       needsEmailVerification: !error && !data.session,
     };
-  }, [leaveGuest, supabase]);
+  }, [supabase]);
 
   const signInWithGoogle = useCallback(async (): Promise<AuthResult> => {
     if (!supabase) return { error: "Supabase is not configured." };
-    const leaveError = await leaveGuest();
-    if (leaveError) return { error: leaveError };
     const redirectTo = `${window.location.origin}/auth/callback`;
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: { redirectTo },
     });
     return { error: error?.message ?? null };
-  }, [leaveGuest, supabase]);
+  }, [supabase]);
 
   const signOutToGuest = useCallback(async (): Promise<AuthResult> => {
     if (!supabase) return { error: "Supabase is not configured." };
