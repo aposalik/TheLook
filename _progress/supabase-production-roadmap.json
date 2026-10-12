@@ -8,10 +8,11 @@
     "Created the first versioned migration for tables, constraints, indexes, profile provisioning, private buckets, and database/storage RLS policies",
     "Initialized the local Supabase project configuration and enabled anonymous sign-ins for local development",
     "Added a pgTAP ownership-isolation test suite covering two users and server-owned counters/settings",
+    "Applied the foundation migration to hosted Supabase Free and verified the wardrobe table, all 11 RLS-enabled application tables, and three private Storage buckets",
     "Researched shared-IP and rotating-IP abuse using official Supabase, Cloudflare, Vercel, and OWASP guidance",
     "Replaced the unfair two-renders-per-IP hard cap with verified-account-only paid rendering, two renders per verified user/day, high-threshold IP observation, Turnstile, WAF burst protection, duplicate locks, and global circuit breakers"
   ],
-  "nextStep": "Restart Docker Desktop after its read-only VM filesystem error, then run supabase start/db reset/db lint/test db; link and push the latest branch after the gateway TLS issue is resolved",
+  "nextStep": "Phase B: add Supabase browser/server clients, anonymous session creation, Google/email auth, explicit no-merge warning, and account session handling. Run cross-user tests through real Auth sessions during Phase B.",
   "outputFiles": [
     "PRODUCTION-ARCHITECTURE.md",
     "PHASES.md",
@@ -21,6 +22,6 @@
     "supabase/migrations/20261011231000_foundation.sql",
     "supabase/tests/database/rls.sql"
   ],
-  "blocker": "Local Supabase image extraction failed because Docker's VM filesystem became read-only. The latest branch push also still fails TLS validation through the expired OpenClaw egress proxy certificate. No destructive Docker cleanup was performed.",
+  "blocker": "Local Docker validation was skipped because the VM filesystem became read-only. Hosted migration verification passed through Supabase SQL Editor. The latest local commits still need a remote push after the gateway TLS issue is resolved.",
   "updatedAt": "2026-10-12T10:15:00+03:00"
 }
