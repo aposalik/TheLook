@@ -1,21 +1,30 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import TopBar from "./TopBar";
 import AvatarStage from "./AvatarStage";
 import WearingPanel from "./WearingPanel";
 import WardrobeCatalog from "./WardrobeCatalog";
 import AddItemModal, { type RowKey } from "./AddItemModal";
+import ChatDrawer from "./chat/ChatDrawer";
 import BagDrawer from "./BagDrawer";
 import Lookbook, { type SavedLook } from "./Lookbook";
 import LookDetail, { type DetailLook } from "./LookDetail";
 import { useSoundEffects } from "../hooks/useSoundEffects";
+import { useAuth } from "./auth/AuthProvider";
+import AuthDialog from "./auth/AuthDialog";
+import { createClient } from "@/lib/supabase/client";
+import { signedUrl } from "@/lib/storage";
 
 import type { Item, Look, StylePreferences } from "@/lib/recommend";
-type Avatar = { id: string; url: string };
+type Avatar = { id: string; url: string; storagePath?: string };
 const AV_KEY = "thelook_avatars";
 const LOOKS_KEY = "thelook_looks";
 const WARDROBE_KEY = "thelook_wardrobe";
 const PREFS_KEY = "thelook_style_preferences";
+
+function userKey(base: string, userId: string) {
+  return `${base}:${userId}`;
+}
 
 /** Downscale an uploaded image so localStorage stays small and uploads are fast. */
 function downscale(file: File, max = 900): Promise<string> {
@@ -38,6 +47,7 @@ function downscale(file: File, max = 900): Promise<string> {
 
 export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const sounds = useSoundEffects();
+  const { user, isGuest, isVerifiedAccount } = useAuth();
   const [equipped, setEquipped] = useState<Item[]>([]);
   const [activeItem, setActiveItem] = useState<Item | null>(null);
   const [currentLook, setCurrentLook] = useState<Look | null>(null);
@@ -65,29 +75,172 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const [preferences, setPreferences] = useState<StylePreferences>({ occasion: "any", goal: "balanced" });
   const [stylistSource, setStylistSource] = useState<"gemini" | "deterministic" | null>(null);
   const [addModal, setAddModal] = useState<RowKey | null>(null);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   }
 
-  // ---- saved avatars: persisted to localStorage, switchable ----
-  useEffect(() => {
+  // Load all user data from DB on mount / identity change.
+  // localStorage is used as an optimistic cache only.
+  const loadFromDb = useCallback(async () => {
+    if (!user) return;
+    const supabase = createClient();
+
+    // Avatars — fetch DB rows, generate signed URLs for display
     try {
-      const saved = JSON.parse(localStorage.getItem(AV_KEY) || "[]") as Avatar[];
-      // Browser persistence is an external store; hydrate it once after mount.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setAvatars(saved);
-      if (saved[0]) { setActiveAvatarId(saved[0].id); setCustomPhoto(saved[0].url); }
-      setSavedLooks(JSON.parse(localStorage.getItem(LOOKS_KEY) || "[]") as SavedLook[]);
-      setUserItems(JSON.parse(localStorage.getItem(WARDROBE_KEY) || "[]") as Item[]);
-      setPreferences(JSON.parse(localStorage.getItem(PREFS_KEY) || '{"occasion":"any","goal":"balanced"}') as StylePreferences);
-    } catch { /* ignore */ }
-  }, []);
+      const { data: avRows } = await supabase
+        .from("avatars")
+        .select("id, storage_path")
+        .order("created_at", { ascending: true });
+      if (avRows && avRows.length > 0) {
+        const loaded: Avatar[] = await Promise.all(
+          avRows.map(async (row: { id: string; storage_path: string }) => {
+            // Signed URL must be fetched server-side; use the API route.
+            const res = await fetch(`/api/avatar/${row.id}/url`);
+            const d = await res.json() as { signedUrl?: string };
+            return { id: row.id, storagePath: row.storage_path, url: d.signedUrl ?? "" };
+          }),
+        );
+        setAvatars(loaded);
+        setActiveAvatarId(loaded[0]?.id ?? null);
+        setCustomPhoto(loaded[0]?.url ?? null);
+        localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(loaded));
+      } else {
+        // Fall back to localStorage (guest or first visit)
+        const cached = JSON.parse(localStorage.getItem(userKey(AV_KEY, user.id)) ?? "[]") as Avatar[];
+        setAvatars(cached);
+        setActiveAvatarId(cached[0]?.id ?? null);
+        setCustomPhoto(cached[0]?.url ?? null);
+      }
+    } catch {
+      const cached = JSON.parse(localStorage.getItem(userKey(AV_KEY, user.id)) ?? "[]") as Avatar[];
+      setAvatars(cached);
+      setActiveAvatarId(cached[0]?.id ?? null);
+      setCustomPhoto(cached[0]?.url ?? null);
+    }
+
+    // Wardrobe items — DB rows carry metadata; image served from Storage via signed URL
+    try {
+      const { data: wRows } = await supabase
+        .from("wardrobe_items")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (wRows && wRows.length > 0) {
+        const items: Item[] = await Promise.all(
+          wRows.map(async (row: Record<string, unknown>) => {
+            const res = await fetch(`/api/wardrobe/${row.id}/url`);
+            const d = await res.json() as { signedUrl?: string };
+            return {
+              id: row.id as string,
+              slot: (row.category as string) === "bottom" ? "bottom"
+                : (row.category as string) === "shoe" ? "shoe"
+                : (row.category as string) === "accessory" ? "accessory"
+                : (row.category as string) === "dress" ? "dress"
+                : (row.layer as string) === "outer" ? "outerwear" : "top",
+              title: row.title as string,
+              color: (row.dominant_color as string) ?? "#8A8480",
+              palette: (row.palette as string) ?? "neutral",
+              image: d.signedUrl ?? "",
+              category: row.category as string,
+              layer: row.layer as string | null,
+              formality: (row.formality as number) ?? 2,
+              fit: (row.fit as string) ?? "regular",
+              color_role: (row.color_role as string) ?? "neutral",
+              subcategory: row.subcategory as string | undefined,
+              seasons: (row.seasons as string[]) ?? [],
+              styles: (row.styles as string[]) ?? [],
+              material: row.material as string | undefined,
+              description: row.description as string | undefined,
+              source: "user" as const,
+            };
+          }),
+        );
+        setUserItems(items);
+        localStorage.setItem(userKey(WARDROBE_KEY, user.id), JSON.stringify(items));
+      } else {
+        const cached = JSON.parse(localStorage.getItem(userKey(WARDROBE_KEY, user.id)) ?? "[]") as Item[];
+        setUserItems(cached);
+      }
+    } catch {
+      const cached = JSON.parse(localStorage.getItem(userKey(WARDROBE_KEY, user.id)) ?? "[]") as Item[];
+      setUserItems(cached);
+    }
+
+    // Preferences
+    try {
+      const { data: prefRow } = await supabase
+        .from("user_preferences")
+        .select("occasion, styling_goal")
+        .single();
+      if (prefRow) {
+        const prefs: StylePreferences = { occasion: prefRow.occasion, goal: prefRow.styling_goal };
+        setPreferences(prefs);
+        localStorage.setItem(userKey(PREFS_KEY, user.id), JSON.stringify(prefs));
+      } else {
+        const cached = JSON.parse(localStorage.getItem(userKey(PREFS_KEY, user.id)) ?? '{"occasion":"any","goal":"balanced"}') as StylePreferences;
+        setPreferences(cached);
+      }
+    } catch {
+      const cached = JSON.parse(localStorage.getItem(userKey(PREFS_KEY, user.id)) ?? '{"occasion":"any","goal":"balanced"}') as StylePreferences;
+      setPreferences(cached);
+    }
+
+    // Saved looks
+    try {
+      const { data: lookRows } = await supabase
+        .from("saved_looks")
+        .select("id, render_path, formula, stylist_title, cohesion, created_at")
+        .order("created_at", { ascending: false });
+      if (lookRows && lookRows.length > 0) {
+        const looks: SavedLook[] = await Promise.all(
+          lookRows.map(async (row: Record<string, unknown>) => {
+            let image = "";
+            if (row.render_path) {
+              const res = await fetch(`/api/renders/${encodeURIComponent(row.render_path as string)}/url`);
+              const d = await res.json() as { signedUrl?: string };
+              image = d.signedUrl ?? "";
+            }
+            return {
+              id: row.id as string,
+              image,
+              items: [],
+              createdAt: new Date(row.created_at as string).getTime(),
+            };
+          }),
+        );
+        setSavedLooks(looks);
+        localStorage.setItem(userKey(LOOKS_KEY, user.id), JSON.stringify(looks));
+      } else {
+        const cached = JSON.parse(localStorage.getItem(userKey(LOOKS_KEY, user.id)) ?? "[]") as SavedLook[];
+        setSavedLooks(cached);
+      }
+    } catch {
+      const cached = JSON.parse(localStorage.getItem(userKey(LOOKS_KEY, user.id)) ?? "[]") as SavedLook[];
+      setSavedLooks(cached);
+    }
+
+    // Reset transient UI state on identity change
+    setTryOnResult(null);
+    setMockPreview(null);
+    setEquipped([]);
+    setActiveItem(null);
+    setCurrentLook(null);
+    setRecommendedLooks([]);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    // Supabase + localStorage are external stores; hydrate from them on identity change.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadFromDb();
+  }, [user, loadFromDb]);
 
   function persistUserItems(next: Item[]) {
+    if (!user) return;
     setUserItems(next);
-    localStorage.setItem(WARDROBE_KEY, JSON.stringify(next));
+    localStorage.setItem(userKey(WARDROBE_KEY, user.id), JSON.stringify(next));
   }
 
   function addUserItem(item: Item) {
@@ -99,11 +252,14 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     persistUserItems(userItems.filter((i) => i.id !== id));
     setEquipped((prev) => prev.filter((i) => i.id !== id));
     if (activeItem?.id === id) setActiveItem(null);
+    // Delete from DB + Storage in background
+    fetch(`/api/wardrobe/${id}`, { method: "DELETE" }).catch(() => {});
   }
 
   function persistAvatars(next: Avatar[]) {
+    if (!user) return;
     setAvatars(next);
-    localStorage.setItem(AV_KEY, JSON.stringify(next));
+    localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(next));
   }
 
   async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -116,6 +272,22 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setCustomPhoto(url);
     setTryOnResult(null); setMockPreview(null);
     showToast("Photo saved — build a look, then Show on me");
+    // Upload to private Storage in the background; patch storagePath onto the saved avatar.
+    fetch("/api/avatar/upload", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ imageBase64: url, avatarId: av.id }),
+    }).then((r) => r.json()).then((d: { storagePath?: string; error?: string }) => {
+      if (d.error) { showToast(`Avatar upload: ${d.error}`); return; }
+      if (d.storagePath) {
+        // Use functional updater to avoid stale closure over `avatars`.
+        setAvatars((prev) => {
+          const next = prev.map((a) => a.id === av.id ? { ...a, storagePath: d.storagePath } : a);
+          if (user) localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(next));
+          return next;
+        });
+      }
+    }).catch((e: unknown) => showToast(`Avatar upload failed: ${e instanceof Error ? e.message : String(e)}`));
   }
 
   function selectAvatar(id: string) {
@@ -134,6 +306,8 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       setCustomPhoto(first?.url ?? null);
       setTryOnResult(null); setMockPreview(null);
     }
+    // Delete from DB + Storage in background
+    fetch(`/api/avatar/${id}`, { method: "DELETE" }).catch(() => {});
   }
 
   function toggleEquip(item: Item) {
@@ -158,8 +332,15 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   }
 
   function updatePreferences(next: StylePreferences) {
+    if (!user) return;
     setPreferences(next);
-    localStorage.setItem(PREFS_KEY, JSON.stringify(next));
+    localStorage.setItem(userKey(PREFS_KEY, user.id), JSON.stringify(next));
+    // Persist to DB in background
+    fetch("/api/preferences", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(next),
+    }).catch(() => {});
   }
 
   function removeEquipped(item: Item) {
@@ -225,6 +406,19 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     showToast(`${look.stylistTitle ?? look.formula} selected`);
   }
 
+  // Style Assistant picked a complete outfit: replace the tray with it. Rendering
+  // stays manual — the user presses Show On Me (no automatic credit spend).
+  function onChatEquip(items: Item[]) {
+    if (!items.length) return;
+    sounds.selectWardrobeItem();
+    setCurrentLook(null);
+    setEquipped(items);
+    setActiveItem(items[0] ?? null);
+    setTryOnResult(null);
+    setMockPreview(null);
+    showToast(`Equipped ${items.length} piece${items.length === 1 ? "" : "s"} from the Style Assistant`);
+  }
+
   async function renderLook(photo: string, items: Item[]) {
     sounds.beginTryOn();
     setIsTryOnLoading(true);
@@ -265,6 +459,11 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   }
 
   async function runTryOn() {
+    if (!isVerifiedAccount) {
+      showToast("Sign in with a verified account to use Show on me");
+      setAccountOpen(true);
+      return;
+    }
     if (!customPhoto) { showToast("Upload your photo first"); return; }
     const items = equipped.length ? equipped : currentLook?.items ?? [];
     if (!items.length) { showToast("Build or generate a look first"); return; }
@@ -287,8 +486,9 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
 
   // ---- lookbook: save/review outfits, persisted ----
   function persistLooks(next: SavedLook[]) {
+    if (!user) return;
     setSavedLooks(next);
-    localStorage.setItem(LOOKS_KEY, JSON.stringify(next));
+    localStorage.setItem(userKey(LOOKS_KEY, user.id), JSON.stringify(next));
   }
   const lookItems = () => (equipped.length ? equipped : currentLook?.items ?? []);
 
@@ -296,10 +496,28 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     const image = tryOnResult ?? mockPreview?.garment;
     const items = lookItems();
     if (!image || !items.length) { showToast("Render a look first"); return; }
-    persistLooks([{ id: crypto.randomUUID(), image, items, createdAt: Date.now() }, ...savedLooks]);
+    const look: SavedLook = { id: crypto.randomUUID(), image, items, createdAt: Date.now() };
+    persistLooks([look, ...savedLooks]);
     showToast("Saved to your lookbook");
+    // Persist to DB in background
+    fetch("/api/looks", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        id: look.id,
+        renderPath: null, // render_path stored in DB by tryon-look route in Phase E
+        formula: currentLook?.formula ?? "custom",
+        stylistTitle: currentLook?.stylistTitle,
+        cohesion: currentLook?.cohesion,
+        reason: currentLook?.aiReason,
+        items,
+      }),
+    }).catch(() => {});
   }
-  function removeLook(id: string) { persistLooks(savedLooks.filter((l) => l.id !== id)); }
+  function removeLook(id: string) {
+    persistLooks(savedLooks.filter((l) => l.id !== id));
+    fetch(`/api/looks/${id}`, { method: "DELETE" }).catch(() => {});
+  }
   function openCurrentLook() {
     const image = tryOnResult ?? mockPreview?.garment;
     if (!image) return;
@@ -320,6 +538,9 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         onLookbookClick={() => setLookbookOpen(true)}
         soundEnabled={sounds.enabled}
         onSoundToggle={sounds.toggle}
+        accountLabel={isVerifiedAccount ? (user?.email ?? "Account") : "Guest wardrobe"}
+        isGuest={isGuest}
+        onAccountClick={() => setAccountOpen(true)}
       />
       <main className="mx-auto max-w-[1440px] px-6 py-6 space-y-6">
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_380px]">
@@ -372,6 +593,8 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         onClose={() => setAddModal(null)}
         onSave={addUserItem}
       />
+      <ChatDrawer userItems={userItems} onEquip={onChatEquip} />
+      {accountOpen && <AuthDialog open onClose={() => setAccountOpen(false)} />}
       <BagDrawer
         open={bagOpen}
         items={cart}

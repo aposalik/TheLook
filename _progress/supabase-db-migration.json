@@ -1,0 +1,41 @@
+{
+  "task": "Phase D — PostgreSQL application migration",
+  "completedSteps": [
+    "Created lib/db.ts: typed query helpers for avatars, wardrobe_items, user_preferences, saved_looks, saved_look_items",
+    "avatar/upload/route.ts: inserts avatars DB row after Storage upload",
+    "wardrobe/upload/route.ts: accepts full item metadata, inserts wardrobe_items DB row after Storage upload",
+    "Created api/avatar/[id]/route.ts: DELETE removes DB row + Storage file",
+    "Created api/wardrobe/[id]/route.ts: DELETE removes DB row + Storage file",
+    "Created api/looks/route.ts: GET list + POST save saved_looks + saved_look_items",
+    "Created api/looks/[id]/route.ts: DELETE saved look",
+    "Created api/avatar/[id]/url/route.ts: returns fresh signed URL for avatar",
+    "Created api/wardrobe/[id]/url/route.ts: returns fresh signed URL for wardrobe item",
+    "Created api/renders/[path]/url/route.ts: returns fresh signed URL for render (ownership verified)",
+    "Created api/preferences/route.ts: POST upserts user_preferences",
+    "FittingRoom.tsx: loadFromDb() loads avatars/wardrobe/prefs/looks from DB on mount with localStorage fallback; removeAvatar/removeUserItem/removeLook call DELETE routes; saveLook/updatePreferences write to DB",
+    "AddItemModal.tsx: passes full item metadata to wardrobe/upload so DB row is inserted",
+    "TypeScript: 0 errors. Production build: clean."
+  ],
+  "nextStep": "Phase E: YouCam credit protection — atomic quota reservation, verified-account enforcement, Turnstile, WAF burst rule, global circuit breakers.",
+  "outputFiles": [
+    "web/lib/db.ts",
+    "web/app/api/avatar/[id]/route.ts",
+    "web/app/api/avatar/[id]/url/route.ts",
+    "web/app/api/avatar/upload/route.ts",
+    "web/app/api/wardrobe/[id]/route.ts",
+    "web/app/api/wardrobe/[id]/url/route.ts",
+    "web/app/api/wardrobe/upload/route.ts",
+    "web/app/api/looks/route.ts",
+    "web/app/api/looks/[id]/route.ts",
+    "web/app/api/renders/[path]/url/route.ts",
+    "web/app/api/preferences/route.ts",
+    "web/app/components/FittingRoom.tsx",
+    "web/app/components/AddItemModal.tsx"
+  ],
+  "doneBar": {
+    "dbPersistsAcrossRefresh": "pending manual verification",
+    "crossDeviceSync": "pending manual verification (sign in on second device)",
+    "noLargeBase64InLocalStorage": "partial — avatars now use signed URLs from DB; wardrobe images still base64 in localStorage until Phase D verification passes"
+  },
+  "updatedAt": "2026-10-23T00:00:00+03:00"
+}

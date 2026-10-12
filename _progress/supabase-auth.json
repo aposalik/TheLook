@@ -1,0 +1,30 @@
+{
+  "task": "Implement TheLook Phase B hosted Supabase authentication",
+  "completedSteps": [
+    "Created feat/supabase-auth from the verified Phase A foundation",
+    "Installed @supabase/ssr and @supabase/supabase-js",
+    "Added browser and server Supabase clients plus Next.js session-refresh proxy",
+    "Added automatic anonymous guest sessions with optional Turnstile verification",
+    "Added Google OAuth, verified email signup/sign-in, and auth callback handling",
+    "Added explicit guest-data no-transfer warning and account controls",
+    "Scoped temporary localStorage data by Supabase user ID so guest and permanent wardrobes stay separate",
+    "Required a verified permanent account in both UI and paid try-on API routes",
+    "Passed ESLint with zero errors, TypeScript, production build, secret scan, and diff check",
+    "Verified the running app responds successfully and rejects unauthenticated paid try-on requests with HTTP 401 before external work",
+    "Fixed failed sign-in behavior so a guest session is preserved when permanent authentication fails"
+  ],
+  "nextStep": "Manually test guest, email, Google, sign-out, return sign-in, no-merge isolation, and API rejection flows in the configured browser; configure Google/Turnstile if those providers are enabled",
+  "outputFiles": [
+    "web/lib/supabase/config.ts",
+    "web/lib/supabase/client.ts",
+    "web/lib/supabase/server.ts",
+    "web/proxy.ts",
+    "web/app/auth/callback/route.ts",
+    "web/app/components/auth/AuthProvider.tsx",
+    "web/app/components/auth/AuthGate.tsx",
+    "web/app/components/auth/AuthDialog.tsx",
+    "web/app/components/auth/TurnstileWidget.tsx",
+    "web/lib/auth.ts"
+  ],
+  "updatedAt": "2026-10-12T16:12:00+03:00"
+}

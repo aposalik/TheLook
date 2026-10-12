@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFile, writeFile, mkdir, access } from "fs/promises";
+import { readFile } from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { uploadFile, runCloth, pollCloth, toJpeg } from "@/lib/youcam";
 import { buildUpperCollage } from "@/lib/collage";
+import { uploadToStorage, signedUrl } from "@/lib/storage";
+import { reserveQuota, completeJob, failJob, hashIp, trustedIp } from "@/lib/quota";
 import catalog from "@/data/catalog.json";
 import type { Item } from "@/lib/recommend";
+import { requireVerifiedAccount } from "@/lib/auth";
 
 export const runtime = "nodejs";
-const RESULTS_DIR = path.join(process.cwd(), "public", "results");
 const GARMENTS_DIR = path.join(process.cwd(), "public", "garments");
 const LAYER_RANK: Record<string, number> = { base: 0, mid: 1, outer: 2 };
 
-async function exists(p: string) { try { await access(p); return true; } catch { return false; } }
 async function itemBytes(item: Item): Promise<Buffer> {
   if (item.image?.startsWith("data:image/")) {
     const bytes = Buffer.from(item.image.split(",").pop()!, "base64");
@@ -28,43 +29,88 @@ async function reupload(url: string) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireVerifiedAccount();
+  if (auth.response) return auth.response;
+  const userId = auth.user!.id;
+
+  let jobId: string | null = null;
+
   try {
-    const body = await req.json() as { photoBase64?: string; itemIds?: string[]; items?: Item[] };
+    const body = await req.json() as { photoBase64?: string; itemIds?: string[]; items?: Item[]; avatarId?: string };
     if (!body.photoBase64) return NextResponse.json({ error: "photoBase64 required" }, { status: 400 });
+
     const supplied = Array.isArray(body.items) ? body.items.slice(0, 12) : [];
     const byId = new Map<string, Item>([...(catalog as Item[]), ...supplied].map((item) => [item.id, item]));
-    const itemIds = Array.isArray(body.itemIds) && body.itemIds.length ? body.itemIds : supplied.map((item) => item.id);
+    const itemIds = Array.isArray(body.itemIds) && body.itemIds.length ? body.itemIds : supplied.map((i) => i.id);
     const items = itemIds.map((id) => byId.get(id)).filter(Boolean) as Item[];
-    if (!items.length || items.length !== itemIds.length) return NextResponse.json({ error: "unknown item in look" }, { status: 400 });
+    if (!items.length || items.length !== itemIds.length) {
+      return NextResponse.json({ error: "unknown item in look" }, { status: 400 });
+    }
 
-    const renderable = items.filter((item) => !["shoe", "accessory"].includes(item.category ?? item.slot));
+    const renderable = items.filter((i) => !["shoe", "accessory"].includes(i.category ?? i.slot));
     const dress = renderable.find((i) => i.slot === "dress" || i.category === "dress");
     const bottom = renderable.find((i) => i.slot === "bottom" || i.category === "bottom");
     const uppers = renderable
       .filter((i) => i.slot === "top" || i.slot === "outerwear" || i.category === "upper")
       .sort((a, b) => (LAYER_RANK[a.layer ?? "base"] ?? 0) - (LAYER_RANK[b.layer ?? "base"] ?? 0));
-    if (!dress && !bottom && !uppers.length) return NextResponse.json({ error: "The look has no renderable clothing" }, { status: 400 });
+    if (!dress && !bottom && !uppers.length) {
+      return NextResponse.json({ error: "The look has no renderable clothing" }, { status: 400 });
+    }
 
     const photoBytes = Buffer.from(body.photoBase64.split(",").pop()!, "base64");
-    const itemFingerprint = items.map((item) => `${item.id}:${crypto.createHash("sha1").update(item.image || "").digest("hex").slice(0, 8)}`).sort().join("|");
-    const key = crypto.createHash("sha1").update(photoBytes).update(itemFingerprint).digest("hex").slice(0, 16);
-    await mkdir(RESULTS_DIR, { recursive: true });
+    const itemFingerprint = items
+      .map((i) => `${i.id}:${crypto.createHash("sha1").update(i.image || "").digest("hex").slice(0, 8)}`)
+      .sort().join("|");
+    // SHA-256 (64 hex chars) to satisfy the render_jobs fingerprint constraint
+    const fingerprint = crypto.createHash("sha256")
+      .update(photoBytes).update(itemFingerprint).digest("hex");
+    const renderPath = `${userId}/${fingerprint.slice(0, 16)}.jpg`;
 
+    // Mock mode — skip quota, write to Storage, return signed URL
     if (process.env.MOCK === "1" || !process.env.PERFECTCORP_KEY) {
       const preview = dress ? await itemBytes(dress)
         : uppers.length >= 2 ? await buildUpperCollage(uppers)
         : await itemBytes((uppers[0] ?? bottom)!);
-      const file = path.join(RESULTS_DIR, `mock-${key}.jpg`);
-      await writeFile(file, preview);
-      return NextResponse.json({ resultUrl: `/results/mock-${key}.jpg`, mock: true, steps: ["reference-preview (mock)"] });
+      await uploadToStorage("renders", renderPath, await toJpeg(preview), "image/jpeg");
+      const url = await signedUrl("renders", renderPath);
+      return NextResponse.json({ resultUrl: url, mock: true, steps: ["reference-preview (mock)"] });
     }
 
-    const cached = path.join(RESULTS_DIR, `${key}.jpg`);
-    if (await exists(cached)) return NextResponse.json({ resultUrl: `/results/${key}.jpg`, cached: true, steps: ["cache"] });
+    // Quota reservation — atomic check + insert render_job + increment counters
+    const avatarId = body.avatarId ?? "00000000-0000-0000-0000-000000000000";
+    const ipHash = hashIp(trustedIp(req));
+    const quota = await reserveQuota(userId, fingerprint, ipHash, avatarId, items.map((i) => ({ id: i.id, slot: i.slot })));
 
+    if (!quota.ok) {
+      if (quota.reason === "cached" && quota.cachedPath) {
+        const url = await signedUrl("renders", quota.cachedPath);
+        return NextResponse.json({ resultUrl: url, cached: true, steps: ["cache"] });
+      }
+      if (quota.reason === "user_limit") {
+        return NextResponse.json(
+          { error: `Daily render limit reached. Resets at midnight UTC.`, remaining: 0 },
+          { status: 429 },
+        );
+      }
+      if (quota.reason === "global_budget") {
+        return NextResponse.json({ error: "Service temporarily unavailable. Try again later." }, { status: 503 });
+      }
+      if (quota.reason === "disabled") {
+        return NextResponse.json({ error: "Try-on rendering is temporarily disabled." }, { status: 503 });
+      }
+      if (quota.reason === "in_flight") {
+        return NextResponse.json({ error: "A render for this look is already in progress." }, { status: 409 });
+      }
+      return NextResponse.json({ error: "Quota check failed." }, { status: 429 });
+    }
+
+    jobId = quota.jobId;
+
+    // YouCam pipeline
     const srcId = await uploadFile(await toJpeg(photoBytes), "user.jpg");
     const steps: string[] = [];
     let finalUrl: string;
+
     if (dress) {
       const refId = await uploadFile(await itemBytes(dress), "dress.jpg");
       finalUrl = await pollCloth(await runCloth({ src_file_id: srcId, ref_file_id: refId, garment_category: "full_body" }));
@@ -86,11 +132,22 @@ export async function POST(req: NextRequest) {
       finalUrl = currentUrl!;
     }
 
+    // Save result to private Storage + mark job complete
     const response = await fetch(finalUrl, { cache: "no-store" });
     if (!response.ok) throw new Error(`Could not persist render (${response.status})`);
-    await writeFile(cached, Buffer.from(await response.arrayBuffer()));
-    return NextResponse.json({ resultUrl: `/results/${key}.jpg`, steps });
+    const resultBytes = await toJpeg(Buffer.from(await response.arrayBuffer()));
+    await uploadToStorage("renders", renderPath, resultBytes, "image/jpeg");
+    await completeJob(jobId, renderPath, 1);
+
+    const resultSignedUrl = await signedUrl("renders", renderPath);
+    return NextResponse.json({ resultUrl: resultSignedUrl, steps, remaining: quota.remaining - 1 });
+
   } catch (error) {
+    // Refund quota if a job was reserved but YouCam failed
+    if (jobId) {
+      const msg = error instanceof Error ? error.message : String(error);
+      await failJob(jobId, "pipeline_error", msg).catch(() => {});
+    }
     const msg = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: msg }, { status: 500 });
   }

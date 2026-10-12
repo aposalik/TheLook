@@ -5,6 +5,8 @@ import type { Item } from "@/lib/recommend";
 type RowKey = "tops" | "bottoms" | "accessories";
 type Row = { key: RowKey; label: string; hint: string; display: "rack" | "shelf"; items: Item[] };
 
+const DEMO_HIDDEN_KEY = "thelook_demo_hidden";
+
 type Props = {
   catalog: Item[];
   userItems: Item[];
@@ -29,7 +31,22 @@ function partition(all: Item[]): Record<RowKey, Item[]> {
 export default function WardrobeCatalog({ catalog, userItems, equipped, activeId: _activeId, onToggle, onAdd, onRemoveUserItem }: Props) {
   void _activeId;
   const [manageOpen, setManageOpen] = useState(false);
-  const merged = useMemo(() => [...catalog, ...userItems], [catalog, userItems]);
+  const [demoHidden, setDemoHidden] = useState(false);
+
+  useEffect(() => {
+    // localStorage is an external store; hydrate once after mount to avoid an SSR mismatch.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setDemoHidden(localStorage.getItem(DEMO_HIDDEN_KEY) === "1");
+  }, []);
+
+  function toggleDemo() {
+    const next = !demoHidden;
+    setDemoHidden(next);
+    localStorage.setItem(DEMO_HIDDEN_KEY, next ? "1" : "0");
+  }
+
+  const visibleCatalog = demoHidden ? [] : catalog;
+  const merged = useMemo(() => [...visibleCatalog, ...userItems], [visibleCatalog, userItems]);
   const rows: Row[] = useMemo(() => {
     const p = partition(merged);
     return [
@@ -40,6 +57,7 @@ export default function WardrobeCatalog({ catalog, userItems, equipped, activeId
   }, [merged]);
 
   const userIds = useMemo(() => new Set(userItems.map((i) => i.id)), [userItems]);
+  const catalogIds = useMemo(() => new Set(catalog.map((i) => i.id)), [catalog]);
 
   return (
     <>
@@ -50,15 +68,13 @@ export default function WardrobeCatalog({ catalog, userItems, equipped, activeId
             <p className="text-xs text-[#8A8480] mt-0.5">Tap a piece to add it to your outfit. Swipe each rail to see more.</p>
           </div>
           <div className="flex items-center gap-2">
-            {userItems.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setManageOpen(true)}
-                className="flex items-center gap-1.5 rounded-full border border-[#E8E3DB] px-3.5 py-1.5 text-xs font-semibold text-[#8A8480] hover:text-[#1A1A1A] hover:border-[#1A1A1A] transition"
-              >
-                ⚙ Manage
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setManageOpen(true)}
+              className="flex items-center gap-1.5 rounded-full border border-[#E8E3DB] px-3.5 py-1.5 text-xs font-semibold text-[#8A8480] hover:text-[#1A1A1A] hover:border-[#1A1A1A] transition"
+            >
+              ⚙ Manage
+            </button>
             <AddNewMenu onAdd={onAdd} />
           </div>
         </header>
@@ -70,6 +86,8 @@ export default function WardrobeCatalog({ catalog, userItems, equipped, activeId
               row={row}
               equipped={equipped}
               userIds={userIds}
+              catalogIds={catalogIds}
+              demoHidden={demoHidden}
               onToggle={onToggle}
             />
           ))}
@@ -79,6 +97,9 @@ export default function WardrobeCatalog({ catalog, userItems, equipped, activeId
       {manageOpen && (
         <ManageDrawer
           userItems={userItems}
+          demoHidden={demoHidden}
+          demoCount={catalog.length}
+          onToggleDemo={toggleDemo}
           onRemove={onRemoveUserItem}
           onClose={() => setManageOpen(false)}
         />
@@ -89,8 +110,11 @@ export default function WardrobeCatalog({ catalog, userItems, equipped, activeId
 
 // ── Manage drawer ──────────────────────────────────────────────────────────────
 
-function ManageDrawer({ userItems, onRemove, onClose }: {
+function ManageDrawer({ userItems, demoHidden, demoCount, onToggleDemo, onRemove, onClose }: {
   userItems: Item[];
+  demoHidden: boolean;
+  demoCount: number;
+  onToggleDemo: () => void;
   onRemove: (id: string) => void;
   onClose: () => void;
 }) {
@@ -110,38 +134,56 @@ function ManageDrawer({ userItems, onRemove, onClose }: {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-[#1A1A1A]">Manage your items</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-8 w-8 rounded-full border border-[#E8E3DB] text-[#8A8480] hover:text-[#1A1A1A] transition"
-            aria-label="Close"
-          >×</button>
+          <h2 className="text-base font-semibold text-[#1A1A1A]">Manage wardrobe</h2>
+          <button type="button" onClick={onClose} className="h-8 w-8 rounded-full border border-[#E8E3DB] text-[#8A8480] hover:text-[#1A1A1A] transition" aria-label="Close">×</button>
         </div>
 
+        {/* Demo toggle */}
+        <div className="flex items-center justify-between rounded-2xl border border-[#E8E3DB] px-4 py-3 mb-4">
+          <div>
+            <p className="text-sm font-semibold text-[#1A1A1A]">{demoHidden ? "Demo clothes hidden" : "Demo clothes"}</p>
+            <p className="text-[11px] text-[#8A8480] mt-0.5">{demoCount} sample pieces · great for trying the app</p>
+          </div>
+          <button
+            type="button"
+            onClick={onToggleDemo}
+            className={`relative h-6 w-11 rounded-full transition-colors duration-200 focus-visible:outline-none ${
+              demoHidden ? "bg-[#E8E3DB]" : "bg-[#1A1A1A]"
+            }`}
+            aria-pressed={!demoHidden}
+            aria-label={demoHidden ? "Show demo clothes" : "Hide demo clothes"}
+          >
+            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
+              demoHidden ? "translate-x-0.5" : "translate-x-[22px]"
+            }`} />
+          </button>
+        </div>
+
+        {/* User items */}
         {userItems.length === 0 ? (
-          <p className="text-sm text-[#8A8480] text-center py-8">No custom items yet.</p>
+          <p className="text-sm text-[#8A8480] text-center py-6">No custom items yet — use <strong>+ Add new</strong> to upload your own.</p>
         ) : (
-          <ul className="overflow-y-auto divide-y divide-[#F0EDE8] -mx-2">
-            {userItems.map((item) => (
-              <li key={item.id} className="flex items-center gap-3 px-2 py-2.5">
-                <div className="h-12 w-12 rounded-xl bg-[#F7F5F0] flex items-center justify-center shrink-0">
-                  <img src={item.image} alt={item.title} className="h-full w-full object-contain rounded-xl" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-[#1A1A1A] truncate">{item.title}</p>
-                  <p className="text-[11px] text-[#8A8480] uppercase tracking-wide">{item.slot}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onRemove(item.id)}
-                  className="shrink-0 rounded-xl border border-[#E8E3DB] px-3 py-1.5 text-xs font-semibold text-[#8A8480] hover:text-[#C44] hover:border-[#C44] transition"
-                >
-                  Remove
-                </button>
-              </li>
-            ))}
-          </ul>
+          <>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8A8480] mb-2">Your uploads</p>
+            <ul className="overflow-y-auto divide-y divide-[#F0EDE8] -mx-2">
+              {userItems.map((item) => (
+                <li key={item.id} className="flex items-center gap-3 px-2 py-2.5">
+                  <div className="h-12 w-12 rounded-xl bg-[#F7F5F0] flex items-center justify-center shrink-0">
+                    <img src={item.image} alt={item.title} className="h-full w-full object-contain rounded-xl" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[#1A1A1A] truncate">{item.title}</p>
+                    <p className="text-[11px] text-[#8A8480] uppercase tracking-wide">{item.slot}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onRemove(item.id)}
+                    className="shrink-0 rounded-xl border border-[#E8E3DB] px-3 py-1.5 text-xs font-semibold text-[#8A8480] hover:text-[#C44] hover:border-[#C44] transition"
+                  >Remove</button>
+                </li>
+              ))}
+            </ul>
+          </>
         )}
       </div>
     </div>
@@ -196,11 +238,13 @@ function AddNewMenu({ onAdd }: { onAdd: (c: RowKey) => void }) {
 // ── Wardrobe row ───────────────────────────────────────────────────────────────
 
 function WardrobeRow({
-  row, equipped, userIds, onToggle,
+  row, equipped, userIds, catalogIds, demoHidden, onToggle,
 }: {
   row: Row;
   equipped: Item[];
   userIds: Set<string>;
+  catalogIds: Set<string>;
+  demoHidden: boolean;
   onToggle: (item: Item) => void;
 }) {
   const scrollerRef = useRef<HTMLDivElement | null>(null);
@@ -270,6 +314,7 @@ function WardrobeRow({
                 index={idx}
                 equipped={equipped.some((i) => i.id === item.id)}
                 isUserOwned={userIds.has(item.id)}
+                isDemo={catalogIds.has(item.id) && !demoHidden}
                 onToggle={() => onToggle(item)}
               />
             ) : (
@@ -278,6 +323,7 @@ function WardrobeRow({
                 item={item}
                 equipped={equipped.some((i) => i.id === item.id)}
                 isUserOwned={userIds.has(item.id)}
+                isDemo={catalogIds.has(item.id) && !demoHidden}
                 onToggle={() => onToggle(item)}
               />
             )
@@ -303,11 +349,12 @@ function HangerSVG({ className = "" }: { className?: string }) {
 
 // ── Hanging item with pendulum physics on hover ────────────────────────────────
 
-function HangingItem({ item, index, equipped, isUserOwned, onToggle }: {
+function HangingItem({ item, index, equipped, isUserOwned, isDemo, onToggle }: {
   item: Item;
   index: number;
   equipped: boolean;
   isUserOwned: boolean;
+  isDemo: boolean;
   onToggle: () => void;
 }) {
   const phase = ((index % 5) - 2) * 0.08;
@@ -399,16 +446,20 @@ function HangingItem({ item, index, equipped, isUserOwned, onToggle }: {
       {isUserOwned && (
         <span className="absolute top-10 right-1 rounded bg-[#C4A882]/95 px-1.5 py-0.5 text-[8px] font-bold uppercase text-white shadow-sm">Yours</span>
       )}
+      {isDemo && !isUserOwned && (
+        <span className="absolute top-10 right-1 rounded bg-[#E8E3DB] px-1.5 py-0.5 text-[8px] font-semibold uppercase text-[#8A8480]">Demo</span>
+      )}
     </div>
   );
 }
 
 // ── Shelf item ─────────────────────────────────────────────────────────────────
 
-function ShelfItem({ item, equipped, isUserOwned, onToggle }: {
+function ShelfItem({ item, equipped, isUserOwned, isDemo, onToggle }: {
   item: Item;
   equipped: boolean;
   isUserOwned: boolean;
+  isDemo: boolean;
   onToggle: () => void;
 }) {
   return (
@@ -440,6 +491,9 @@ function ShelfItem({ item, equipped, isUserOwned, onToggle }: {
       </button>
       {isUserOwned && (
         <span className="absolute top-1 right-1 rounded bg-[#C4A882]/95 px-1.5 py-0.5 text-[8px] font-bold uppercase text-white shadow-sm">Yours</span>
+      )}
+      {isDemo && !isUserOwned && (
+        <span className="absolute top-1 right-1 rounded bg-[#E8E3DB] px-1.5 py-0.5 text-[8px] font-semibold uppercase text-[#8A8480]">Demo</span>
       )}
     </div>
   );
