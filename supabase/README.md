@@ -30,9 +30,9 @@ RLS compares that owner to `auth.uid()`.
 
 Anonymous Supabase users and permanent users both use the `authenticated` PostgreSQL role, so the same ownership policies protect both.
 
-## Local validation
+## Local validation prerequisites
 
-The repository now includes `supabase/config.toml` and a pgTAP suite at `tests/database/rls.sql`. Do not commit access tokens, project credentials, or generated local secrets.
+Install the Supabase CLI and start Docker Desktop, then initialize/link the local project as described by the current Supabase CLI documentation. Do not commit access tokens, project credentials, or generated local secrets.
 
 Typical validation flow from the repository root:
 
@@ -43,9 +43,7 @@ supabase db lint
 supabase test db
 ```
 
-`tests/database/rls.sql` verifies that two authenticated users cannot read, insert, or delete each other's wardrobe rows, and that browser clients cannot read server-owned usage/settings tables.
-
-If Docker reports a read-only filesystem while extracting Supabase images, restart Docker Desktop and retry; this is a Docker VM/storage issue, not a migration result. Hosted linking requires the Supabase project reference and an authenticated local CLI session; never put an access token in the repository or chat.
+The exact CLI bootstrap/configuration will be completed after the local CLI is available. The current machine's OpenClaw egress certificate expired on 2026-10-10, so package download and remote push are temporarily blocked; the migration has not yet been executed against a local or hosted Supabase instance.
 
 ## Dashboard configuration required later
 

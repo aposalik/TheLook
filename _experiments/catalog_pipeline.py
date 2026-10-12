@@ -99,7 +99,7 @@ def gemini_tag(path: Path, slot: str):
     key = os.environ.get("GEMINI_API_KEY")
     if not key:
         return None
-    model = os.environ.get("GEMINI_MODEL") or "gemini-3.8-flash"
+    model = os.environ.get("GEMINI_MODEL") or "gemini-2.5-flash"
     im = Image.open(path).convert("RGB")
     im.thumbnail((512, 512))
     buf = io.BytesIO(); im.save(buf, "JPEG", quality=85)
