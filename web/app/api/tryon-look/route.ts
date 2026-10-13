@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
           : crypto.randomUUID();
         const avatarPath = `${userId}/${avatarId}.jpg`;
         await uploadToStorage("avatars", avatarPath, await toJpeg(photoBytes), "image/jpeg");
-        await dbInsertAvatar(supabase, avatarId, avatarPath);
+        await dbInsertAvatar(supabase, avatarId, avatarPath, userId);
       }
     }
 
