@@ -31,6 +31,30 @@ function userKey(base: string, userId: string) {
   return `${base}:${userId}`;
 }
 
+/** Strip large base64 image data before writing looks/items to localStorage to prevent quota errors */
+function stripItemImages(item: Item): Item {
+  return item.image?.startsWith("data:image/") ? { ...item, image: "" } : item;
+}
+
+function stripLookImages(look: Look): Look {
+  return { ...look, items: look.items.map(stripItemImages) };
+}
+
+function hydrateItemImage(item: Item, byId: Map<string, Item>): Item {
+  if (item.image) return item;
+  const existing = byId.get(item.id);
+  return existing?.image ? { ...item, image: existing.image } : item;
+}
+
+/** Safe localStorage write that catches QuotaExceededError silently without crashing */
+function safeSetStorage(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Quota reached or storage disabled: non-fatal, session remains in memory
+  }
+}
+
 /** Downscale an uploaded image so localStorage stays small and uploads are fast. */
 function downscale(file: File, max = 900): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -243,20 +267,32 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     } else {
       // Restore suggestions, current look, and equipped outfit across tab switches and reloads
       try {
+        const byId = new Map<string, Item>([...catalog, ...userItems].map((i) => [i.id, i]));
         const savedRecs = JSON.parse(localStorage.getItem(userKey(RECOMMENDED_KEY, user.id)) ?? "[]") as Look[];
-        if (savedRecs.length > 0) setRecommendedLooks(savedRecs);
+        if (savedRecs.length > 0) {
+          setRecommendedLooks(savedRecs.map((l) => ({
+            ...l,
+            items: l.items.map((i) => hydrateItemImage(i, byId)),
+          })));
+        }
         const savedLook = JSON.parse(localStorage.getItem(userKey(CURRENT_LOOK_KEY, user.id)) ?? "null") as Look | null;
-        if (savedLook) setCurrentLook(savedLook);
+        if (savedLook) {
+          setCurrentLook({
+            ...savedLook,
+            items: savedLook.items.map((i) => hydrateItemImage(i, byId)),
+          });
+        }
         const savedEquipped = JSON.parse(localStorage.getItem(userKey(EQUIPPED_KEY, user.id)) ?? "[]") as Item[];
         if (savedEquipped.length > 0) {
-          setEquipped(savedEquipped);
-          setActiveItem(savedEquipped[0] ?? null);
+          const hydrated = savedEquipped.map((i) => hydrateItemImage(i, byId));
+          setEquipped(hydrated);
+          setActiveItem(hydrated[0] ?? null);
         }
       } catch {
         // ignore
       }
     }
-  }, [user]);
+  }, [user, catalog, userItems]);
 
   useEffect(() => {
     if (!user) return;
@@ -346,7 +382,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       const exists = prev.some((i) => i.id === item.id);
       if (exists) {
         const next = prev.filter((i) => i.id !== item.id);
-        if (user) localStorage.setItem(userKey(EQUIPPED_KEY, user.id), JSON.stringify(next));
+        if (user) safeSetStorage(userKey(EQUIPPED_KEY, user.id), JSON.stringify(next.map(stripItemImages)));
         return next;
       }
       // Allow a real layered outfit: one base, one mid and one outer. Bottoms,
@@ -358,7 +394,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         return category;
       };
       const next = [...prev.filter((existing) => key(existing) !== key(item)), item];
-      if (user) localStorage.setItem(userKey(EQUIPPED_KEY, user.id), JSON.stringify(next));
+      if (user) safeSetStorage(userKey(EQUIPPED_KEY, user.id), JSON.stringify(next.map(stripItemImages)));
       return next;
     });
   }
@@ -378,7 +414,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   function removeEquipped(item: Item) {
     setEquipped((prev) => {
       const next = prev.filter((i) => i.id !== item.id);
-      if (user) localStorage.setItem(userKey(EQUIPPED_KEY, user.id), JSON.stringify(next));
+      if (user) safeSetStorage(userKey(EQUIPPED_KEY, user.id), JSON.stringify(next.map(stripItemImages)));
       return next;
     });
     if (activeItem?.id === item.id) setActiveItem(null);
@@ -423,9 +459,9 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       setActiveItem(top.items[0] ?? null);
 
       if (user) {
-        localStorage.setItem(userKey(RECOMMENDED_KEY, user.id), JSON.stringify(recs));
-        localStorage.setItem(userKey(CURRENT_LOOK_KEY, user.id), JSON.stringify(top));
-        localStorage.setItem(userKey(EQUIPPED_KEY, user.id), JSON.stringify(top.items));
+        safeSetStorage(userKey(RECOMMENDED_KEY, user.id), JSON.stringify(recs.map(stripLookImages)));
+        safeSetStorage(userKey(CURRENT_LOOK_KEY, user.id), JSON.stringify(stripLookImages(top)));
+        safeSetStorage(userKey(EQUIPPED_KEY, user.id), JSON.stringify(top.items.map(stripItemImages)));
       }
 
       showToast(`${styled.source === "gemini" ? "Gemini stylist" : "Outfit engine"} ranked ${Math.min(3, looks.length)} looks · ${(top.cohesion * 100).toFixed(0)}% top cohesion`);
@@ -448,8 +484,8 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setTryOnResult(null);
     setMockPreview(null);
     if (user) {
-      localStorage.setItem(userKey(CURRENT_LOOK_KEY, user.id), JSON.stringify(look));
-      localStorage.setItem(userKey(EQUIPPED_KEY, user.id), JSON.stringify(look.items));
+      safeSetStorage(userKey(CURRENT_LOOK_KEY, user.id), JSON.stringify(stripLookImages(look)));
+      safeSetStorage(userKey(EQUIPPED_KEY, user.id), JSON.stringify(look.items.map(stripItemImages)));
     }
     showToast(`${look.stylistTitle ?? look.formula} selected`);
   }
@@ -465,7 +501,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setTryOnResult(null);
     setMockPreview(null);
     if (user) {
-      localStorage.setItem(userKey(EQUIPPED_KEY, user.id), JSON.stringify(items));
+      safeSetStorage(userKey(EQUIPPED_KEY, user.id), JSON.stringify(items.map(stripItemImages)));
     }
     showToast(`Equipped ${items.length} piece${items.length === 1 ? "" : "s"} from the Style Assistant`);
   }
@@ -487,7 +523,12 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       const res = await fetch("/api/tryon-look", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photoBase64: photo, itemIds: items.map((i) => i.id), items: itemsPayload }),
+        body: JSON.stringify({
+          photoBase64: photo,
+          avatarId: activeAvatarId,
+          itemIds: items.map((i) => i.id),
+          items: itemsPayload,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);

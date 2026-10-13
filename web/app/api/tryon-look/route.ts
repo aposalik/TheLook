@@ -9,6 +9,8 @@ import { reserveQuota, completeJob, failJob, hashIp, trustedIp } from "@/lib/quo
 import catalog from "@/data/catalog.json";
 import type { Item } from "@/lib/recommend";
 import { requireVerifiedAccount } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import { dbInsertAvatar } from "@/lib/db";
 
 export const runtime = "nodejs";
 const GARMENTS_DIR = path.join(process.cwd(), "public", "garments");
@@ -83,7 +85,42 @@ export async function POST(req: NextRequest) {
     }
 
     // Quota reservation — atomic check + insert render_job + increment counters
-    const avatarId = body.avatarId ?? "00000000-0000-0000-0000-000000000000";
+    // Ensure avatarId exists in public.avatars to satisfy render_jobs_avatar_id_user_id_fkey
+    const supabase = await createClient();
+    let avatarId: string = body.avatarId ?? "";
+    let avatarValid = false;
+
+    if (avatarId) {
+      const { data: avRow } = await supabase
+        .from("avatars")
+        .select("id")
+        .eq("id", avatarId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (avRow) avatarValid = true;
+    }
+
+    if (!avatarValid) {
+      const { data: latestAv } = await supabase
+        .from("avatars")
+        .select("id")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestAv) {
+        avatarId = latestAv.id;
+      } else {
+        avatarId = avatarId && avatarId !== "00000000-0000-0000-0000-000000000000"
+          ? avatarId
+          : crypto.randomUUID();
+        const avatarPath = `${userId}/${avatarId}.jpg`;
+        await uploadToStorage("avatars", avatarPath, await toJpeg(photoBytes), "image/jpeg");
+        await dbInsertAvatar(supabase, avatarId, avatarPath);
+      }
+    }
+
     const ipHash = hashIp(trustedIp(req));
     const quota = await reserveQuota(userId, fingerprint, ipHash, avatarId, items.map((i) => ({ id: i.id, slot: i.slot })));
 
