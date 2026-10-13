@@ -15,8 +15,10 @@ import AuthDialog from "./auth/AuthDialog";
 import { createClient } from "@/lib/supabase/client";
 import { signedUrl } from "@/lib/storage";
 
+import AvatarUploadModal from "./AvatarUploadModal";
+
 import type { Item, Look, StylePreferences } from "@/lib/recommend";
-type Avatar = { id: string; url: string; storagePath?: string };
+type Avatar = { id: string; url: string; storagePath?: string; isCutout?: boolean };
 const AV_KEY = "thelook_avatars";
 const LOOKS_KEY = "thelook_looks";
 const WARDROBE_KEY = "thelook_wardrobe";
@@ -75,6 +77,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const [preferences, setPreferences] = useState<StylePreferences>({ occasion: "any", goal: "balanced" });
   const [stylistSource, setStylistSource] = useState<"gemini" | "deterministic" | null>(null);
   const [addModal, setAddModal] = useState<RowKey | null>(null);
+  const [avatarUploadOpen, setAvatarUploadOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
 
   function showToast(msg: string) {
@@ -262,29 +265,28 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(next));
   }
 
-  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const url = await downscale(file);
-    const av: Avatar = { id: crypto.randomUUID(), url };
-    persistAvatars([...avatars, av]);
+  async function handleSaveAvatarFromModal(url: string, isCutout: boolean) {
+    const av: Avatar = { id: crypto.randomUUID(), url, isCutout };
+    const next = [...avatars, av];
+    persistAvatars(next);
     setActiveAvatarId(av.id);
     setCustomPhoto(url);
-    setTryOnResult(null); setMockPreview(null);
-    showToast("Photo saved — build a look, then Show on me");
-    // Upload to private Storage in the background; patch storagePath onto the saved avatar.
+    setTryOnResult(null);
+    setMockPreview(null);
+    showToast(isCutout ? "Cutout avatar saved" : "Photo avatar saved");
+
+    // Upload to private Storage in background; patch storagePath onto saved avatar
     fetch("/api/avatar/upload", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ imageBase64: url, avatarId: av.id }),
+      body: JSON.stringify({ imageBase64: url, avatarId: av.id, isCutout }),
     }).then((r) => r.json()).then((d: { storagePath?: string; error?: string }) => {
       if (d.error) { showToast(`Avatar upload: ${d.error}`); return; }
       if (d.storagePath) {
-        // Use functional updater to avoid stale closure over `avatars`.
         setAvatars((prev) => {
-          const next = prev.map((a) => a.id === av.id ? { ...a, storagePath: d.storagePath } : a);
-          if (user) localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(next));
-          return next;
+          const updated = prev.map((a) => a.id === av.id ? { ...a, storagePath: d.storagePath, isCutout } : a);
+          if (user) localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(updated));
+          return updated;
         });
       }
     }).catch((e: unknown) => showToast(`Avatar upload failed: ${e instanceof Error ? e.message : String(e)}`));
@@ -555,7 +557,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
             activeAvatarId={activeAvatarId}
             onSelectAvatar={selectAvatar}
             onRemoveAvatar={removeAvatar}
-            onPhotoUpload={handlePhotoUpload}
+            onOpenUploadModal={() => setAvatarUploadOpen(true)}
             onTryOn={runTryOn}
             onPrevAvatar={() => cycleAvatar(-1)}
             onNextAvatar={() => cycleAvatar(1)}
@@ -592,6 +594,11 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         category={addModal ?? "tops"}
         onClose={() => setAddModal(null)}
         onSave={addUserItem}
+      />
+      <AvatarUploadModal
+        open={avatarUploadOpen}
+        onClose={() => setAvatarUploadOpen(false)}
+        onSaveAvatar={handleSaveAvatarFromModal}
       />
       <ChatDrawer userItems={userItems} onEquip={onChatEquip} />
       {accountOpen && <AuthDialog open onClose={() => setAccountOpen(false)} />}

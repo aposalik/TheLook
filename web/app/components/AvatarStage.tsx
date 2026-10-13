@@ -1,14 +1,14 @@
 "use client";
 import type { Item } from "@/lib/recommend";
 
-type Avatar = { id: string; url: string };
+type Avatar = { id: string; url: string; storagePath?: string; isCutout?: boolean };
 type Props = {
   activeItem: Item | null; customPhoto: string | null; tryOnResult: string | null;
   mockPreview: { photo: string; garment: string; title: string } | null;
   isLoading: boolean; error: string | null;
   avatars: Avatar[]; activeAvatarId: string | null;
   onSelectAvatar: (id: string) => void; onRemoveAvatar: (id: string) => void;
-  onPhotoUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onOpenUploadModal: () => void;
   onTryOn: () => void;
   onPrevAvatar: () => void; onNextAvatar: () => void;
   onSaveLook: () => void; onOpenLook: () => void;
@@ -16,10 +16,12 @@ type Props = {
 
 export default function AvatarStage({
   activeItem, customPhoto, tryOnResult, mockPreview, isLoading, error,
-  avatars, activeAvatarId, onSelectAvatar, onRemoveAvatar, onPhotoUpload, onTryOn,
+  avatars, activeAvatarId, onSelectAvatar, onRemoveAvatar, onOpenUploadModal, onTryOn,
   onPrevAvatar, onNextAvatar, onSaveLook, onOpenLook,
 }: Props) {
   const resultImg = tryOnResult ?? mockPreview?.garment ?? null; // a rendered look (clickable + savable)
+  const activeAvatar = avatars.find((a) => a.id === activeAvatarId);
+  const isCutout = activeAvatar?.isCutout ?? false;
   const previewImg = resultImg ?? customPhoto;                   // what fills the 9:16 stage
   const canSwitch = avatars.length > 1;
 
@@ -30,14 +32,23 @@ export default function AvatarStage({
           <h2 className="text-base font-semibold text-[#1A1A1A]">Avatar &amp; Preview</h2>
           <p className="text-xs text-[#8A8480] mt-0.5">Upload 9:16 photos — saved &amp; switchable</p>
         </div>
-        <label className="cursor-pointer rounded-lg bg-[#1A1A1A] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#333]">
-          + Upload photo<input type="file" accept="image/*" onChange={onPhotoUpload} className="hidden" />
-        </label>
+        <button
+          type="button"
+          onClick={onOpenUploadModal}
+          className="rounded-lg bg-[#1A1A1A] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#333] transition"
+        >
+          + Upload photo
+        </button>
       </div>
 
       {/* 9:16 portrait stage */}
       <div className="relative mx-auto my-4 w-full max-w-[360px] px-4">
-        <div className="relative overflow-hidden rounded-2xl border border-[#E8E3DB] bg-[#F7F5F0]" style={{ aspectRatio: "9 / 16" }}>
+        <div
+          className={`relative overflow-hidden rounded-2xl transition ${
+            isCutout ? "bg-[#F7F5F0] border-none shadow-sm" : "border border-[#E8E3DB] bg-[#F7F5F0]"
+          }`}
+          style={{ aspectRatio: "9 / 16" }}
+        >
           {isLoading ? (
             <div className="tryon-generator absolute inset-0 isolate overflow-hidden bg-[#171715] text-center text-white" role="status" aria-live="polite">
               {customPhoto && <img src={customPhoto} alt="" className="tryon-generator__photo" aria-hidden="true" />}

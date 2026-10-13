@@ -21,11 +21,13 @@ export type Item = {
   material?: string;
   description?: string;
   source?: "catalog" | "user";
+  gender?: "men" | "women";
 };
 
 export type StylePreferences = {
   occasion?: "any" | "casual" | "work" | "evening";
   goal?: "balanced" | "define-waist" | "vertical-line" | "shoulder-structure";
+  gender?: "all" | "men" | "women";
 };
 
 export type Look = {
@@ -161,7 +163,10 @@ export function recommend(
   options: { extraItems?: Item[]; preferences?: StylePreferences; candidateLimit?: number } = {},
 ): Look[] {
   const prefs = options.preferences ?? {};
-  const all = [...FIXED, ...(options.extraItems ?? []).filter((item, index, values) => values.findIndex((v) => v.id === item.id) === index)];
+  const pool = [...FIXED, ...(options.extraItems ?? []).filter((item, index, values) => values.findIndex((v) => v.id === item.id) === index)];
+  const all = prefs.gender && prefs.gender !== "all"
+    ? pool.filter((i) => !i.gender || i.gender === prefs.gender)
+    : pool;
   const uppers = all.filter((i) => i.category === "upper" || i.slot === "top" || i.slot === "outerwear");
   const bottoms = all.filter((i) => i.category === "bottom" || i.slot === "bottom");
   const shoes = all.filter((i) => i.category === "shoe" || i.slot === "shoe");
@@ -219,9 +224,16 @@ export function recommend(
       const item = accessories.find((accessory) => accessory.id === id);
       if (item && !look.items.some((i) => i.id === id)) { look.items.push(item); look.roles.push("accessory"); }
     }
-    if (!look.items.some((i) => accessoriesById.has(i.id))) {
+    // Only auto-attach an accessory if user explicitly anchored an accessory OR if occasion is evening/work and there is a high-affinity match (>0.6)
+    if (!look.items.some((i) => accessoriesById.has(i.id)) && (accessoryAnchors.length > 0 || prefs.occasion === "evening" || prefs.occasion === "work")) {
       const item = bestAccessory(look.items, accessories);
-      if (item) { look.items.push(item); look.roles.push("accessory"); }
+      if (item) {
+        const avgScore = look.items.reduce((sum, it) => sum + compatibility(it, item), 0) / Math.max(1, look.items.length);
+        if (avgScore >= 0.55) {
+          look.items.push(item);
+          look.roles.push("accessory");
+        }
+      }
     }
   }
   return chosen.slice(0, candidateCount);

@@ -37,6 +37,7 @@ type GarmentAnalysis = {
   styles: string[];
   material: string;
   description: string;
+  gender: "men" | "women";
 };
 
 function fileToDataUrl(file: File): Promise<string> {
@@ -208,6 +209,7 @@ export default function AddItemModal({ open, category, onClose, onSave }: Props)
       material: analysis?.material,
       description: analysis?.description,
       source: "user",
+      gender: analysis?.gender ?? "men",
     };
     // Upload cutout to private Storage in the background (non-blocking).
     fetch("/api/wardrobe/upload", {

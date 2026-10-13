@@ -53,15 +53,27 @@ export default function WearingPanel({ equipped, currentLook, isGenerating, gene
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-2 px-6 pt-4">
+      <div className="grid grid-cols-3 gap-2 px-6 pt-4">
+        <label className="text-[10px] font-bold uppercase tracking-wide text-[#8A8480]">
+          Gender
+          <select
+            value={preferences.gender ?? "all"}
+            onChange={(e) => onPreferencesChange({ ...preferences, gender: e.target.value as StylePreferences["gender"] })}
+            className="mt-1 w-full rounded-xl border border-[#E8E3DB] bg-white px-2 py-2 text-xs font-medium normal-case tracking-normal text-[#1A1A1A] outline-none focus:border-[#C4A882]"
+          >
+            <option value="all">All</option>
+            <option value="men">Men</option>
+            <option value="women">Women</option>
+          </select>
+        </label>
         <label className="text-[10px] font-bold uppercase tracking-wide text-[#8A8480]">
           Occasion
           <select
             value={preferences.occasion ?? "any"}
             onChange={(e) => onPreferencesChange({ ...preferences, occasion: e.target.value as StylePreferences["occasion"] })}
-            className="mt-1 w-full rounded-xl border border-[#E8E3DB] bg-white px-2.5 py-2 text-xs font-medium normal-case tracking-normal text-[#1A1A1A] outline-none focus:border-[#C4A882]"
+            className="mt-1 w-full rounded-xl border border-[#E8E3DB] bg-white px-2 py-2 text-xs font-medium normal-case tracking-normal text-[#1A1A1A] outline-none focus:border-[#C4A882]"
           >
-            <option value="any">Any occasion</option>
+            <option value="any">Any</option>
             <option value="casual">Casual</option>
             <option value="work">Work</option>
             <option value="evening">Evening</option>
@@ -72,12 +84,12 @@ export default function WearingPanel({ equipped, currentLook, isGenerating, gene
           <select
             value={preferences.goal ?? "balanced"}
             onChange={(e) => onPreferencesChange({ ...preferences, goal: e.target.value as StylePreferences["goal"] })}
-            className="mt-1 w-full rounded-xl border border-[#E8E3DB] bg-white px-2.5 py-2 text-xs font-medium normal-case tracking-normal text-[#1A1A1A] outline-none focus:border-[#C4A882]"
+            className="mt-1 w-full rounded-xl border border-[#E8E3DB] bg-white px-2 py-2 text-xs font-medium normal-case tracking-normal text-[#1A1A1A] outline-none focus:border-[#C4A882]"
           >
             <option value="balanced">Balanced</option>
-            <option value="define-waist">Define waist</option>
-            <option value="vertical-line">Longer vertical line</option>
-            <option value="shoulder-structure">Shoulder structure</option>
+            <option value="define-waist">Waist</option>
+            <option value="vertical-line">Vertical</option>
+            <option value="shoulder-structure">Shoulder</option>
           </select>
         </label>
       </div>
@@ -116,7 +128,7 @@ export default function WearingPanel({ equipped, currentLook, isGenerating, gene
       )}
 
       {/* Equipped items */}
-      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2.5 min-h-[200px] max-h-[320px]">
+      <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 min-h-[200px] max-h-[360px]">
         {equipped.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full min-h-[160px] rounded-2xl border border-dashed border-[#E8E3DB] text-center p-6">
             <div className="h-10 w-10 rounded-xl bg-[#EDE5D8] flex items-center justify-center mb-3">
@@ -128,25 +140,60 @@ export default function WearingPanel({ equipped, currentLook, isGenerating, gene
             <p className="text-[11px] text-[#8A8480] mt-1">Click any item in the catalog or hit Generate</p>
           </div>
         ) : (
-          equipped.map((item) => (
-            <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-[#E8E3DB] bg-[#F7F5F0]/60 p-3 transition hover:border-[#C4A882]/40">
-              <div className="h-14 w-14 shrink-0 rounded-xl border border-[#E8E3DB] bg-white p-1.5">
-                <img src={item.image} alt={item.title} className="h-full w-full object-contain" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-[#1A1A1A] truncate">{item.title}</span>
-                  <span className="shrink-0 rounded bg-[#EDE5D8] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#8A8480]">{item.slot}</span>
+          (() => {
+            const isRenderable = (item: Item) => !["shoe", "accessory"].includes(item.category ?? item.slot);
+            const renderables = equipped.filter(isRenderable);
+            const accents = equipped.filter((i) => !isRenderable(i));
+
+            const renderCard = (item: Item, isAccent: boolean) => (
+              <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-[#E8E3DB] bg-[#F7F5F0]/60 p-2.5 transition hover:border-[#C4A882]/40">
+                <div className="h-12 w-12 shrink-0 rounded-xl border border-[#E8E3DB] bg-white p-1">
+                  <img src={item.image} alt={item.title} className="h-full w-full object-contain" />
                 </div>
-                <p className="text-[11px] text-[#8A8480] mt-0.5 capitalize">{item.palette} · {item.fit ?? "regular"} fit</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-xs font-semibold text-[#1A1A1A] truncate">{item.title}</span>
+                    <span className="shrink-0 rounded bg-[#EDE5D8] px-1.5 py-0.5 text-[8.5px] font-bold uppercase text-[#8A8480]">{item.slot}</span>
+                    {item.gender && (
+                      <span className="shrink-0 rounded bg-stone-100 px-1 py-0.5 text-[8px] font-medium text-[#735F43]">{item.gender === "men" ? "Men" : "Women"}</span>
+                    )}
+                  </div>
+                  <p className="text-[10px] text-[#8A8480] mt-0.5 capitalize">
+                    {isAccent ? "Style accent · Not rendered on photo" : `${item.palette} · ${item.fit ?? "regular"} fit`}
+                  </p>
+                </div>
+                <button onClick={() => onRemove(item)} aria-label={`Remove ${item.title}`} className="shrink-0 rounded-lg p-1 text-[#8A8480] hover:bg-[#E8E3DB] hover:text-[#1A1A1A] transition">
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
               </div>
-              <button onClick={() => onRemove(item)} className="shrink-0 rounded-lg p-1.5 text-[#8A8480] hover:bg-[#E8E3DB] hover:text-[#1A1A1A] transition">
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          ))
+            );
+
+            return (
+              <>
+                {renderables.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A8480]">Renderable Clothing ({renderables.length})</p>
+                      <span className="text-[9px] text-emerald-700 font-medium">Applied in virtual try-on</span>
+                    </div>
+                    {renderables.map((item) => renderCard(item, false))}
+                  </div>
+                )}
+
+                {accents.length > 0 && (
+                  <div className="space-y-2 pt-1 border-t border-[#E8E3DB]/70">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A8480]">Style Accents ({accents.length})</p>
+                      <span className="text-[9px] text-[#8A8480]">Shoes &amp; accessories</span>
+                    </div>
+                    {accents.map((item) => renderCard(item, true))}
+                  </div>
+                )}
+              </>
+            );
+          })()
         )}
       </div>
 

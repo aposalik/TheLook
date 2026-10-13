@@ -14,6 +14,7 @@ export async function toJpeg(bytes: Buffer): Promise<Buffer> {
   try {
     return await sharp(bytes)
       .rotate()                                                        // apply EXIF orientation
+      .flatten({ background: "#F7F5F0" })                               // blend transparent cutouts onto canvas
       .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
       .jpeg({ quality: 92 })
       .toBuffer();
