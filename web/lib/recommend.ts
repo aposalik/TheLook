@@ -79,6 +79,17 @@ function metadataCompat(a: Item, b: Item): number {
 
 function compatibility(a: Item, b: Item): number {
   if (a.id === b.id) return 1;
+  const aIsUpper = a.category === "upper" || a.slot === "top" || a.slot === "outerwear";
+  const bIsUpper = b.category === "upper" || b.slot === "top" || b.slot === "outerwear";
+  if (aIsUpper && bIsUpper) {
+    // Two uppers layered together (e.g. base + mid or base + outer).
+    // The Polyvore matrix was trained only on single-piece tops vs bottoms,
+    // so raw matrix lookup yields artificially low scores (~0.35).
+    // For layering, evaluate style & color synergy plus layering harmony.
+    const meta = metadataCompat(a, b);
+    const layerSynergy = a.layer && b.layer && a.layer !== b.layer ? 0.15 : 0;
+    return Math.min(1, Math.max(0.65, meta + layerSynergy));
+  }
   const fixed = M[a.id]?.[b.id] ?? M[b.id]?.[a.id];
   return typeof fixed === "number" ? normC(fixed) : metadataCompat(a, b);
 }
@@ -209,7 +220,7 @@ export function recommend(
   const candidateCount = Math.max(k, options.candidateLimit ?? k);
   const chosen: Look[] = [];
   const seen = new Set<string>();
-  const layered = eligible.find((look) => look.formula === "Layered");
+  const layered = eligible.find((look) => look.formula === "Layered" || look.formula === "With layer");
   if (layered && candidateCount > 1) { chosen.push(layered); seen.add(signature(layered)); }
   for (const look of eligible) {
     const sig = signature(look);

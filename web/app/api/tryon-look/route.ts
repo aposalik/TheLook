@@ -20,6 +20,12 @@ async function itemBytes(item: Item): Promise<Buffer> {
     if (bytes.length > 8_000_000) throw new Error("Uploaded garment is too large");
     return toJpeg(bytes);
   }
+  if (item.image?.startsWith("http://") || item.image?.startsWith("https://")) {
+    const res = await fetch(item.image);
+    if (!res.ok) throw new Error(`Could not fetch garment image: ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    return toJpeg(buf);
+  }
   return readFile(path.join(GARMENTS_DIR, `${item.id}.jpg`));
 }
 async function reupload(url: string) {

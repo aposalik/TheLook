@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import TopBar from "./TopBar";
 import AvatarStage from "./AvatarStage";
 import WearingPanel from "./WearingPanel";
@@ -23,6 +23,9 @@ const AV_KEY = "thelook_avatars";
 const LOOKS_KEY = "thelook_looks";
 const WARDROBE_KEY = "thelook_wardrobe";
 const PREFS_KEY = "thelook_style_preferences";
+const RECOMMENDED_KEY = "thelook_recommended_looks";
+const CURRENT_LOOK_KEY = "thelook_current_look";
+const EQUIPPED_KEY = "thelook_equipped";
 
 function userKey(base: string, userId: string) {
   return `${base}:${userId}`;
@@ -50,6 +53,7 @@ function downscale(file: File, max = 900): Promise<string> {
 export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const sounds = useSoundEffects();
   const { user, isGuest, isVerifiedAccount } = useAuth();
+  const prevUserIdRef = useRef<string | null>(null);
   const [equipped, setEquipped] = useState<Item[]>([]);
   const [activeItem, setActiveItem] = useState<Item | null>(null);
   const [currentLook, setCurrentLook] = useState<Look | null>(null);
@@ -224,13 +228,34 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       setSavedLooks(cached);
     }
 
-    // Reset transient UI state on identity change
-    setTryOnResult(null);
-    setMockPreview(null);
-    setEquipped([]);
-    setActiveItem(null);
-    setCurrentLook(null);
-    setRecommendedLooks([]);
+    // Check if this is an actual user account switch
+    const isActualUserSwitch = prevUserIdRef.current !== null && prevUserIdRef.current !== user.id;
+    prevUserIdRef.current = user.id;
+
+    if (isActualUserSwitch) {
+      // Reset transient UI state on identity change
+      setTryOnResult(null);
+      setMockPreview(null);
+      setEquipped([]);
+      setActiveItem(null);
+      setCurrentLook(null);
+      setRecommendedLooks([]);
+    } else {
+      // Restore suggestions, current look, and equipped outfit across tab switches and reloads
+      try {
+        const savedRecs = JSON.parse(localStorage.getItem(userKey(RECOMMENDED_KEY, user.id)) ?? "[]") as Look[];
+        if (savedRecs.length > 0) setRecommendedLooks(savedRecs);
+        const savedLook = JSON.parse(localStorage.getItem(userKey(CURRENT_LOOK_KEY, user.id)) ?? "null") as Look | null;
+        if (savedLook) setCurrentLook(savedLook);
+        const savedEquipped = JSON.parse(localStorage.getItem(userKey(EQUIPPED_KEY, user.id)) ?? "[]") as Item[];
+        if (savedEquipped.length > 0) {
+          setEquipped(savedEquipped);
+          setActiveItem(savedEquipped[0] ?? null);
+        }
+      } catch {
+        // ignore
+      }
+    }
   }, [user]);
 
   useEffect(() => {
@@ -319,7 +344,11 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setMockPreview(null);
     setEquipped((prev) => {
       const exists = prev.some((i) => i.id === item.id);
-      if (exists) return prev.filter((i) => i.id !== item.id);
+      if (exists) {
+        const next = prev.filter((i) => i.id !== item.id);
+        if (user) localStorage.setItem(userKey(EQUIPPED_KEY, user.id), JSON.stringify(next));
+        return next;
+      }
       // Allow a real layered outfit: one base, one mid and one outer. Bottoms,
       // shoes and dresses remain mutually exclusive; accessories can stack.
       const key = (value: Item) => {
@@ -328,8 +357,9 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         if (category === "accessory") return `accessory:${value.id}`;
         return category;
       };
-      const next = prev.filter((existing) => key(existing) !== key(item));
-      return [...next, item];
+      const next = [...prev.filter((existing) => key(existing) !== key(item)), item];
+      if (user) localStorage.setItem(userKey(EQUIPPED_KEY, user.id), JSON.stringify(next));
+      return next;
     });
   }
 
@@ -346,7 +376,11 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   }
 
   function removeEquipped(item: Item) {
-    setEquipped((prev) => prev.filter((i) => i.id !== item.id));
+    setEquipped((prev) => {
+      const next = prev.filter((i) => i.id !== item.id);
+      if (user) localStorage.setItem(userKey(EQUIPPED_KEY, user.id), JSON.stringify(next));
+      return next;
+    });
     if (activeItem?.id === item.id) setActiveItem(null);
   }
 
@@ -382,10 +416,18 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       setStylistSource(styled.source === "gemini" ? "gemini" : "deterministic");
 
       const top = looks[0]!;
-      setRecommendedLooks(looks.slice(0, 3));
+      const recs = looks.slice(0, 3);
+      setRecommendedLooks(recs);
       setCurrentLook(top);
       setEquipped(top.items);
       setActiveItem(top.items[0] ?? null);
+
+      if (user) {
+        localStorage.setItem(userKey(RECOMMENDED_KEY, user.id), JSON.stringify(recs));
+        localStorage.setItem(userKey(CURRENT_LOOK_KEY, user.id), JSON.stringify(top));
+        localStorage.setItem(userKey(EQUIPPED_KEY, user.id), JSON.stringify(top.items));
+      }
+
       showToast(`${styled.source === "gemini" ? "Gemini stylist" : "Outfit engine"} ranked ${Math.min(3, looks.length)} looks · ${(top.cohesion * 100).toFixed(0)}% top cohesion`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -405,6 +447,10 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setActiveItem(look.items[0] ?? null);
     setTryOnResult(null);
     setMockPreview(null);
+    if (user) {
+      localStorage.setItem(userKey(CURRENT_LOOK_KEY, user.id), JSON.stringify(look));
+      localStorage.setItem(userKey(EQUIPPED_KEY, user.id), JSON.stringify(look.items));
+    }
     showToast(`${look.stylistTitle ?? look.formula} selected`);
   }
 
@@ -418,6 +464,9 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setActiveItem(items[0] ?? null);
     setTryOnResult(null);
     setMockPreview(null);
+    if (user) {
+      localStorage.setItem(userKey(EQUIPPED_KEY, user.id), JSON.stringify(items));
+    }
     showToast(`Equipped ${items.length} piece${items.length === 1 ? "" : "s"} from the Style Assistant`);
   }
 

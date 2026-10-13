@@ -173,3 +173,4 @@ export default function AvatarUploadModal({ open, onClose, onSaveAvatar }: Props
     </div>
   );
 }
+
