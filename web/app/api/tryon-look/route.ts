@@ -123,7 +123,6 @@ export async function POST(req: NextRequest) {
 
     const ipHash = hashIp(trustedIp(req));
     const quota = await reserveQuota(userId, fingerprint, ipHash, avatarId, items.map((i) => ({ id: i.id, slot: i.slot })));
-
     if (!quota.ok) {
       if (quota.reason === "cached" && quota.cachedPath) {
         const url = await signedUrl("renders", quota.cachedPath);
