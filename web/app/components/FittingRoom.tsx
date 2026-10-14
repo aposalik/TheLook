@@ -26,6 +26,7 @@ const PREFS_KEY = "thelook_style_preferences";
 const RECOMMENDED_KEY = "thelook_recommended_looks";
 const CURRENT_LOOK_KEY = "thelook_current_look";
 const EQUIPPED_KEY = "thelook_equipped";
+const ACTIVE_AV_KEY = "thelook_active_avatar_id";
 
 function userKey(base: string, userId: string) {
   return `${base}:${userId}`;
@@ -125,31 +126,54 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         .from("avatars")
         .select("id, storage_path")
         .order("created_at", { ascending: true });
+
+      const cached = JSON.parse(localStorage.getItem(userKey(AV_KEY, user.id)) ?? "[]") as Avatar[];
+      const cachedMap = new Map(cached.map((c) => [c.id, c]));
+      const savedActiveId = localStorage.getItem(userKey(ACTIVE_AV_KEY, user.id));
+
       if (avRows && avRows.length > 0) {
         const loaded: Avatar[] = await Promise.all(
           avRows.map(async (row: { id: string; storage_path: string }) => {
             // Signed URL must be fetched server-side; use the API route.
             const res = await fetch(`/api/avatar/${row.id}/url`);
             const d = await res.json() as { signedUrl?: string };
-            return { id: row.id, storagePath: row.storage_path, url: d.signedUrl ?? "" };
+            const existing = cachedMap.get(row.id);
+            return {
+              id: row.id,
+              storagePath: row.storage_path,
+              url: existing?.url?.startsWith("data:") ? existing.url : (d.signedUrl ?? existing?.url ?? ""),
+              isCutout: existing?.isCutout ?? false,
+            };
           }),
         );
         setAvatars(loaded);
-        setActiveAvatarId(loaded[0]?.id ?? null);
-        setCustomPhoto(loaded[0]?.url ?? null);
+        const chosen = (savedActiveId && loaded.find((a) => a.id === savedActiveId))
+          || (activeAvatarId && loaded.find((a) => a.id === activeAvatarId))
+          || loaded[0]
+          || null;
+        setActiveAvatarId(chosen?.id ?? null);
+        setCustomPhoto(chosen?.url ?? null);
         localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(loaded));
       } else {
         // Fall back to localStorage (guest or first visit)
-        const cached = JSON.parse(localStorage.getItem(userKey(AV_KEY, user.id)) ?? "[]") as Avatar[];
         setAvatars(cached);
-        setActiveAvatarId(cached[0]?.id ?? null);
-        setCustomPhoto(cached[0]?.url ?? null);
+        const chosen = (savedActiveId && cached.find((a) => a.id === savedActiveId))
+          || (activeAvatarId && cached.find((a) => a.id === activeAvatarId))
+          || cached[0]
+          || null;
+        setActiveAvatarId(chosen?.id ?? null);
+        setCustomPhoto(chosen?.url ?? null);
       }
     } catch {
       const cached = JSON.parse(localStorage.getItem(userKey(AV_KEY, user.id)) ?? "[]") as Avatar[];
+      const savedActiveId = localStorage.getItem(userKey(ACTIVE_AV_KEY, user.id));
       setAvatars(cached);
-      setActiveAvatarId(cached[0]?.id ?? null);
-      setCustomPhoto(cached[0]?.url ?? null);
+      const chosen = (savedActiveId && cached.find((a) => a.id === savedActiveId))
+        || (activeAvatarId && cached.find((a) => a.id === activeAvatarId))
+        || cached[0]
+        || null;
+      setActiveAvatarId(chosen?.id ?? null);
+      setCustomPhoto(chosen?.url ?? null);
     }
 
     // Wardrobe items — DB rows carry metadata; image served from Storage via signed URL
@@ -292,7 +316,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         // ignore
       }
     }
-  }, [user, catalog, userItems]);
+  }, [user, catalog]);
 
   useEffect(() => {
     if (!user) return;
@@ -332,6 +356,9 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     persistAvatars(next);
     setActiveAvatarId(av.id);
     setCustomPhoto(url);
+    if (user) {
+      safeSetStorage(userKey(ACTIVE_AV_KEY, user.id), av.id);
+    }
     setTryOnResult(null);
     setMockPreview(null);
     showToast(isCutout ? "Cutout avatar saved" : "Photo avatar saved");
@@ -356,21 +383,38 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   function selectAvatar(id: string) {
     const av = avatars.find((a) => a.id === id);
     if (!av) return;
-    setActiveAvatarId(id); setCustomPhoto(av.url);
-    setTryOnResult(null); setMockPreview(null);
+    setActiveAvatarId(id);
+    setCustomPhoto(av.url);
+    setTryOnResult(null);
+    setMockPreview(null);
+    if (user) {
+      safeSetStorage(userKey(ACTIVE_AV_KEY, user.id), id);
+    }
+    showToast(`Switched to Avatar ${avatars.findIndex((a) => a.id === id) + 1}`);
   }
 
-  function removeAvatar(id: string) {
+  async function removeAvatar(id: string) {
     const next = avatars.filter((a) => a.id !== id);
     persistAvatars(next);
     if (activeAvatarId === id) {
       const first = next[0] ?? null;
       setActiveAvatarId(first?.id ?? null);
       setCustomPhoto(first?.url ?? null);
-      setTryOnResult(null); setMockPreview(null);
+      setTryOnResult(null);
+      setMockPreview(null);
+      if (user) {
+        safeSetStorage(userKey(ACTIVE_AV_KEY, user.id), first?.id ?? "");
+      }
     }
-    // Delete from DB + Storage in background
-    fetch(`/api/avatar/${id}`, { method: "DELETE" }).catch(() => {});
+    showToast("Deleting avatar from cloud storage…");
+    try {
+      const res = await fetch(`/api/avatar/${id}`, { method: "DELETE" });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+      showToast("Avatar deleted from storage");
+    } catch (err) {
+      showToast(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   function toggleEquip(item: Item) {

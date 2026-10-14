@@ -1,5 +1,7 @@
 "use client";
+import { useState } from "react";
 import type { Item } from "@/lib/recommend";
+import AvatarSettingsModal from "./AvatarSettingsModal";
 
 type Avatar = { id: string; url: string; storagePath?: string; isCutout?: boolean };
 type Props = {
@@ -19,6 +21,7 @@ export default function AvatarStage({
   avatars, activeAvatarId, onSelectAvatar, onRemoveAvatar, onOpenUploadModal, onTryOn,
   onPrevAvatar, onNextAvatar, onSaveLook, onOpenLook,
 }: Props) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const resultImg = tryOnResult ?? mockPreview?.garment ?? null; // a rendered look (clickable + savable)
   const activeAvatar = avatars.find((a) => a.id === activeAvatarId);
   const isCutout = activeAvatar?.isCutout ?? false;
@@ -32,13 +35,28 @@ export default function AvatarStage({
           <h2 className="text-base font-semibold text-[#1A1A1A]">Avatar &amp; Preview</h2>
           <p className="text-xs text-[#8A8480] mt-0.5">Upload 9:16 photos — saved &amp; switchable</p>
         </div>
-        <button
-          type="button"
-          onClick={onOpenUploadModal}
-          className="rounded-lg bg-[#1A1A1A] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#333] transition"
-        >
-          + Upload photo
-        </button>
+        <div className="flex items-center gap-2">
+          {avatars.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setSettingsOpen(true)}
+              className="flex items-center gap-1.5 rounded-lg border border-[#E8E3DB] bg-white px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F5F0] hover:border-[#1A1A1A] transition shadow-2xs"
+            >
+              <svg className="w-3.5 h-3.5 text-[#8A8480]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              Settings
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onOpenUploadModal}
+            className="rounded-lg bg-[#1A1A1A] px-3 py-1.5 text-xs font-semibold text-white hover:bg-black transition shadow-xs"
+          >
+            + Upload photo
+          </button>
+        </div>
       </div>
 
       {/* 9:16 portrait stage */}
@@ -86,7 +104,11 @@ export default function AvatarStage({
               {mockPreview && <span className="absolute left-3 top-3 rounded-full bg-black/60 px-2 py-0.5 text-[10px] text-white">Mock</span>}
             </button>
           ) : previewImg ? (
-            <img src={previewImg} alt="Your avatar" className="absolute inset-0 h-full w-full object-cover" />
+            <img
+              src={previewImg}
+              alt="Your avatar"
+              className={`absolute inset-0 h-full w-full ${isCutout ? "object-contain p-2" : "object-cover"}`}
+            />
           ) : (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center p-8">
               <div className="h-16 w-16 rounded-2xl bg-[#EDE5D8] flex items-center justify-center">
@@ -109,17 +131,49 @@ export default function AvatarStage({
 
       {/* saved avatars strip */}
       {avatars.length > 0 && (
-        <div className="flex flex-wrap justify-center gap-2 px-6">
-          {avatars.map((av) => (
-            <div key={av.id} className="relative">
-              <button onClick={() => onSelectAvatar(av.id)} className={`block h-12 w-12 overflow-hidden rounded-lg border transition ${av.id === activeAvatarId ? "border-[#1A1A1A] ring-2 ring-[#C4A882]" : "border-[#E8E3DB] hover:border-[#C4A882]"}`}>
-                <img src={av.url} alt="avatar" className="h-full w-full object-cover" />
+        <div className="flex flex-wrap items-center justify-center gap-2.5 px-6">
+          {avatars.map((av, index) => {
+            const isActive = av.id === activeAvatarId;
+            return (
+              <button
+                key={av.id}
+                type="button"
+                onClick={() => onSelectAvatar(av.id)}
+                title={isActive ? "Active avatar" : `Switch to avatar ${index + 1}`}
+                className={`relative block h-13 w-13 overflow-hidden rounded-xl border-2 transition ${
+                  isActive
+                    ? "border-[#1A1A1A] ring-2 ring-[#C4A882] shadow-sm scale-105"
+                    : "border-[#E8E3DB] hover:border-[#1A1A1A] opacity-75 hover:opacity-100"
+                } ${av.isCutout ? "bg-[#F7F5F0]" : "bg-neutral-100"}`}
+              >
+                <img
+                  src={av.url}
+                  alt={`Avatar ${index + 1}`}
+                  className={`h-full w-full ${av.isCutout ? "object-contain" : "object-cover"}`}
+                />
+                {av.isCutout && (
+                  <span className="absolute bottom-0 inset-x-0 bg-black/60 text-[7px] text-white text-center font-bold uppercase py-0.5">
+                    Cutout
+                  </span>
+                )}
               </button>
-              <button onClick={() => onRemoveAvatar(av.id)} aria-label="Remove avatar" className="absolute -right-1.5 -top-1.5 h-5 w-5 rounded-full bg-[#1A1A1A] text-[11px] leading-5 text-white">×</button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      <AvatarSettingsModal
+        open={settingsOpen}
+        avatars={avatars}
+        activeAvatarId={activeAvatarId}
+        onSelectAvatar={onSelectAvatar}
+        onRemoveAvatar={onRemoveAvatar}
+        onOpenUploadModal={() => {
+          setSettingsOpen(false);
+          onOpenUploadModal();
+        }}
+        onClose={() => setSettingsOpen(false)}
+      />
 
       <div className="mt-4 flex items-center justify-between gap-3 px-6 pb-5 pt-3 border-t border-[#E8E3DB]">
         <button onClick={onSaveLook} disabled={!resultImg} title={resultImg ? "Save to your lookbook" : "Render a look first"} className="rounded-xl border border-[#E8E3DB] bg-white px-4 py-2.5 text-sm font-medium text-[#1A1A1A] transition hover:border-[#C4A882] active:scale-95 disabled:opacity-40">Save look</button>

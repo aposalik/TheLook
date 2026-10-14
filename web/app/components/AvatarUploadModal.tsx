@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type Props = {
   open: boolean;
@@ -8,70 +8,164 @@ type Props = {
   onSaveAvatar: (url: string, isCutout: boolean) => void;
 };
 
+function downscaleDataUrl(src: string, max = 900): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(img.width * s));
+      c.height = Math.max(1, Math.round(img.height * s));
+      const ctx = c.getContext("2d");
+      if (!ctx) {
+        resolve(src);
+        return;
+      }
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      resolve(c.toDataURL("image/png"));
+    };
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+async function removeBgFromImage(dataUrl: string): Promise<string> {
+  const scaled = await downscaleDataUrl(dataUrl, 900);
+  const { removeBackground } = await import("@imgly/background-removal");
+  const blob = await removeBackground(scaled, {
+    output: { format: "image/png", quality: 0.9 },
+  });
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result as string);
+    r.onerror = reject;
+    r.readAsDataURL(blob);
+  });
+}
+
 export default function AvatarUploadModal({ open, onClose, onSaveAvatar }: Props) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [rawPreview, setRawPreview] = useState<string | null>(null);
   const [cutoutPreview, setCutoutPreview] = useState<string | null>(null);
   const [removeBg, setRemoveBg] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusText, setStatusText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") handleClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   if (!open) return null;
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setSelectedFile(file);
-    setCutoutPreview(null);
+
+    setError(null);
+    setIsProcessing(true);
+    setStatusText("Preparing photo…");
+
     const reader = new FileReader();
-    reader.onload = () => {
-      setRawPreview(reader.result as string);
+    reader.onload = async () => {
+      const dataUrl = reader.result as string;
+      setRawPreview(dataUrl);
+
+      if (removeBg) {
+        setStatusText("Removing background with AI…");
+        try {
+          const cutout = await removeBgFromImage(dataUrl);
+          setCutoutPreview(cutout);
+        } catch (err) {
+          setError(
+            err instanceof Error
+              ? `Background removal failed: ${err.message}`
+              : "Could not remove background. You can save the original photo."
+          );
+        } finally {
+          setIsProcessing(false);
+          setStatusText("");
+        }
+      } else {
+        setIsProcessing(false);
+        setStatusText("");
+      }
     };
     reader.readAsDataURL(file);
   }
 
+  async function handleToggleRemoveBg() {
+    const nextState = !removeBg;
+    setRemoveBg(nextState);
+
+    if (nextState && rawPreview && !cutoutPreview && !isProcessing) {
+      setIsProcessing(true);
+      setError(null);
+      setStatusText("Removing background with AI…");
+      try {
+        const cutout = await removeBgFromImage(rawPreview);
+        setCutoutPreview(cutout);
+      } catch (err) {
+        setError(
+          err instanceof Error
+            ? `Background removal failed: ${err.message}`
+            : "Could not remove background. You can save the original photo."
+        );
+      } finally {
+        setIsProcessing(false);
+        setStatusText("");
+      }
+    }
+  }
+
   async function handleConfirm() {
     if (!rawPreview) return;
-    setIsProcessing(true);
 
-    try {
-      if (removeBg) {
-        setStatusText("Removing background…");
-        // Run client-side WASM background removal
-        const { removeBackground } = await import("@imgly/background-removal");
-        const blob = await removeBackground(rawPreview, { output: { format: "image/png", quality: 0.9 } });
-        const reader = new FileReader();
-        reader.onload = () => {
-          const cutoutUrl = reader.result as string;
-          onSaveAvatar(cutoutUrl, true);
-          handleClose();
-        };
-        reader.readAsDataURL(blob);
-      } else {
+    if (removeBg && cutoutPreview) {
+      onSaveAvatar(cutoutPreview, true);
+      handleClose();
+    } else if (removeBg && !cutoutPreview) {
+      // Process if not yet processed
+      setIsProcessing(true);
+      setStatusText("Removing background…");
+      try {
+        const cutout = await removeBgFromImage(rawPreview);
+        onSaveAvatar(cutout, true);
+        handleClose();
+      } catch {
+        // Fallback to original
         onSaveAvatar(rawPreview, false);
         handleClose();
+      } finally {
+        setIsProcessing(false);
+        setStatusText("");
       }
-    } catch {
-      // Fallback if background removal fails
-      onSaveAvatar(rawPreview, false);
+    } else {
+      // Original photo without background removal
+      const scaled = await downscaleDataUrl(rawPreview, 1200);
+      onSaveAvatar(scaled, false);
       handleClose();
-    } finally {
-      setIsProcessing(false);
-      setStatusText("");
     }
   }
 
   function handleClose() {
-    setSelectedFile(null);
     setRawPreview(null);
     setCutoutPreview(null);
     setIsProcessing(false);
+    setStatusText("");
+    setError(null);
     onClose();
   }
 
+  const activeDisplayUrl = removeBg && cutoutPreview ? cutoutPreview : rawPreview;
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4"
       onClick={handleClose}
       role="dialog"
       aria-modal="true"
@@ -85,10 +179,10 @@ export default function AvatarUploadModal({ open, onClose, onSaveAvatar }: Props
           <button
             type="button"
             onClick={handleClose}
-            className="h-8 w-8 rounded-full border border-[#E8E3DB] text-[#8A8480] hover:text-[#1A1A1A] transition"
+            className="h-8 w-8 rounded-full border border-[#E8E3DB] text-[#8A8480] hover:text-[#1A1A1A] transition flex items-center justify-center text-sm"
             aria-label="Close"
           >
-            ×
+            ✕
           </button>
         </div>
 
@@ -105,30 +199,57 @@ export default function AvatarUploadModal({ open, onClose, onSaveAvatar }: Props
           </label>
         ) : (
           <div className="space-y-4">
-            <div className="relative mx-auto w-40 overflow-hidden rounded-2xl bg-[#F7F5F0] border border-[#E8E3DB] aspect-[9/16] flex items-center justify-center">
-              <img
-                src={rawPreview}
-                alt="Avatar preview"
-                className={`h-full w-full object-cover transition ${removeBg ? "filter brightness-95" : ""}`}
-              />
-              {removeBg && (
-                <div className="absolute top-2 left-2 rounded-full bg-emerald-500/90 text-white px-2 py-0.5 text-[9px] font-bold tracking-wide uppercase">
-                  Cutout Mode
+            {/* Preview Stage */}
+            <div
+              className={`relative mx-auto w-44 overflow-hidden rounded-2xl border aspect-[9/16] flex items-center justify-center ${
+                removeBg && cutoutPreview
+                  ? "bg-[#F7F5F0] border-emerald-300 shadow-sm"
+                  : "bg-neutral-100 border-[#E8E3DB]"
+              }`}
+            >
+              {activeDisplayUrl && (
+                <img
+                  src={activeDisplayUrl}
+                  alt="Avatar preview"
+                  className={`h-full w-full ${
+                    removeBg && cutoutPreview ? "object-contain p-2" : "object-cover"
+                  }`}
+                />
+              )}
+
+              {/* Badges */}
+              {removeBg && cutoutPreview && (
+                <div className="absolute top-2 left-2 rounded-full bg-emerald-600/90 text-white px-2 py-0.5 text-[9px] font-bold tracking-wide uppercase shadow-xs">
+                  ✓ Cutout Ready
+                </div>
+              )}
+
+              {isProcessing && (
+                <div className="absolute inset-0 bg-black/50 backdrop-blur-2xs flex flex-col items-center justify-center text-white text-center p-3 gap-2">
+                  <span className="h-6 w-6 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  <p className="text-xs font-medium">{statusText || "Processing…"}</p>
                 </div>
               )}
             </div>
+
+            {error && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-2.5 text-[11px] text-amber-800 text-center">
+                {error}
+              </div>
+            )}
 
             {/* Background removal toggle switch */}
             <div className="flex items-center justify-between rounded-2xl border border-[#E8E3DB] p-3.5 bg-[#F7F5F0]/60">
               <div>
                 <p className="text-xs font-semibold text-[#1A1A1A]">Remove Background</p>
                 <p className="text-[10px] text-[#8A8480] mt-0.5">
-                  {removeBg ? "Clean cutout without borders" : "Keep original photo background"}
+                  {removeBg ? "Clean person cutout without borders" : "Keep original photo background"}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setRemoveBg(!removeBg)}
+                onClick={handleToggleRemoveBg}
+                disabled={isProcessing}
                 className={`relative h-6 w-11 rounded-full transition-colors duration-200 focus:outline-none ${
                   removeBg ? "bg-[#1A1A1A]" : "bg-[#E8E3DB]"
                 }`}
@@ -143,28 +264,27 @@ export default function AvatarUploadModal({ open, onClose, onSaveAvatar }: Props
               </button>
             </div>
 
-            {statusText && (
-              <div className="flex items-center justify-center gap-2 text-xs text-[#8A8480] py-1">
-                <span className="h-3 w-3 rounded-full border-2 border-[#C4A882] border-t-transparent animate-spin" />
-                <span>{statusText}</span>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2 pt-2">
+            {/* Action buttons */}
+            <div className="flex items-center gap-2 pt-1">
               <button
                 type="button"
-                onClick={handleClose}
-                className="flex-1 rounded-xl px-4 py-2.5 text-xs font-semibold text-[#8A8480] hover:text-[#1A1A1A] transition"
+                onClick={() => {
+                  setRawPreview(null);
+                  setCutoutPreview(null);
+                  setError(null);
+                }}
+                disabled={isProcessing}
+                className="flex-1 rounded-xl border border-[#E8E3DB] py-2.5 text-xs font-semibold text-[#8A8480] hover:text-[#1A1A1A] hover:bg-[#F7F5F0] transition"
               >
-                Cancel
+                Choose Other
               </button>
               <button
                 type="button"
                 onClick={handleConfirm}
                 disabled={isProcessing}
-                className="flex-1 rounded-xl bg-[#1A1A1A] py-2.5 text-xs font-semibold text-white shadow transition hover:bg-[#333] disabled:opacity-40"
+                className="flex-1 rounded-xl bg-[#1A1A1A] py-2.5 text-xs font-semibold text-white hover:bg-black transition shadow-xs disabled:opacity-50"
               >
-                {isProcessing ? "Processing…" : "Use as Avatar"}
+                Save Avatar
               </button>
             </div>
           </div>
@@ -173,4 +293,3 @@ export default function AvatarUploadModal({ open, onClose, onSaveAvatar }: Props
     </div>
   );
 }
-
