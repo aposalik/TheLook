@@ -160,8 +160,12 @@ export default function WearingPanel({
                 >
                   <div className="mb-2 flex -space-x-2 overflow-hidden">
                     {look.items.slice(0, 4).map((item) => (
-                      <span key={item.id} className="h-9 w-9 overflow-hidden rounded-full border-2 border-white bg-[#F7F5F0] p-0.5">
-                        <img src={item.image} alt="" className="h-full w-full object-contain" />
+                      <span key={item.id} className="h-9 w-9 overflow-hidden rounded-full border-2 border-white bg-[#F7F5F0] p-0.5 flex items-center justify-center">
+                        {item.image ? (
+                          <img src={item.image} alt="" className="h-full w-full object-contain" />
+                        ) : (
+                          <span className="text-[10px]" aria-hidden="true">👕</span>
+                        )}
                       </span>
                     ))}
                   </div>
@@ -194,8 +198,12 @@ export default function WearingPanel({
 
             const renderCard = (item: Item, isAccent: boolean) => (
               <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-[#E8E3DB] bg-[#F7F5F0]/60 p-2.5 transition hover:border-[#C4A882]/40">
-                <div className="h-12 w-12 shrink-0 rounded-xl border border-[#E8E3DB] bg-white p-1">
-                  <img src={item.image} alt={item.title} className="h-full w-full object-contain" />
+                <div className="h-12 w-12 shrink-0 rounded-xl border border-[#E8E3DB] bg-white p-1 flex items-center justify-center">
+                  {item.image ? (
+                    <img src={item.image} alt={item.title} className="h-full w-full object-contain" />
+                  ) : (
+                    <span className="text-base text-[#8A8480]" aria-hidden="true">🧥</span>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
