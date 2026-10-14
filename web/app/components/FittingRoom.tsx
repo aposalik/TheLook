@@ -490,6 +490,33 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     showToast(`${look.stylistTitle ?? look.formula} selected`);
   }
 
+  function clearSuggestions() {
+    setRecommendedLooks([]);
+    setCurrentLook(null);
+    setStylistSource(null);
+    if (user) {
+      safeSetStorage(userKey(RECOMMENDED_KEY, user.id), "[]");
+      safeSetStorage(userKey(CURRENT_LOOK_KEY, user.id), "null");
+    }
+    showToast("Outfit suggestions cleared");
+  }
+
+  function clearAllEquipped() {
+    setEquipped([]);
+    setActiveItem(null);
+    setCurrentLook(null);
+    setRecommendedLooks([]);
+    setStylistSource(null);
+    setTryOnResult(null);
+    setMockPreview(null);
+    if (user) {
+      safeSetStorage(userKey(EQUIPPED_KEY, user.id), "[]");
+      safeSetStorage(userKey(CURRENT_LOOK_KEY, user.id), "null");
+      safeSetStorage(userKey(RECOMMENDED_KEY, user.id), "[]");
+    }
+    showToast("Cleared outfit & suggestions");
+  }
+
   // Style Assistant picked a complete outfit: replace the tray with it. Rendering
   // stays manual — the user presses Show On Me (no automatic credit spend).
   function onChatEquip(items: Item[]) {
@@ -667,6 +694,8 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
             stylistSource={stylistSource}
             recommendedLooks={recommendedLooks}
             onSelectLook={chooseRecommendedLook}
+            onClearSuggestions={clearSuggestions}
+            onClearAll={clearAllEquipped}
           />
         </div>
         <WardrobeCatalog

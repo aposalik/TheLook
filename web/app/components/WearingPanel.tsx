@@ -15,9 +15,26 @@ type Props = {
   stylistSource: "gemini" | "deterministic" | null;
   recommendedLooks: Look[];
   onSelectLook: (look: Look) => void;
+  onClearSuggestions?: () => void;
+  onClearAll?: () => void;
 };
 
-export default function WearingPanel({ equipped, currentLook, isGenerating, generateError, onGenerate, onRemove, onAddToBag, preferences, onPreferencesChange, stylistSource, recommendedLooks, onSelectLook }: Props) {
+export default function WearingPanel({
+  equipped,
+  currentLook,
+  isGenerating,
+  generateError,
+  onGenerate,
+  onRemove,
+  onAddToBag,
+  preferences,
+  onPreferencesChange,
+  stylistSource,
+  recommendedLooks,
+  onSelectLook,
+  onClearSuggestions,
+  onClearAll,
+}: Props) {
   return (
     <section className="flex flex-col rounded-3xl border border-[#E8E3DB] bg-white shadow-sm overflow-hidden">
       <div className="flex items-center justify-between px-6 py-4 border-b border-[#E8E3DB]">
@@ -25,25 +42,40 @@ export default function WearingPanel({ equipped, currentLook, isGenerating, gene
           <h2 className="text-base font-semibold text-[#1A1A1A]">You Are Wearing</h2>
           <p className="text-xs text-[#8A8480] mt-0.5">{equipped.length} piece{equipped.length !== 1 ? "s" : ""} selected</p>
         </div>
-        <button
-          onClick={onGenerate}
-          disabled={isGenerating}
-          className="flex items-center gap-1.5 rounded-xl border border-[#E8E3DB] bg-[#F7F5F0] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] transition hover:border-[#C4A882] hover:bg-[#EDE5D8] active:scale-95 disabled:opacity-50"
-        >
-          {isGenerating ? (
-            <>
-              <span className="h-3 w-3 rounded-full border-2 border-[#C4A882] border-t-transparent animate-spin" />
-              Styling…
-            </>
-          ) : (
-            <>
-              <svg className="h-3.5 w-3.5 text-[#C4A882]" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.57l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.57l7-10a1 1 0 011.12-.384z" clipRule="evenodd" />
+        <div className="flex items-center gap-2">
+          {(equipped.length > 0 || recommendedLooks.length > 0) && onClearAll && (
+            <button
+              type="button"
+              onClick={onClearAll}
+              title="Clear all equipped items and suggestions"
+              className="flex items-center gap-1 rounded-xl border border-[#E8E3DB] bg-white px-2.5 py-1.5 text-xs font-semibold text-[#8A8480] transition hover:border-rose-300 hover:text-rose-600 hover:bg-rose-50/50 active:scale-95"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
-              Generate Outfit
-            </>
+              Clear
+            </button>
           )}
-        </button>
+          <button
+            onClick={onGenerate}
+            disabled={isGenerating}
+            className="flex items-center gap-1.5 rounded-xl border border-[#E8E3DB] bg-[#F7F5F0] px-3 py-1.5 text-xs font-semibold text-[#1A1A1A] transition hover:border-[#C4A882] hover:bg-[#EDE5D8] active:scale-95 disabled:opacity-50"
+          >
+            {isGenerating ? (
+              <>
+                <span className="h-3 w-3 rounded-full border-2 border-[#C4A882] border-t-transparent animate-spin" />
+                Styling…
+              </>
+            ) : (
+              <>
+                <svg className="h-3.5 w-3.5 text-[#C4A882]" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.57l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.57l7-10a1 1 0 011.12-.384z" clipRule="evenodd" />
+                </svg>
+                Generate Outfit
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Generate error */}
@@ -97,7 +129,22 @@ export default function WearingPanel({ equipped, currentLook, isGenerating, gene
       {recommendedLooks.length > 0 && (
         <div className="px-6 pt-4">
           <div className="mb-2 flex items-center justify-between">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-[#8A8480]">Top 3 suggestions</p>
+            <div className="flex items-center gap-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-[#8A8480]">Top 3 suggestions</p>
+              {onClearSuggestions && (
+                <button
+                  type="button"
+                  onClick={onClearSuggestions}
+                  title="Clear generated outfit suggestions to generate again"
+                  className="inline-flex items-center gap-1 rounded-full border border-[#E8E3DB] bg-[#F7F5F0] px-2 py-0.5 text-[9px] font-semibold text-[#8A8480] transition hover:border-rose-300 hover:text-rose-600 hover:bg-rose-50"
+                >
+                  <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Clear suggestions
+                </button>
+              )}
+            </div>
             <p className="text-[10px] text-[#8A8480]">Choose before “Show on me”</p>
           </div>
           <div className="grid grid-cols-3 gap-2">
