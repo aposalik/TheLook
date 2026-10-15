@@ -178,10 +178,11 @@ export async function POST(req: NextRequest) {
     const response = await fetch(finalUrl, { cache: "no-store" });
     if (!response.ok) throw new Error(`Could not persist render (${response.status})`);
     const resultBytes = await toJpeg(Buffer.from(await response.arrayBuffer()));
-    await uploadToStorage("renders", renderPath, resultBytes, "image/jpeg");
-    await completeJob(jobId, renderPath, 1);
+    const finalRenderPath = `${userId}/${jobId}.jpg`;
+    await uploadToStorage("renders", finalRenderPath, resultBytes, "image/jpeg");
+    await completeJob(jobId, finalRenderPath, 1);
 
-    const resultSignedUrl = await signedUrl("renders", renderPath);
+    const resultSignedUrl = await signedUrl("renders", finalRenderPath);
     return NextResponse.json({ resultUrl: resultSignedUrl, steps, remaining: quota.remaining - 1 });
 
   } catch (error) {
