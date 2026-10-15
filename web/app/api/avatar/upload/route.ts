@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const storagePath = `${userId}/${body.avatarId}.jpg`;
 
     await uploadToStorage("avatars", storagePath, jpeg, "image/jpeg");
-    await dbInsertAvatar(supabase, body.avatarId, storagePath);
+    await dbInsertAvatar(supabase, body.avatarId, storagePath, userId);
     const url = await signedUrl("avatars", storagePath);
 
     return NextResponse.json({ storagePath, signedUrl: url });

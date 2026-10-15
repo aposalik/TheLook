@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import TopBar from "./TopBar";
 import AvatarStage from "./AvatarStage";
 import WearingPanel from "./WearingPanel";
@@ -15,15 +15,45 @@ import AuthDialog from "./auth/AuthDialog";
 import { createClient } from "@/lib/supabase/client";
 import { signedUrl } from "@/lib/storage";
 
+import AvatarUploadModal from "./AvatarUploadModal";
+
 import type { Item, Look, StylePreferences } from "@/lib/recommend";
-type Avatar = { id: string; url: string; storagePath?: string };
+type Avatar = { id: string; url: string; storagePath?: string; isCutout?: boolean };
 const AV_KEY = "thelook_avatars";
 const LOOKS_KEY = "thelook_looks";
 const WARDROBE_KEY = "thelook_wardrobe";
 const PREFS_KEY = "thelook_style_preferences";
+const RECOMMENDED_KEY = "thelook_recommended_looks";
+const CURRENT_LOOK_KEY = "thelook_current_look";
+const EQUIPPED_KEY = "thelook_equipped";
+const ACTIVE_AV_KEY = "thelook_active_avatar_id";
 
 function userKey(base: string, userId: string) {
   return `${base}:${userId}`;
+}
+
+/** Strip large base64 image data before writing looks/items to localStorage to prevent quota errors */
+function stripItemImages(item: Item): Item {
+  return item.image?.startsWith("data:image/") ? { ...item, image: "" } : item;
+}
+
+function stripLookImages(look: Look): Look {
+  return { ...look, items: look.items.map(stripItemImages) };
+}
+
+function hydrateItemImage(item: Item, byId: Map<string, Item>): Item {
+  if (item.image) return item;
+  const existing = byId.get(item.id);
+  return existing?.image ? { ...item, image: existing.image } : item;
+}
+
+/** Safe localStorage write that catches QuotaExceededError silently without crashing */
+function safeSetStorage(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // Quota reached or storage disabled: non-fatal, session remains in memory
+  }
 }
 
 /** Downscale an uploaded image so localStorage stays small and uploads are fast. */
@@ -48,6 +78,7 @@ function downscale(file: File, max = 900): Promise<string> {
 export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const sounds = useSoundEffects();
   const { user, isGuest, isVerifiedAccount } = useAuth();
+  const prevUserIdRef = useRef<string | null>(null);
   const [equipped, setEquipped] = useState<Item[]>([]);
   const [activeItem, setActiveItem] = useState<Item | null>(null);
   const [currentLook, setCurrentLook] = useState<Look | null>(null);
@@ -75,6 +106,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const [preferences, setPreferences] = useState<StylePreferences>({ occasion: "any", goal: "balanced" });
   const [stylistSource, setStylistSource] = useState<"gemini" | "deterministic" | null>(null);
   const [addModal, setAddModal] = useState<RowKey | null>(null);
+  const [avatarUploadOpen, setAvatarUploadOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
 
   function showToast(msg: string) {
@@ -94,31 +126,54 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         .from("avatars")
         .select("id, storage_path")
         .order("created_at", { ascending: true });
+
+      const cached = JSON.parse(localStorage.getItem(userKey(AV_KEY, user.id)) ?? "[]") as Avatar[];
+      const cachedMap = new Map(cached.map((c) => [c.id, c]));
+      const savedActiveId = localStorage.getItem(userKey(ACTIVE_AV_KEY, user.id));
+
       if (avRows && avRows.length > 0) {
         const loaded: Avatar[] = await Promise.all(
           avRows.map(async (row: { id: string; storage_path: string }) => {
             // Signed URL must be fetched server-side; use the API route.
             const res = await fetch(`/api/avatar/${row.id}/url`);
             const d = await res.json() as { signedUrl?: string };
-            return { id: row.id, storagePath: row.storage_path, url: d.signedUrl ?? "" };
+            const existing = cachedMap.get(row.id);
+            return {
+              id: row.id,
+              storagePath: row.storage_path,
+              url: existing?.url?.startsWith("data:") ? existing.url : (d.signedUrl ?? existing?.url ?? ""),
+              isCutout: existing?.isCutout ?? false,
+            };
           }),
         );
         setAvatars(loaded);
-        setActiveAvatarId(loaded[0]?.id ?? null);
-        setCustomPhoto(loaded[0]?.url ?? null);
+        const chosen = (savedActiveId && loaded.find((a) => a.id === savedActiveId))
+          || (activeAvatarId && loaded.find((a) => a.id === activeAvatarId))
+          || loaded[0]
+          || null;
+        setActiveAvatarId(chosen?.id ?? null);
+        setCustomPhoto(chosen?.url ?? null);
         localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(loaded));
       } else {
         // Fall back to localStorage (guest or first visit)
-        const cached = JSON.parse(localStorage.getItem(userKey(AV_KEY, user.id)) ?? "[]") as Avatar[];
         setAvatars(cached);
-        setActiveAvatarId(cached[0]?.id ?? null);
-        setCustomPhoto(cached[0]?.url ?? null);
+        const chosen = (savedActiveId && cached.find((a) => a.id === savedActiveId))
+          || (activeAvatarId && cached.find((a) => a.id === activeAvatarId))
+          || cached[0]
+          || null;
+        setActiveAvatarId(chosen?.id ?? null);
+        setCustomPhoto(chosen?.url ?? null);
       }
     } catch {
       const cached = JSON.parse(localStorage.getItem(userKey(AV_KEY, user.id)) ?? "[]") as Avatar[];
+      const savedActiveId = localStorage.getItem(userKey(ACTIVE_AV_KEY, user.id));
       setAvatars(cached);
-      setActiveAvatarId(cached[0]?.id ?? null);
-      setCustomPhoto(cached[0]?.url ?? null);
+      const chosen = (savedActiveId && cached.find((a) => a.id === savedActiveId))
+        || (activeAvatarId && cached.find((a) => a.id === activeAvatarId))
+        || cached[0]
+        || null;
+      setActiveAvatarId(chosen?.id ?? null);
+      setCustomPhoto(chosen?.url ?? null);
     }
 
     // Wardrobe items — DB rows carry metadata; image served from Storage via signed URL
@@ -221,14 +276,47 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       setSavedLooks(cached);
     }
 
-    // Reset transient UI state on identity change
-    setTryOnResult(null);
-    setMockPreview(null);
-    setEquipped([]);
-    setActiveItem(null);
-    setCurrentLook(null);
-    setRecommendedLooks([]);
-  }, [user]);
+    // Check if this is an actual user account switch
+    const isActualUserSwitch = prevUserIdRef.current !== null && prevUserIdRef.current !== user.id;
+    prevUserIdRef.current = user.id;
+
+    if (isActualUserSwitch) {
+      // Reset transient UI state on identity change
+      setTryOnResult(null);
+      setMockPreview(null);
+      setEquipped([]);
+      setActiveItem(null);
+      setCurrentLook(null);
+      setRecommendedLooks([]);
+    } else {
+      // Restore suggestions, current look, and equipped outfit across tab switches and reloads
+      try {
+        const byId = new Map<string, Item>([...catalog, ...userItems].map((i) => [i.id, i]));
+        const savedRecs = JSON.parse(localStorage.getItem(userKey(RECOMMENDED_KEY, user.id)) ?? "[]") as Look[];
+        if (savedRecs.length > 0) {
+          setRecommendedLooks(savedRecs.map((l) => ({
+            ...l,
+            items: l.items.map((i) => hydrateItemImage(i, byId)),
+          })));
+        }
+        const savedLook = JSON.parse(localStorage.getItem(userKey(CURRENT_LOOK_KEY, user.id)) ?? "null") as Look | null;
+        if (savedLook) {
+          setCurrentLook({
+            ...savedLook,
+            items: savedLook.items.map((i) => hydrateItemImage(i, byId)),
+          });
+        }
+        const savedEquipped = JSON.parse(localStorage.getItem(userKey(EQUIPPED_KEY, user.id)) ?? "[]") as Item[];
+        if (savedEquipped.length > 0) {
+          const hydrated = savedEquipped.map((i) => hydrateItemImage(i, byId));
+          setEquipped(hydrated);
+          setActiveItem(hydrated[0] ?? null);
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }, [user, catalog]);
 
   useEffect(() => {
     if (!user) return;
@@ -262,29 +350,31 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(next));
   }
 
-  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const url = await downscale(file);
-    const av: Avatar = { id: crypto.randomUUID(), url };
-    persistAvatars([...avatars, av]);
+  async function handleSaveAvatarFromModal(url: string, isCutout: boolean) {
+    const av: Avatar = { id: crypto.randomUUID(), url, isCutout };
+    const next = [...avatars, av];
+    persistAvatars(next);
     setActiveAvatarId(av.id);
     setCustomPhoto(url);
-    setTryOnResult(null); setMockPreview(null);
-    showToast("Photo saved — build a look, then Show on me");
-    // Upload to private Storage in the background; patch storagePath onto the saved avatar.
+    if (user) {
+      safeSetStorage(userKey(ACTIVE_AV_KEY, user.id), av.id);
+    }
+    setTryOnResult(null);
+    setMockPreview(null);
+    showToast(isCutout ? "Cutout avatar saved" : "Photo avatar saved");
+
+    // Upload to private Storage in background; patch storagePath onto saved avatar
     fetch("/api/avatar/upload", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ imageBase64: url, avatarId: av.id }),
+      body: JSON.stringify({ imageBase64: url, avatarId: av.id, isCutout }),
     }).then((r) => r.json()).then((d: { storagePath?: string; error?: string }) => {
       if (d.error) { showToast(`Avatar upload: ${d.error}`); return; }
       if (d.storagePath) {
-        // Use functional updater to avoid stale closure over `avatars`.
         setAvatars((prev) => {
-          const next = prev.map((a) => a.id === av.id ? { ...a, storagePath: d.storagePath } : a);
-          if (user) localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(next));
-          return next;
+          const updated = prev.map((a) => a.id === av.id ? { ...a, storagePath: d.storagePath, isCutout } : a);
+          if (user) localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(updated));
+          return updated;
         });
       }
     }).catch((e: unknown) => showToast(`Avatar upload failed: ${e instanceof Error ? e.message : String(e)}`));
@@ -293,21 +383,38 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   function selectAvatar(id: string) {
     const av = avatars.find((a) => a.id === id);
     if (!av) return;
-    setActiveAvatarId(id); setCustomPhoto(av.url);
-    setTryOnResult(null); setMockPreview(null);
+    setActiveAvatarId(id);
+    setCustomPhoto(av.url);
+    setTryOnResult(null);
+    setMockPreview(null);
+    if (user) {
+      safeSetStorage(userKey(ACTIVE_AV_KEY, user.id), id);
+    }
+    showToast(`Switched to Avatar ${avatars.findIndex((a) => a.id === id) + 1}`);
   }
 
-  function removeAvatar(id: string) {
+  async function removeAvatar(id: string) {
     const next = avatars.filter((a) => a.id !== id);
     persistAvatars(next);
     if (activeAvatarId === id) {
       const first = next[0] ?? null;
       setActiveAvatarId(first?.id ?? null);
       setCustomPhoto(first?.url ?? null);
-      setTryOnResult(null); setMockPreview(null);
+      setTryOnResult(null);
+      setMockPreview(null);
+      if (user) {
+        safeSetStorage(userKey(ACTIVE_AV_KEY, user.id), first?.id ?? "");
+      }
     }
-    // Delete from DB + Storage in background
-    fetch(`/api/avatar/${id}`, { method: "DELETE" }).catch(() => {});
+    showToast("Deleting avatar from cloud storage…");
+    try {
+      const res = await fetch(`/api/avatar/${id}`, { method: "DELETE" });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || `HTTP ${res.status}`);
+      showToast("Avatar deleted from storage");
+    } catch (err) {
+      showToast(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   function toggleEquip(item: Item) {
@@ -317,7 +424,11 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setMockPreview(null);
     setEquipped((prev) => {
       const exists = prev.some((i) => i.id === item.id);
-      if (exists) return prev.filter((i) => i.id !== item.id);
+      if (exists) {
+        const next = prev.filter((i) => i.id !== item.id);
+        if (user) safeSetStorage(userKey(EQUIPPED_KEY, user.id), JSON.stringify(next.map(stripItemImages)));
+        return next;
+      }
       // Allow a real layered outfit: one base, one mid and one outer. Bottoms,
       // shoes and dresses remain mutually exclusive; accessories can stack.
       const key = (value: Item) => {
@@ -326,8 +437,9 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         if (category === "accessory") return `accessory:${value.id}`;
         return category;
       };
-      const next = prev.filter((existing) => key(existing) !== key(item));
-      return [...next, item];
+      const next = [...prev.filter((existing) => key(existing) !== key(item)), item];
+      if (user) safeSetStorage(userKey(EQUIPPED_KEY, user.id), JSON.stringify(next.map(stripItemImages)));
+      return next;
     });
   }
 
@@ -344,7 +456,11 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   }
 
   function removeEquipped(item: Item) {
-    setEquipped((prev) => prev.filter((i) => i.id !== item.id));
+    setEquipped((prev) => {
+      const next = prev.filter((i) => i.id !== item.id);
+      if (user) safeSetStorage(userKey(EQUIPPED_KEY, user.id), JSON.stringify(next.map(stripItemImages)));
+      return next;
+    });
     if (activeItem?.id === item.id) setActiveItem(null);
   }
 
@@ -380,10 +496,18 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       setStylistSource(styled.source === "gemini" ? "gemini" : "deterministic");
 
       const top = looks[0]!;
-      setRecommendedLooks(looks.slice(0, 3));
+      const recs = looks.slice(0, 3);
+      setRecommendedLooks(recs);
       setCurrentLook(top);
       setEquipped(top.items);
       setActiveItem(top.items[0] ?? null);
+
+      if (user) {
+        safeSetStorage(userKey(RECOMMENDED_KEY, user.id), JSON.stringify(recs.map(stripLookImages)));
+        safeSetStorage(userKey(CURRENT_LOOK_KEY, user.id), JSON.stringify(stripLookImages(top)));
+        safeSetStorage(userKey(EQUIPPED_KEY, user.id), JSON.stringify(top.items.map(stripItemImages)));
+      }
+
       showToast(`${styled.source === "gemini" ? "Gemini stylist" : "Outfit engine"} ranked ${Math.min(3, looks.length)} looks · ${(top.cohesion * 100).toFixed(0)}% top cohesion`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -403,7 +527,38 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setActiveItem(look.items[0] ?? null);
     setTryOnResult(null);
     setMockPreview(null);
+    if (user) {
+      safeSetStorage(userKey(CURRENT_LOOK_KEY, user.id), JSON.stringify(stripLookImages(look)));
+      safeSetStorage(userKey(EQUIPPED_KEY, user.id), JSON.stringify(look.items.map(stripItemImages)));
+    }
     showToast(`${look.stylistTitle ?? look.formula} selected`);
+  }
+
+  function clearSuggestions() {
+    setRecommendedLooks([]);
+    setCurrentLook(null);
+    setStylistSource(null);
+    if (user) {
+      safeSetStorage(userKey(RECOMMENDED_KEY, user.id), "[]");
+      safeSetStorage(userKey(CURRENT_LOOK_KEY, user.id), "null");
+    }
+    showToast("Outfit suggestions cleared");
+  }
+
+  function clearAllEquipped() {
+    setEquipped([]);
+    setActiveItem(null);
+    setCurrentLook(null);
+    setRecommendedLooks([]);
+    setStylistSource(null);
+    setTryOnResult(null);
+    setMockPreview(null);
+    if (user) {
+      safeSetStorage(userKey(EQUIPPED_KEY, user.id), "[]");
+      safeSetStorage(userKey(CURRENT_LOOK_KEY, user.id), "null");
+      safeSetStorage(userKey(RECOMMENDED_KEY, user.id), "[]");
+    }
+    showToast("Cleared outfit & suggestions");
   }
 
   // Style Assistant picked a complete outfit: replace the tray with it. Rendering
@@ -416,6 +571,9 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setActiveItem(items[0] ?? null);
     setTryOnResult(null);
     setMockPreview(null);
+    if (user) {
+      safeSetStorage(userKey(EQUIPPED_KEY, user.id), JSON.stringify(items.map(stripItemImages)));
+    }
     showToast(`Equipped ${items.length} piece${items.length === 1 ? "" : "s"} from the Style Assistant`);
   }
 
@@ -436,7 +594,12 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       const res = await fetch("/api/tryon-look", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ photoBase64: photo, itemIds: items.map((i) => i.id), items: itemsPayload }),
+        body: JSON.stringify({
+          photoBase64: photo,
+          avatarId: activeAvatarId,
+          itemIds: items.map((i) => i.id),
+          items: itemsPayload,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -555,7 +718,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
             activeAvatarId={activeAvatarId}
             onSelectAvatar={selectAvatar}
             onRemoveAvatar={removeAvatar}
-            onPhotoUpload={handlePhotoUpload}
+            onOpenUploadModal={() => setAvatarUploadOpen(true)}
             onTryOn={runTryOn}
             onPrevAvatar={() => cycleAvatar(-1)}
             onNextAvatar={() => cycleAvatar(1)}
@@ -575,6 +738,8 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
             stylistSource={stylistSource}
             recommendedLooks={recommendedLooks}
             onSelectLook={chooseRecommendedLook}
+            onClearSuggestions={clearSuggestions}
+            onClearAll={clearAllEquipped}
           />
         </div>
         <WardrobeCatalog
@@ -592,6 +757,11 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         category={addModal ?? "tops"}
         onClose={() => setAddModal(null)}
         onSave={addUserItem}
+      />
+      <AvatarUploadModal
+        open={avatarUploadOpen}
+        onClose={() => setAvatarUploadOpen(false)}
+        onSaveAvatar={handleSaveAvatarFromModal}
       />
       <ChatDrawer userItems={userItems} onEquip={onChatEquip} />
       {accountOpen && <AuthDialog open onClose={() => setAccountOpen(false)} />}

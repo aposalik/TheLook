@@ -8,6 +8,7 @@ const LAYERS = ["base", "mid", "outer"] as const;
 const FITS = ["slim", "regular", "relaxed", "baggy"] as const;
 const PALETTES = ["warm", "cool", "neutral"] as const;
 const COLOR_ROLES = ["neutral", "accent"] as const;
+const GENDERS = ["men", "women"] as const;
 
 type Analysis = {
   title: string;
@@ -23,6 +24,7 @@ type Analysis = {
   styles: string[];
   material: string;
   description: string;
+  gender: (typeof GENDERS)[number];
 };
 
 function fallback(rowHint: string, fallbackName: string): Analysis {
@@ -41,6 +43,7 @@ function fallback(rowHint: string, fallbackName: string): Analysis {
     styles: ["casual"],
     material: "unknown",
     description: "User-added wardrobe item",
+    gender: "men",
   };
 }
 
@@ -62,6 +65,7 @@ function normalize(raw: Partial<Analysis>, rowHint: string, fallbackName: string
     styles: Array.isArray(raw.styles) ? raw.styles.map(String).slice(0, 5) : base.styles,
     material: String(raw.material || base.material).slice(0, 40),
     description: String(raw.description || base.description).slice(0, 240),
+    gender: raw.gender === "women" ? "women" : "men",
   };
 }
 
@@ -89,12 +93,13 @@ Required schema:
   "colorRole": "neutral|accent",
   "fit": "slim|regular|relaxed|baggy",
   "formality": 1,
+  "gender": "men|women",
   "seasons": ["spring","summer","autumn","winter"],
   "styles": ["minimal","streetwear","smart-casual"],
   "material": "best visual estimate",
   "description": "one factual sentence"
 }
-Rules: classify what is visibly present, do not invent branding, set layer only for upper garments, formality is 1 casual to 5 formal. The upload UI hint was '${rowHint}', but visual evidence wins.`,
+Rules: classify what is visibly present, do not invent branding, set layer only for upper garments, formality is 1 casual to 5 formal, gender MUST be strictly either 'men' or 'women' (never unisex; classify based on cut, styling, and tailoring). The upload UI hint was '${rowHint}', but visual evidence wins.`,
     });
     return NextResponse.json({ analysis: normalize(raw, rowHint, fallbackName), source: "gemini" });
   } catch (error) {

@@ -21,11 +21,13 @@ export type Item = {
   material?: string;
   description?: string;
   source?: "catalog" | "user";
+  gender?: "men" | "women";
 };
 
 export type StylePreferences = {
   occasion?: "any" | "casual" | "work" | "evening";
   goal?: "balanced" | "define-waist" | "vertical-line" | "shoulder-structure";
+  gender?: "all" | "men" | "women";
 };
 
 export type Look = {
@@ -77,6 +79,17 @@ function metadataCompat(a: Item, b: Item): number {
 
 function compatibility(a: Item, b: Item): number {
   if (a.id === b.id) return 1;
+  const aIsUpper = a.category === "upper" || a.slot === "top" || a.slot === "outerwear";
+  const bIsUpper = b.category === "upper" || b.slot === "top" || b.slot === "outerwear";
+  if (aIsUpper && bIsUpper) {
+    // Two uppers layered together (e.g. base + mid or base + outer).
+    // The Polyvore matrix was trained only on single-piece tops vs bottoms,
+    // so raw matrix lookup yields artificially low scores (~0.35).
+    // For layering, evaluate style & color synergy plus layering harmony.
+    const meta = metadataCompat(a, b);
+    const layerSynergy = a.layer && b.layer && a.layer !== b.layer ? 0.15 : 0;
+    return Math.min(1, Math.max(0.65, meta + layerSynergy));
+  }
   const fixed = M[a.id]?.[b.id] ?? M[b.id]?.[a.id];
   return typeof fixed === "number" ? normC(fixed) : metadataCompat(a, b);
 }
@@ -161,7 +174,10 @@ export function recommend(
   options: { extraItems?: Item[]; preferences?: StylePreferences; candidateLimit?: number } = {},
 ): Look[] {
   const prefs = options.preferences ?? {};
-  const all = [...FIXED, ...(options.extraItems ?? []).filter((item, index, values) => values.findIndex((v) => v.id === item.id) === index)];
+  const pool = [...FIXED, ...(options.extraItems ?? []).filter((item, index, values) => values.findIndex((v) => v.id === item.id) === index)];
+  const all = prefs.gender && prefs.gender !== "all"
+    ? pool.filter((i) => !i.gender || i.gender === prefs.gender)
+    : pool;
   const uppers = all.filter((i) => i.category === "upper" || i.slot === "top" || i.slot === "outerwear");
   const bottoms = all.filter((i) => i.category === "bottom" || i.slot === "bottom");
   const shoes = all.filter((i) => i.category === "shoe" || i.slot === "shoe");
@@ -204,7 +220,7 @@ export function recommend(
   const candidateCount = Math.max(k, options.candidateLimit ?? k);
   const chosen: Look[] = [];
   const seen = new Set<string>();
-  const layered = eligible.find((look) => look.formula === "Layered");
+  const layered = eligible.find((look) => look.formula === "Layered" || look.formula === "With layer");
   if (layered && candidateCount > 1) { chosen.push(layered); seen.add(signature(layered)); }
   for (const look of eligible) {
     const sig = signature(look);
@@ -219,9 +235,16 @@ export function recommend(
       const item = accessories.find((accessory) => accessory.id === id);
       if (item && !look.items.some((i) => i.id === id)) { look.items.push(item); look.roles.push("accessory"); }
     }
-    if (!look.items.some((i) => accessoriesById.has(i.id))) {
+    // Only auto-attach an accessory if user explicitly anchored an accessory OR if occasion is evening/work and there is a high-affinity match (>0.6)
+    if (!look.items.some((i) => accessoriesById.has(i.id)) && (accessoryAnchors.length > 0 || prefs.occasion === "evening" || prefs.occasion === "work")) {
       const item = bestAccessory(look.items, accessories);
-      if (item) { look.items.push(item); look.roles.push("accessory"); }
+      if (item) {
+        const avgScore = look.items.reduce((sum, it) => sum + compatibility(it, item), 0) / Math.max(1, look.items.length);
+        if (avgScore >= 0.55) {
+          look.items.push(item);
+          look.roles.push("accessory");
+        }
+      }
     }
   }
   return chosen.slice(0, candidateCount);

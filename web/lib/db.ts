@@ -32,8 +32,18 @@ export async function dbInsertAvatar(
   supabase: SupabaseClient,
   id: string,
   storagePath: string,
+  userId?: string,
 ): Promise<void> {
-  const { error } = await supabase.from("avatars").upsert({ id, storage_path: storagePath });
+  let uid = userId;
+  if (!uid) {
+    const { data } = await supabase.auth.getUser();
+    uid = data?.user?.id;
+  }
+  if (!uid) {
+    throw new Error("dbInsertAvatar: Authenticated user ID is required to insert avatar");
+  }
+  const payload = { id, storage_path: storagePath, user_id: uid };
+  const { error } = await supabase.from("avatars").upsert(payload);
   if (error) throw new Error(`dbInsertAvatar: ${error.message}`);
 }
 
