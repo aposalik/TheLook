@@ -23,7 +23,13 @@ export default function BagDrawer({ open, items, onClose, onRemove, onClear }: P
             </div>
           ) : items.map((item, i) => (
             <div key={`${item.id}-${i}`} className="flex items-center gap-4 rounded-2xl border border-[#E8E3DB] bg-[#F7F5F0]/50 p-4">
-              <div className="h-16 w-16 shrink-0 rounded-xl border border-[#E8E3DB] bg-white p-2"><img src={item.image} alt={item.title} className="h-full w-full object-contain" /></div>
+              <div className="h-16 w-16 shrink-0 rounded-xl border border-[#E8E3DB] bg-white p-2 flex items-center justify-center">
+                {item.image ? (
+                  <img src={item.image} alt={item.title} className="h-full w-full object-contain" />
+                ) : (
+                  <span className="text-xl">🧥</span>
+                )}
+              </div>
               <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-[#1A1A1A] truncate">{item.title}</p><p className="text-xs text-[#8A8480] mt-0.5 capitalize">{item.slot} · {item.palette}</p></div>
               <button onClick={() => onRemove(item.id)} className="shrink-0 rounded-lg p-1.5 text-[#8A8480] hover:bg-[#E8E3DB] transition">
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>

@@ -9,6 +9,8 @@ import { reserveQuota, completeJob, failJob, hashIp, trustedIp } from "@/lib/quo
 import catalog from "@/data/catalog.json";
 import type { Item } from "@/lib/recommend";
 import { requireVerifiedAccount } from "@/lib/auth";
+import { createClient } from "@/lib/supabase/server";
+import { dbInsertAvatar } from "@/lib/db";
 
 export const runtime = "nodejs";
 const GARMENTS_DIR = path.join(process.cwd(), "public", "garments");
@@ -19,6 +21,12 @@ async function itemBytes(item: Item): Promise<Buffer> {
     const bytes = Buffer.from(item.image.split(",").pop()!, "base64");
     if (bytes.length > 8_000_000) throw new Error("Uploaded garment is too large");
     return toJpeg(bytes);
+  }
+  if (item.image?.startsWith("http://") || item.image?.startsWith("https://")) {
+    const res = await fetch(item.image);
+    if (!res.ok) throw new Error(`Could not fetch garment image: ${res.status}`);
+    const buf = Buffer.from(await res.arrayBuffer());
+    return toJpeg(buf);
   }
   return readFile(path.join(GARMENTS_DIR, `${item.id}.jpg`));
 }
@@ -77,10 +85,44 @@ export async function POST(req: NextRequest) {
     }
 
     // Quota reservation — atomic check + insert render_job + increment counters
-    const avatarId = body.avatarId ?? "00000000-0000-0000-0000-000000000000";
+    // Ensure avatarId exists in public.avatars to satisfy render_jobs_avatar_id_user_id_fkey
+    const supabase = await createClient();
+    let avatarId: string = body.avatarId ?? "";
+    let avatarValid = false;
+
+    if (avatarId) {
+      const { data: avRow } = await supabase
+        .from("avatars")
+        .select("id")
+        .eq("id", avatarId)
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (avRow) avatarValid = true;
+    }
+
+    if (!avatarValid) {
+      const { data: latestAv } = await supabase
+        .from("avatars")
+        .select("id")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (latestAv) {
+        avatarId = latestAv.id;
+      } else {
+        avatarId = avatarId && avatarId !== "00000000-0000-0000-0000-000000000000"
+          ? avatarId
+          : crypto.randomUUID();
+        const avatarPath = `${userId}/${avatarId}.jpg`;
+        await uploadToStorage("avatars", avatarPath, await toJpeg(photoBytes), "image/jpeg");
+        await dbInsertAvatar(supabase, avatarId, avatarPath, userId);
+      }
+    }
+
     const ipHash = hashIp(trustedIp(req));
     const quota = await reserveQuota(userId, fingerprint, ipHash, avatarId, items.map((i) => ({ id: i.id, slot: i.slot })));
-
     if (!quota.ok) {
       if (quota.reason === "cached" && quota.cachedPath) {
         const url = await signedUrl("renders", quota.cachedPath);
@@ -136,10 +178,11 @@ export async function POST(req: NextRequest) {
     const response = await fetch(finalUrl, { cache: "no-store" });
     if (!response.ok) throw new Error(`Could not persist render (${response.status})`);
     const resultBytes = await toJpeg(Buffer.from(await response.arrayBuffer()));
-    await uploadToStorage("renders", renderPath, resultBytes, "image/jpeg");
-    await completeJob(jobId, renderPath, 1);
+    const finalRenderPath = `${userId}/${jobId}.jpg`;
+    await uploadToStorage("renders", finalRenderPath, resultBytes, "image/jpeg");
+    await completeJob(jobId, finalRenderPath, 1);
 
-    const resultSignedUrl = await signedUrl("renders", renderPath);
+    const resultSignedUrl = await signedUrl("renders", finalRenderPath);
     return NextResponse.json({ resultUrl: resultSignedUrl, steps, remaining: quota.remaining - 1 });
 
   } catch (error) {

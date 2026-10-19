@@ -12,7 +12,16 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     if (error || !data.user) return NextResponse.json({ error: "Not authenticated." }, { status: 401 });
 
     const { id } = await params;
-    const storagePath = `${data.user.id}/${id}.jpg`;
+
+    // Fetch storage path from DB if available, fallback to standard path
+    const { data: avRow } = await supabase
+      .from("avatars")
+      .select("storage_path")
+      .eq("id", id)
+      .eq("user_id", data.user.id)
+      .maybeSingle();
+
+    const storagePath = avRow?.storage_path ?? `${data.user.id}/${id}.jpg`;
 
     await dbDeleteAvatar(supabase, id);
     await deleteFromStorage("avatars", storagePath);

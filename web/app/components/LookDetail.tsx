@@ -20,7 +20,11 @@ export default function LookDetail({ look, onClose }: { look: DetailLook; onClos
             <ul className="space-y-2.5">
               {look.items.map((it) => (
                 <li key={it.id} className="flex items-center gap-3 rounded-xl border border-[#E8E3DB] p-2">
-                  <img src={it.image} alt={it.title} className="h-14 w-14 rounded-lg bg-[#F7F5F0] object-contain p-1" />
+                  {it.image ? (
+                    <img src={it.image} alt={it.title} className="h-14 w-14 rounded-lg bg-[#F7F5F0] object-contain p-1" />
+                  ) : (
+                    <div className="h-14 w-14 rounded-lg bg-[#F7F5F0] flex items-center justify-center text-lg">👕</div>
+                  )}
                   <div>
                     <div className="text-[10px] uppercase tracking-widest text-[#8A8480]">{it.slot}</div>
                     <div className="text-sm text-[#1A1A1A]">{it.title}</div>

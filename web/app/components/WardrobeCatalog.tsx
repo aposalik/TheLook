@@ -101,6 +101,7 @@ export default function WardrobeCatalog({ catalog, userItems, equipped, activeId
           demoCount={catalog.length}
           onToggleDemo={toggleDemo}
           onRemove={onRemoveUserItem}
+          onAdd={onAdd}
           onClose={() => setManageOpen(false)}
         />
       )}
@@ -110,39 +111,112 @@ export default function WardrobeCatalog({ catalog, userItems, equipped, activeId
 
 // ── Manage drawer ──────────────────────────────────────────────────────────────
 
-function ManageDrawer({ userItems, demoHidden, demoCount, onToggleDemo, onRemove, onClose }: {
+function ManageDrawer({
+  userItems,
+  demoHidden,
+  demoCount,
+  onToggleDemo,
+  onRemove,
+  onAdd,
+  onClose,
+}: {
   userItems: Item[];
   demoHidden: boolean;
   demoCount: number;
   onToggleDemo: () => void;
   onRemove: (id: string) => void;
+  onAdd: (c: RowKey) => void;
   onClose: () => void;
 }) {
+  const [selectedCat, setSelectedCat] = useState<"all" | "tops" | "bottoms" | "accessories">("all");
+  const [selectedGender, setSelectedGender] = useState<"all" | "men" | "women">("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  const filteredItems = useMemo(() => {
+    return userItems.filter((item) => {
+      // Category filter
+      if (selectedCat === "tops") {
+        const cat = item.category ?? item.slot;
+        if (!(cat === "upper" || item.slot === "top" || item.slot === "outerwear")) return false;
+      } else if (selectedCat === "bottoms") {
+        const cat = item.category ?? item.slot;
+        if (cat !== "bottom") return false;
+      } else if (selectedCat === "accessories") {
+        const cat = item.category ?? item.slot;
+        if (cat === "upper" || item.slot === "top" || item.slot === "outerwear" || cat === "bottom") return false;
+      }
+
+      // Gender filter (strictly men or women)
+      if (selectedGender !== "all" && item.gender && item.gender !== selectedGender) {
+        return false;
+      }
+
+      // Search filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        const matchesTitle = item.title.toLowerCase().includes(q);
+        const matchesSlot = item.slot.toLowerCase().includes(q);
+        const matchesCategory = item.category?.toLowerCase().includes(q) ?? false;
+        const matchesMaterial = item.material?.toLowerCase().includes(q) ?? false;
+        if (!matchesTitle && !matchesSlot && !matchesCategory && !matchesMaterial) return false;
+      }
+
+      return true;
+    });
+  }, [userItems, selectedCat, selectedGender, searchQuery]);
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
     >
       <div
-        className="relative w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl max-h-[80vh] flex flex-col"
+        className="relative w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl max-h-[88vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-[#1A1A1A]">Manage wardrobe</h2>
-          <button type="button" onClick={onClose} className="h-8 w-8 rounded-full border border-[#E8E3DB] text-[#8A8480] hover:text-[#1A1A1A] transition" aria-label="Close">×</button>
+        {/* Header */}
+        <div className="flex items-center justify-between pb-4 border-b border-[#E8E3DB]">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-semibold text-[#1A1A1A]">Manage Wardrobe</h2>
+              <span className="rounded-full bg-[#F7F5F0] border border-[#E8E3DB] px-2.5 py-0.5 text-xs font-medium text-[#8A8480]">
+                {userItems.length} custom {userItems.length === 1 ? "item" : "items"}
+              </span>
+            </div>
+            <p className="text-xs text-[#8A8480] mt-0.5">Organize your uploaded clothing pieces and catalog settings</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="h-8 w-8 rounded-full border border-[#E8E3DB] text-[#8A8480] hover:text-[#1A1A1A] hover:border-[#1A1A1A] transition flex items-center justify-center text-sm"
+            aria-label="Close"
+          >
+            ✕
+          </button>
         </div>
 
-        {/* Demo toggle */}
-        <div className="flex items-center justify-between rounded-2xl border border-[#E8E3DB] px-4 py-3 mb-4">
-          <div>
-            <p className="text-sm font-semibold text-[#1A1A1A]">{demoHidden ? "Demo clothes hidden" : "Demo clothes"}</p>
-            <p className="text-[11px] text-[#8A8480] mt-0.5">{demoCount} sample pieces · great for trying the app</p>
+        {/* Demo clothes switch card */}
+        <div className="my-4 flex items-center justify-between rounded-2xl border border-[#E8E3DB] bg-[#F7F5F0]/60 p-3.5">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-white border border-[#E8E3DB] flex items-center justify-center text-base">
+              ✨
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-[#1A1A1A]">
+                {demoHidden ? "Demo Collection Hidden" : "Demo Collection Active"}
+              </p>
+              <p className="text-[11px] text-[#8A8480]">
+                {demoCount} curated studio pieces · {demoHidden ? "turn on to see demo outfits" : "turn off to view only personal uploads"}
+              </p>
+            </div>
           </div>
           <button
             type="button"
@@ -153,38 +227,211 @@ function ManageDrawer({ userItems, demoHidden, demoCount, onToggleDemo, onRemove
             aria-pressed={!demoHidden}
             aria-label={demoHidden ? "Show demo clothes" : "Hide demo clothes"}
           >
-            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
-              demoHidden ? "translate-x-0.5" : "translate-x-[22px]"
-            }`} />
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
+                demoHidden ? "translate-x-0.5" : "translate-x-[22px]"
+              }`}
+            />
           </button>
         </div>
 
-        {/* User items */}
-        {userItems.length === 0 ? (
-          <p className="text-sm text-[#8A8480] text-center py-6">No custom items yet — use <strong>+ Add new</strong> to upload your own.</p>
-        ) : (
-          <>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#8A8480] mb-2">Your uploads</p>
-            <ul className="overflow-y-auto divide-y divide-[#F0EDE8] -mx-2">
-              {userItems.map((item) => (
-                <li key={item.id} className="flex items-center gap-3 px-2 py-2.5">
-                  <div className="h-12 w-12 rounded-xl bg-[#F7F5F0] flex items-center justify-center shrink-0">
-                    <img src={item.image} alt={item.title} className="h-full w-full object-contain rounded-xl" />
+        {/* Search and Filters Bar */}
+        <div className="space-y-3 pb-3">
+          <div className="relative">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search your clothes by title or style…"
+              className="w-full rounded-xl border border-[#E8E3DB] bg-[#F7F5F0] px-3.5 py-2 text-xs text-[#1A1A1A] placeholder-[#8A8480] focus:border-[#1A1A1A] focus:bg-white focus:outline-none transition"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8A8480] hover:text-[#1A1A1A]"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* Category tabs */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+              {(
+                [
+                  { id: "all", label: "All Items" },
+                  { id: "tops", label: "Tops" },
+                  { id: "bottoms", label: "Bottoms" },
+                  { id: "accessories", label: "Shoes & Accs" },
+                ] as const
+              ).map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setSelectedCat(tab.id)}
+                  className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                    selectedCat === tab.id
+                      ? "bg-[#1A1A1A] text-white"
+                      : "bg-[#F7F5F0] text-[#8A8480] hover:text-[#1A1A1A]"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Gender filter pills (strictly Men and Women) */}
+            <div className="flex items-center gap-1 bg-[#F7F5F0] rounded-full p-0.5 border border-[#E8E3DB]">
+              {(
+                [
+                  { id: "all", label: "All Genders" },
+                  { id: "men", label: "Men" },
+                  { id: "women", label: "Women" },
+                ] as const
+              ).map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => setSelectedGender(g.id)}
+                  className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium transition ${
+                    selectedGender === g.id
+                      ? "bg-white text-[#1A1A1A] shadow-xs"
+                      : "text-[#8A8480] hover:text-[#1A1A1A]"
+                  }`}
+                >
+                  {g.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Content list / grid */}
+        <div className="flex-1 overflow-y-auto py-2">
+          {userItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+              <div className="h-14 w-14 rounded-2xl bg-[#F7F5F0] border border-[#E8E3DB] flex items-center justify-center text-2xl">
+                🧥
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-[#1A1A1A]">Your wardrobe is empty</p>
+                <p className="text-xs text-[#8A8480] max-w-xs mt-1">
+                  Upload photos of your real clothes to start trying them on and receiving personalized AI outfit recommendations.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onAdd("tops");
+                }}
+                className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#1A1A1A] px-4 py-2 text-xs font-semibold text-white hover:bg-black transition"
+              >
+                + Add First Item
+              </button>
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
+              <p className="text-sm font-medium text-[#1A1A1A]">No matching pieces found</p>
+              <p className="text-xs text-[#8A8480]">Try clearing your search query or switching filters.</p>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCat("all");
+                  setSelectedGender("all");
+                  setSearchQuery("");
+                }}
+                className="mt-2 text-xs font-semibold text-[#C4A882] hover:underline"
+              >
+                Reset filters
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+              {filteredItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="group relative flex flex-col justify-between rounded-2xl border border-[#E8E3DB] bg-white p-3 hover:border-[#1A1A1A] hover:shadow-xs transition"
+                >
+                  <div>
+                    {/* Item Image */}
+                    <div className="relative aspect-square w-full rounded-xl bg-[#F7F5F0] overflow-hidden flex items-center justify-center p-2 mb-2.5">
+                      <img
+                        src={item.image}
+                        alt={item.title}
+                        className="h-full w-full object-contain"
+                      />
+                      {/* Gender badge */}
+                      {item.gender && (
+                        <span
+                          className={`absolute top-2 left-2 rounded-full px-2 py-0.5 text-[9px] font-bold tracking-wider uppercase ${
+                            item.gender === "men"
+                              ? "bg-[#1A1A1A] text-white"
+                              : "bg-[#C4A882] text-white"
+                          }`}
+                        >
+                          {item.gender}
+                        </span>
+                      )}
+                      {/* Category tag */}
+                      <span className="absolute top-2 right-2 rounded-full bg-white/90 border border-[#E8E3DB] px-1.5 py-0.5 text-[9px] font-medium text-[#8A8480] uppercase">
+                        {item.slot}
+                      </span>
+                    </div>
+
+                    {/* Metadata */}
+                    <h3 className="text-xs font-semibold text-[#1A1A1A] truncate" title={item.title}>
+                      {item.title}
+                    </h3>
+                    <p className="text-[10px] text-[#8A8480] capitalize truncate mt-0.5">
+                      {item.palette} · {item.fit ?? "regular fit"}
+                    </p>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-[#1A1A1A] truncate">{item.title}</p>
-                    <p className="text-[11px] text-[#8A8480] uppercase tracking-wide">{item.slot}</p>
-                  </div>
+
+                  {/* Remove button */}
                   <button
                     type="button"
                     onClick={() => onRemove(item.id)}
-                    className="shrink-0 rounded-xl border border-[#E8E3DB] px-3 py-1.5 text-xs font-semibold text-[#8A8480] hover:text-[#C44] hover:border-[#C44] transition"
-                  >Remove</button>
-                </li>
+                    className="mt-3 flex items-center justify-center gap-1.5 w-full rounded-xl border border-[#E8E3DB] py-1.5 text-[11px] font-medium text-[#8A8480] hover:text-rose-600 hover:border-rose-300 hover:bg-rose-50/50 transition"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                    Remove piece
+                  </button>
+                </div>
               ))}
-            </ul>
-          </>
-        )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="pt-3 border-t border-[#E8E3DB] flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => {
+              onClose();
+              onAdd("tops");
+            }}
+            className="flex items-center gap-1.5 rounded-full border border-[#E8E3DB] px-3.5 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F5F0] transition"
+          >
+            + Add New Piece
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full bg-[#1A1A1A] px-5 py-1.5 text-xs font-semibold text-white hover:bg-black transition shadow-xs"
+          >
+            Done
+          </button>
+        </div>
       </div>
     </div>
   );
