@@ -13,7 +13,6 @@ import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useAuth } from "./auth/AuthProvider";
 import AuthDialog from "./auth/AuthDialog";
 import { createClient } from "@/lib/supabase/client";
-import { signedUrl } from "@/lib/storage";
 
 import AvatarUploadModal from "./AvatarUploadModal";
 
@@ -56,25 +55,6 @@ function safeSetStorage(key: string, value: string) {
   }
 }
 
-/** Downscale an uploaded image so localStorage stays small and uploads are fast. */
-function downscale(file: File, max = 900): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => {
-      const img = new Image();
-      img.onload = () => {
-        const s = Math.min(1, max / Math.max(img.width, img.height));
-        const c = document.createElement("canvas");
-        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
-        c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
-        resolve(c.toDataURL("image/jpeg", 0.85));
-      };
-      img.onerror = reject; img.src = r.result as string;
-    };
-    r.onerror = reject; r.readAsDataURL(file);
-  });
-}
-
 export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const sounds = useSoundEffects();
   const { user, isGuest, isVerifiedAccount } = useAuth();
@@ -88,6 +68,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const [activeAvatarId, setActiveAvatarId] = useState<string | null>(null);
   const [customPhoto, setCustomPhoto] = useState<string | null>(null);
   const [tryOnResult, setTryOnResult] = useState<string | null>(null);
+  const [tryOnRenderPath, setTryOnRenderPath] = useState<string | null>(null);
   const [mockPreview, setMockPreview] = useState<{ photo: string; garment: string; title: string } | null>(null);
   const [isTryOnLoading, setIsTryOnLoading] = useState(false);
   const [tryOnError, setTryOnError] = useState<string | null>(null);
@@ -119,6 +100,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const loadFromDb = useCallback(async () => {
     if (!user) return;
     const supabase = createClient();
+    const hydrationItems = new Map<string, Item>(catalog.map((item) => [item.id, item]));
 
     // Avatars — fetch DB rows, generate signed URLs for display
     try {
@@ -148,7 +130,6 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         );
         setAvatars(loaded);
         const chosen = (savedActiveId && loaded.find((a) => a.id === savedActiveId))
-          || (activeAvatarId && loaded.find((a) => a.id === activeAvatarId))
           || loaded[0]
           || null;
         setActiveAvatarId(chosen?.id ?? null);
@@ -158,7 +139,6 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         // Fall back to localStorage (guest or first visit)
         setAvatars(cached);
         const chosen = (savedActiveId && cached.find((a) => a.id === savedActiveId))
-          || (activeAvatarId && cached.find((a) => a.id === activeAvatarId))
           || cached[0]
           || null;
         setActiveAvatarId(chosen?.id ?? null);
@@ -169,7 +149,6 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       const savedActiveId = localStorage.getItem(userKey(ACTIVE_AV_KEY, user.id));
       setAvatars(cached);
       const chosen = (savedActiveId && cached.find((a) => a.id === savedActiveId))
-        || (activeAvatarId && cached.find((a) => a.id === activeAvatarId))
         || cached[0]
         || null;
       setActiveAvatarId(chosen?.id ?? null);
@@ -212,14 +191,17 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
             };
           }),
         );
+        for (const item of items) hydrationItems.set(item.id, item);
         setUserItems(items);
         localStorage.setItem(userKey(WARDROBE_KEY, user.id), JSON.stringify(items));
       } else {
         const cached = JSON.parse(localStorage.getItem(userKey(WARDROBE_KEY, user.id)) ?? "[]") as Item[];
+        for (const item of cached) hydrationItems.set(item.id, item);
         setUserItems(cached);
       }
     } catch {
       const cached = JSON.parse(localStorage.getItem(userKey(WARDROBE_KEY, user.id)) ?? "[]") as Item[];
+      for (const item of cached) hydrationItems.set(item.id, item);
       setUserItems(cached);
     }
 
@@ -244,29 +226,20 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
 
     // Saved looks
     try {
-      const { data: lookRows } = await supabase
-        .from("saved_looks")
-        .select("id, render_path, formula, stylist_title, cohesion, created_at")
-        .order("created_at", { ascending: false });
-      if (lookRows && lookRows.length > 0) {
-        const looks: SavedLook[] = await Promise.all(
-          lookRows.map(async (row: Record<string, unknown>) => {
-            let image = "";
-            if (row.render_path) {
-              const res = await fetch(`/api/renders/${encodeURIComponent(row.render_path as string)}/url`);
-              const d = await res.json() as { signedUrl?: string };
-              image = d.signedUrl ?? "";
-            }
-            return {
-              id: row.id as string,
-              image,
-              items: [],
-              createdAt: new Date(row.created_at as string).getTime(),
-            };
-          }),
-        );
-        setSavedLooks(looks);
-        localStorage.setItem(userKey(LOOKS_KEY, user.id), JSON.stringify(looks));
+      const res = await fetch("/api/looks");
+      if (res.ok) {
+        const { looks } = await res.json() as { looks: SavedLook[] };
+        if (Array.isArray(looks) && looks.length > 0) {
+          const hydratedLooks = looks.map((l) => ({
+            ...l,
+            items: (l.items ?? []).map((entry) => hydrateItemImage(entry, hydrationItems)),
+          }));
+          setSavedLooks(hydratedLooks);
+          safeSetStorage(userKey(LOOKS_KEY, user.id), JSON.stringify(hydratedLooks));
+        } else {
+          setSavedLooks([]);
+          safeSetStorage(userKey(LOOKS_KEY, user.id), "[]");
+        }
       } else {
         const cached = JSON.parse(localStorage.getItem(userKey(LOOKS_KEY, user.id)) ?? "[]") as SavedLook[];
         setSavedLooks(cached);
@@ -283,6 +256,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     if (isActualUserSwitch) {
       // Reset transient UI state on identity change
       setTryOnResult(null);
+      setTryOnRenderPath(null);
       setMockPreview(null);
       setEquipped([]);
       setActiveItem(null);
@@ -291,7 +265,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     } else {
       // Restore suggestions, current look, and equipped outfit across tab switches and reloads
       try {
-        const byId = new Map<string, Item>([...catalog, ...userItems].map((i) => [i.id, i]));
+        const byId = hydrationItems;
         const savedRecs = JSON.parse(localStorage.getItem(userKey(RECOMMENDED_KEY, user.id)) ?? "[]") as Look[];
         if (savedRecs.length > 0) {
           setRecommendedLooks(savedRecs.map((l) => ({
@@ -360,24 +334,27 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       safeSetStorage(userKey(ACTIVE_AV_KEY, user.id), av.id);
     }
     setTryOnResult(null);
+    setTryOnRenderPath(null);
     setMockPreview(null);
     showToast(isCutout ? "Cutout avatar saved" : "Photo avatar saved");
 
-    // Upload to private Storage in background; patch storagePath onto saved avatar
-    fetch("/api/avatar/upload", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ imageBase64: url, avatarId: av.id, isCutout }),
-    }).then((r) => r.json()).then((d: { storagePath?: string; error?: string }) => {
-      if (d.error) { showToast(`Avatar upload: ${d.error}`); return; }
-      if (d.storagePath) {
-        setAvatars((prev) => {
-          const updated = prev.map((a) => a.id === av.id ? { ...a, storagePath: d.storagePath, isCutout } : a);
-          if (user) localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(updated));
-          return updated;
-        });
-      }
-    }).catch((e: unknown) => showToast(`Avatar upload failed: ${e instanceof Error ? e.message : String(e)}`));
+    if (!isGuest) {
+      // Upload permanent-account avatars to private Storage in the background.
+      fetch("/api/avatar/upload", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ imageBase64: url, avatarId: av.id, isCutout }),
+      }).then((r) => r.json()).then((d: { storagePath?: string; error?: string }) => {
+        if (d.error) { showToast(`Avatar upload: ${d.error}`); return; }
+        if (d.storagePath) {
+          setAvatars((prev) => {
+            const updated = prev.map((a) => a.id === av.id ? { ...a, storagePath: d.storagePath, isCutout } : a);
+            if (user) localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(updated));
+            return updated;
+          });
+        }
+      }).catch((e: unknown) => showToast(`Avatar upload failed: ${e instanceof Error ? e.message : String(e)}`));
+    }
   }
 
   function selectAvatar(id: string) {
@@ -386,6 +363,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setActiveAvatarId(id);
     setCustomPhoto(av.url);
     setTryOnResult(null);
+    setTryOnRenderPath(null);
     setMockPreview(null);
     if (user) {
       safeSetStorage(userKey(ACTIVE_AV_KEY, user.id), id);
@@ -401,6 +379,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       setActiveAvatarId(first?.id ?? null);
       setCustomPhoto(first?.url ?? null);
       setTryOnResult(null);
+      setTryOnRenderPath(null);
       setMockPreview(null);
       if (user) {
         safeSetStorage(userKey(ACTIVE_AV_KEY, user.id), first?.id ?? "");
@@ -421,6 +400,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     sounds.selectWardrobeItem();
     setActiveItem(item);
     setTryOnResult(null);
+    setTryOnRenderPath(null);
     setMockPreview(null);
     setEquipped((prev) => {
       const exists = prev.some((i) => i.id === item.id);
@@ -526,6 +506,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setEquipped(look.items);
     setActiveItem(look.items[0] ?? null);
     setTryOnResult(null);
+    setTryOnRenderPath(null);
     setMockPreview(null);
     if (user) {
       safeSetStorage(userKey(CURRENT_LOOK_KEY, user.id), JSON.stringify(stripLookImages(look)));
@@ -552,6 +533,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setRecommendedLooks([]);
     setStylistSource(null);
     setTryOnResult(null);
+    setTryOnRenderPath(null);
     setMockPreview(null);
     if (user) {
       safeSetStorage(userKey(EQUIPPED_KEY, user.id), "[]");
@@ -570,6 +552,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setEquipped(items);
     setActiveItem(items[0] ?? null);
     setTryOnResult(null);
+    setTryOnRenderPath(null);
     setMockPreview(null);
     if (user) {
       safeSetStorage(userKey(EQUIPPED_KEY, user.id), JSON.stringify(items.map(stripItemImages)));
@@ -583,6 +566,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setTryOnError(null);
     setMockPreview(null);
     setTryOnResult(null);
+    setTryOnRenderPath(null);
 
     try {
       // Strip the image blob from catalog items (route reads them from disk).
@@ -604,6 +588,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
 
+      setTryOnRenderPath(typeof data.renderPath === "string" ? data.renderPath : null);
       if (data.mock) {
         setMockPreview({ photo, garment: data.resultUrl, title: "your look" });
       } else {
@@ -659,7 +644,17 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     const image = tryOnResult ?? mockPreview?.garment;
     const items = lookItems();
     if (!image || !items.length) { showToast("Render a look first"); return; }
-    const look: SavedLook = { id: crypto.randomUUID(), image, items, createdAt: Date.now() };
+    const currentRenderPath = tryOnRenderPath;
+    const look: SavedLook = {
+      id: crypto.randomUUID(),
+      image,
+      renderPath: currentRenderPath,
+      formula: currentLook?.formula ?? "custom",
+      stylistTitle: currentLook?.stylistTitle,
+      cohesion: currentLook?.cohesion,
+      items,
+      createdAt: Date.now(),
+    };
     persistLooks([look, ...savedLooks]);
     showToast("Saved to your lookbook");
     // Persist to DB in background
@@ -668,7 +663,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         id: look.id,
-        renderPath: null, // render_path stored in DB by tryon-look route in Phase E
+        renderPath: currentRenderPath,
         formula: currentLook?.formula ?? "custom",
         stylistTitle: currentLook?.stylistTitle,
         cohesion: currentLook?.cohesion,

@@ -13,7 +13,14 @@ export default function LookDetail({ look, onClose }: { look: DetailLook; onClos
         <h3 className="mb-5 text-center text-xs font-semibold uppercase tracking-[0.3em] text-[#8A8480]">{look.label ?? "The Look"}</h3>
         <div className="grid gap-6 sm:grid-cols-[minmax(0,300px)_1fr]">
           <div className="mx-auto w-full overflow-hidden rounded-2xl border border-[#E8E3DB] bg-[#F7F5F0]" style={{ aspectRatio: "9 / 16" }}>
-            <img src={look.image} alt="look" className="h-full w-full object-cover" />
+            {look.image ? (
+              <img src={look.image} alt="look" className="h-full w-full object-cover" />
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-2 p-3 text-[#8A8480]">
+                <span className="text-3xl">✨</span>
+                <span className="text-xs font-medium">The Look</span>
+              </div>
+            )}
           </div>
           <div>
             <p className="mb-3 text-sm font-medium text-[#1A1A1A]">Wearing ({look.items.length})</p>

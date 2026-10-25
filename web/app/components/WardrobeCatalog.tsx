@@ -358,11 +358,15 @@ function ManageDrawer({
                   <div>
                     {/* Item Image */}
                     <div className="relative aspect-square w-full rounded-xl bg-[#F7F5F0] overflow-hidden flex items-center justify-center p-2 mb-2.5">
-                      <img
-                        src={item.image}
-                        alt={item.title}
-                        className="h-full w-full object-contain"
-                      />
+                      {item.image ? (
+                        <img
+                          src={item.image}
+                          alt={item.title}
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-2xl text-[#8A8480]">👕</span>
+                      )}
                       {/* Gender badge */}
                       {item.gender && (
                         <span
@@ -673,12 +677,16 @@ function HangingItem({ item, index, equipped, isUserOwned, isDemo, onToggle }: {
           style={{ transformOrigin: "50% 0%", willChange: "transform" }}
         >
           <HangerSVG className="w-[110px] h-[48px] -mb-5 drop-shadow-[0_2px_1px_rgba(0,0,0,0.12)]" />
-          <img
-            src={item.image}
-            alt={item.title}
-            loading="lazy"
-            className={`w-[112px] h-[128px] object-contain drop-shadow-[0_6px_8px_rgba(0,0,0,0.14)] ${equipped ? "scale-[1.04]" : ""}`}
-          />
+          {item.image ? (
+            <img
+              src={item.image}
+              alt={item.title}
+              loading="lazy"
+              className={`w-[112px] h-[128px] object-contain drop-shadow-[0_6px_8px_rgba(0,0,0,0.14)] ${equipped ? "scale-[1.04]" : ""}`}
+            />
+          ) : (
+            <div className="w-[112px] h-[128px] flex items-center justify-center text-3xl">👕</div>
+          )}
         </div>
         <div className="mt-2 w-full text-center">
           <p className={`truncate text-[12px] font-semibold ${equipped ? "text-[#1A1A1A]" : "text-[#2A2622]"}`}>{item.title}</p>
@@ -719,12 +727,16 @@ function ShelfItem({ item, equipped, isUserOwned, isDemo, onToggle }: {
         className="relative flex w-full flex-col items-center bg-transparent border-0 p-0 cursor-pointer focus-visible:outline-none"
       >
         <div className="relative flex items-end justify-center h-[108px]">
-          <img
-            src={item.image}
-            alt={item.title}
-            loading="lazy"
-            className={`max-h-[104px] max-w-[118px] object-contain drop-shadow-[0_6px_6px_rgba(0,0,0,0.18)] transition-transform duration-300 group-hover:-translate-y-1 ${equipped ? "scale-[1.05]" : ""}`}
-          />
+          {item.image ? (
+            <img
+              src={item.image}
+              alt={item.title}
+              loading="lazy"
+              className={`max-h-[104px] max-w-[118px] object-contain drop-shadow-[0_6px_6px_rgba(0,0,0,0.18)] transition-transform duration-300 group-hover:-translate-y-1 ${equipped ? "scale-[1.05]" : ""}`}
+            />
+          ) : (
+            <div className="h-[104px] w-[118px] flex items-center justify-center text-2xl">👞</div>
+          )}
         </div>
         <div className="mt-2 w-full text-center">
           <p className={`truncate text-[12px] font-semibold ${equipped ? "text-[#1A1A1A]" : "text-[#2A2622]"}`}>{item.title}</p>

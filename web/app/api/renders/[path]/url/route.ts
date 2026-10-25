@@ -13,7 +13,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pat
     const { path } = await params;
     const storagePath = decodeURIComponent(path);
     // Verify the path belongs to this user
-    if (!storagePath.startsWith(data.user.id)) {
+    if (!storagePath.startsWith(`${data.user.id}/`)) {
       return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     }
     const url = await signedUrl("renders", storagePath);

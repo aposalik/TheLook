@@ -19,16 +19,6 @@ Work phase by phase. Do not start the next phase until the current phase's **Don
 11. **Initial public limit:** Each verified account receives at most two new try-ons per UTC day. IP data is a high-threshold abuse/velocity signal, not a two-render hard quota, so a home, office, or university does not unfairly share two renders. Global safety budgets cap total cost.
 12. **Cleanup:** Expired anonymous accounts and their files are removed automatically after the retention period.
 13. **Submission assets:** Screenshots, video, Devpost copy, and final submission happen after the hosted product flow is frozen.
-3. **Files:** Private Supabase Storage buckets store avatars, wardrobe cutouts, and rendered looks.
-4. **Guest access:** A first-time visitor is signed in anonymously without seeing a login page.
-5. **Permanent accounts:** Google and verified email are offered for returning users and cross-device use.
-6. **No guest/account merge:** Guest and permanent accounts intentionally use different user IDs. Creating or signing into an account does not copy guest avatars or wardrobe items. The user uploads them again after signing in.
-7. **Privacy:** Every file and row belongs to one `user_id`; no visitor can read another visitor's data.
-8. **Guest capability:** Anonymous guests may upload clothes and receive recommendations, but paid YouCam **Show On Me** rendering requires a verified Google or email account.
-9. **Try-on quota:** Only new, uncached **Show On Me** renders count. Outfit recommendations, uploads, cache hits, and saved-result views do not count.
-10. **Initial public limit:** Each verified account receives at most two new try-ons per UTC day. IP data is a high-threshold abuse/velocity signal, not a two-render hard quota, so a home, office, or university does not unfairly share two renders. Global safety budgets cap total cost.
-11. **Cleanup:** Expired anonymous accounts and their files are removed automatically after the retention period.
-11. **Submission assets:** Screenshots, video, Devpost copy, and final submission happen after the hosted product flow is frozen.
 
 ## Mental model
 

@@ -15,7 +15,10 @@ function serviceClient() {
 
 /** HMAC-SHA256 the raw IP with a server-only secret. Never stores the raw IP. */
 export function hashIp(rawIp: string): string {
-  const secret = process.env.RATE_LIMIT_HASH_SECRET ?? "dev-insecure-secret";
+  const secret = process.env.RATE_LIMIT_HASH_SECRET;
+  if (!secret) {
+    throw new Error("RATE_LIMIT_HASH_SECRET is required when real try-on rendering is enabled.");
+  }
   return crypto.createHmac("sha256", secret).update(rawIp).digest("hex");
 }
 

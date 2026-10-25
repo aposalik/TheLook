@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
         : await itemBytes((uppers[0] ?? bottom)!);
       await uploadToStorage("renders", renderPath, await toJpeg(preview), "image/jpeg");
       const url = await signedUrl("renders", renderPath);
-      return NextResponse.json({ resultUrl: url, mock: true, steps: ["reference-preview (mock)"] });
+      return NextResponse.json({ resultUrl: url, renderPath, mock: true, steps: ["reference-preview (mock)"] });
     }
 
     // Quota reservation — atomic check + insert render_job + increment counters
@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
     if (!quota.ok) {
       if (quota.reason === "cached" && quota.cachedPath) {
         const url = await signedUrl("renders", quota.cachedPath);
-        return NextResponse.json({ resultUrl: url, cached: true, steps: ["cache"] });
+        return NextResponse.json({ resultUrl: url, renderPath: quota.cachedPath, cached: true, steps: ["cache"] });
       }
       if (quota.reason === "user_limit") {
         return NextResponse.json(
@@ -183,7 +183,7 @@ export async function POST(req: NextRequest) {
     await completeJob(jobId, finalRenderPath, 1);
 
     const resultSignedUrl = await signedUrl("renders", finalRenderPath);
-    return NextResponse.json({ resultUrl: resultSignedUrl, steps, remaining: quota.remaining - 1 });
+    return NextResponse.json({ resultUrl: resultSignedUrl, renderPath: finalRenderPath, steps, remaining: quota.remaining });
 
   } catch (error) {
     // Refund quota if a job was reserved but YouCam failed

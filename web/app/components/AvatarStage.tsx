@@ -146,11 +146,15 @@ export default function AvatarStage({
                     : "border-[#E8E3DB] hover:border-[#1A1A1A] opacity-75 hover:opacity-100"
                 } ${av.isCutout ? "bg-[#F7F5F0]" : "bg-neutral-100"}`}
               >
-                <img
-                  src={av.url}
-                  alt={`Avatar ${index + 1}`}
-                  className={`h-full w-full ${av.isCutout ? "object-contain" : "object-cover"}`}
-                />
+                {av.url ? (
+                  <img
+                    src={av.url}
+                    alt={`Avatar ${index + 1}`}
+                    className={`h-full w-full ${av.isCutout ? "object-contain" : "object-cover"}`}
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-xs text-[#8A8480]">👤</div>
+                )}
                 {av.isCutout && (
                   <span className="absolute bottom-0 inset-x-0 bg-black/60 text-[7px] text-white text-center font-bold uppercase py-0.5">
                     Cutout
