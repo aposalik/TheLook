@@ -30,6 +30,15 @@ test("every generated look exposes a bounded named score breakdown", () => {
   }
 });
 
+test("diverse capsule returns safe, balanced, and expressive archetypes", () => {
+  const report = evaluateRecommendationFixtures(fixturesData);
+  const fixture = report.fixtures.find((entry) => entry.id === "casual-diverse-capsule");
+
+  assert.ok(fixture);
+  assert.deepEqual(new Set(fixture.looks.map((look) => look.selectionMode)), new Set(["safe", "balanced", "expressive"]));
+  assert.ok(new Set(fixture.looks.map((look) => look.archetype)).size >= 3);
+});
+
 test("evaluation report is deterministic apart from its timestamp", () => {
   const first = evaluateRecommendationFixtures(fixturesData);
   const second = evaluateRecommendationFixtures(fixturesData);

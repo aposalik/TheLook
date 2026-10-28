@@ -95,6 +95,25 @@
         { "id": "invalid-formal-derby", "slot": "shoe", "title": "Patent Leather Derby", "color": "#111111", "palette": "neutral", "image": "/fixtures/formal-derby.png", "category": "shoe", "formality": 4, "fit": "regular", "color_role": "neutral", "styles": ["formal"], "gender": "men" }
       ],
       "expect": { "minLooks": 0, "maxLooks": 0, "allLooksContain": [], "allowedFormulas": [], "requireUniqueItems": true }
+    },
+    {
+      "id": "casual-diverse-capsule",
+      "description": "A mixed casual capsule should return different outfit strategies rather than score-neighbor duplicates.",
+      "anchors": [],
+      "limit": 3,
+      "preferences": { "occasion": "casual", "gender": "men", "goal": "balanced" },
+      "wardrobe": [
+        { "id": "diverse-white-tee", "slot": "top", "title": "White Tee", "color": "#f1efe8", "palette": "neutral", "image": "/fixtures/diverse-white-tee.png", "category": "upper", "layer": "base", "formality": 1, "fit": "regular", "color_role": "neutral", "styles": ["minimal"], "gender": "men" },
+        { "id": "diverse-graphic-tee", "slot": "top", "title": "Black Graphic Tee", "color": "#242424", "palette": "neutral", "image": "/fixtures/diverse-graphic-tee.png", "category": "upper", "layer": "base", "formality": 1, "fit": "relaxed", "color_role": "accent", "styles": ["streetwear"], "gender": "men" },
+        { "id": "diverse-olive-overshirt", "slot": "top", "title": "Olive Utility Overshirt", "color": "#62694a", "palette": "warm", "image": "/fixtures/diverse-olive-overshirt.png", "category": "upper", "layer": "mid", "formality": 2, "fit": "relaxed", "color_role": "accent", "styles": ["utility", "streetwear"], "gender": "men" },
+        { "id": "diverse-navy-blazer", "slot": "outerwear", "title": "Navy Blazer", "color": "#253047", "palette": "neutral", "image": "/fixtures/diverse-navy-blazer.png", "category": "upper", "layer": "outer", "formality": 3, "fit": "regular", "color_role": "neutral", "styles": ["smart-casual"], "gender": "men" },
+        { "id": "diverse-cream-trouser", "slot": "bottom", "title": "Cream Tailored Trouser", "color": "#d3c7af", "palette": "neutral", "image": "/fixtures/diverse-cream-trouser.png", "category": "bottom", "formality": 3, "fit": "regular", "color_role": "neutral", "styles": ["smart-casual"], "gender": "men" },
+        { "id": "diverse-cargo", "slot": "bottom", "title": "Black Cargo", "color": "#282828", "palette": "neutral", "image": "/fixtures/diverse-cargo.png", "category": "bottom", "formality": 1, "fit": "relaxed", "color_role": "neutral", "styles": ["utility", "streetwear"], "gender": "men" },
+        { "id": "diverse-dark-jean", "slot": "bottom", "title": "Dark Straight Jean", "color": "#30363d", "palette": "neutral", "image": "/fixtures/diverse-dark-jean.png", "category": "bottom", "formality": 2, "fit": "regular", "color_role": "neutral", "styles": ["minimal"], "gender": "men" },
+        { "id": "diverse-white-sneaker", "slot": "shoe", "title": "White Sneaker", "color": "#efeee9", "palette": "neutral", "image": "/fixtures/diverse-white-sneaker.png", "category": "shoe", "formality": 1, "fit": "regular", "color_role": "neutral", "styles": ["minimal", "streetwear"], "gender": "men" },
+        { "id": "diverse-black-loafer", "slot": "shoe", "title": "Black Loafer", "color": "#171717", "palette": "neutral", "image": "/fixtures/diverse-black-loafer.png", "category": "shoe", "formality": 3, "fit": "regular", "color_role": "neutral", "styles": ["smart-casual"], "gender": "men" }
+      ],
+      "expect": { "minLooks": 3, "maxLooks": 3, "allLooksContain": [], "allowedFormulas": ["Layered", "Simple", "With layer"], "requireUniqueItems": true, "minDistinctArchetypes": 3 }
     }
   ]
 }

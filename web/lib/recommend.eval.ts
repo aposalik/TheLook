@@ -10,6 +10,7 @@ export type RecommendationFixtureExpectation = {
   allLooksContain: string[];
   allowedFormulas: string[];
   requireUniqueItems: boolean;
+  minDistinctArchetypes?: number;
 };
 
 export type RecommendationFixture = {
@@ -36,6 +37,8 @@ type EvaluationAssertion = {
 
 type EvaluatedLook = {
   formula: string;
+  archetype: Look["archetype"];
+  selectionMode: Look["selectionMode"];
   itemIds: string[];
   score: number;
   cohesion: number;
@@ -73,6 +76,8 @@ function summarizeLook(look: Look): EvaluatedLook {
   ) as Look["scoreBreakdown"];
   return {
     formula: look.formula,
+    archetype: look.archetype,
+    selectionMode: look.selectionMode,
     itemIds: look.items.map((item) => item.id),
     score: Number(look.score.toFixed(4)),
     cohesion: Number(look.cohesion.toFixed(4)),
@@ -137,6 +142,16 @@ function evaluateFixture(fixture: RecommendationFixture): FixtureEvaluation {
     "all recommended items belong to the fixture wardrobe",
     foreignItems.length ? foreignItems.join("; ") : "all items owned",
   ));
+
+  const distinctArchetypes = new Set(looks.map((look) => look.archetype)).size;
+  if (fixture.expect.minDistinctArchetypes !== undefined) {
+    assertions.push(assertion(
+      "archetype-diversity",
+      distinctArchetypes >= fixture.expect.minDistinctArchetypes,
+      `at least ${fixture.expect.minDistinctArchetypes} distinct archetypes`,
+      `${distinctArchetypes} distinct archetypes`,
+    ));
+  }
 
   const malformedLooks = looks
     .map((look, index) => ({ look, index }))

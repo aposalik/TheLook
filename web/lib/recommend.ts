@@ -42,8 +42,23 @@ export type OutfitScoreBreakdown = {
   total: number;
 };
 
+export type OutfitArchetype =
+  | "safe-casual"
+  | "relaxed-layered"
+  | "polished-smart"
+  | "utility-street"
+  | "soft-casual"
+  | "structured-autumn"
+  | "statement-top"
+  | "statement-bottom"
+  | "dress";
+
+export type SelectionMode = "safe" | "balanced" | "expressive" | "alternate";
+
 export type Look = {
   formula: string;
+  archetype: OutfitArchetype;
+  selectionMode: SelectionMode;
   items: Item[];
   roles: string[];
   score: number;
@@ -238,6 +253,63 @@ export function scoreOutfit(items: Item[], prefs: StylePreferences): OutfitScore
   return { compatibility, palette, silhouette, formality, style, footwear, preference, total };
 }
 
+function inferArchetype(formula: string, items: Item[], prefs: StylePreferences): OutfitArchetype {
+  const upper = items.find((item) => isUpperItem(item) && item.layer !== "outer");
+  const bottom = items.find((item) => item.category === "bottom" || hasSlot(item, "bottom"));
+  const outer = items.find((item) => item.layer === "outer");
+  const styles = new Set(items.flatMap((item) => item.styles ?? []));
+  const formalities = items.map((item) => item.formality).filter((value): value is number => typeof value === "number");
+  const averageFormality = formalities.length ? formalities.reduce((sum, value) => sum + value, 0) / formalities.length : 2;
+
+  if (formula === "Dress") return "dress";
+  if (formula === "With layer") {
+    if (outer?.styles?.some((style) => style === "smart-casual" || style === "preppy") || averageFormality >= 2.5) return "structured-autumn";
+    return "relaxed-layered";
+  }
+  if (formula === "Layered") return styles.has("utility") || styles.has("streetwear") ? "utility-street" : "relaxed-layered";
+  if (upper?.color_role === "accent" || /graphic|stripe|check|plaid/i.test(`${upper?.subcategory} ${upper?.title}`)) return "statement-top";
+  if (bottom?.color_role === "accent") return "statement-bottom";
+  if (styles.has("utility") || styles.has("streetwear") || styles.has("sporty")) return "utility-street";
+  if (prefs.occasion === "work" || prefs.occasion === "evening" || averageFormality >= 2.7) return "polished-smart";
+  if (upper?.fit === "fitted" && (bottom?.fit === "relaxed" || bottom?.fit === "baggy")) return "soft-casual";
+  return "safe-casual";
+}
+
+function occasionStrategyBonus(archetype: OutfitArchetype, occasion: StylePreferences["occasion"]): number {
+  if (occasion === "work") return archetype === "polished-smart" || archetype === "structured-autumn" ? 0.06 : archetype === "statement-top" ? 0.015 : 0;
+  if (occasion === "evening") return archetype === "dress" ? 0.08 : archetype === "polished-smart" ? 0.06 : archetype === "structured-autumn" ? 0.035 : 0;
+  if (occasion === "casual") {
+    return archetype === "safe-casual" || archetype === "relaxed-layered" ? 0.05 : archetype === "utility-street" || archetype === "soft-casual" ? 0.04 : 0;
+  }
+  return 0;
+}
+
+function lookDistance(a: Look, b: Look, anchorIds: Set<string>): number {
+  const aIds = new Set(a.items.filter((item) => !anchorIds.has(item.id)).map((item) => item.id));
+  const bIds = new Set(b.items.filter((item) => !anchorIds.has(item.id)).map((item) => item.id));
+  const intersection = [...aIds].filter((id) => bIds.has(id)).length;
+  const union = new Set([...aIds, ...bIds]).size;
+  const itemDistance = union ? 1 - intersection / union : 0;
+  return clamp01(0.45 * itemDistance + 0.35 * Number(a.archetype !== b.archetype) + 0.20 * Number(a.formula !== b.formula));
+}
+
+function chooseDistinctCandidate(
+  candidates: Look[],
+  chosen: Look[],
+  anchorIds: Set<string>,
+  rank: (look: Look) => number,
+): Look | undefined {
+  const remaining = candidates.filter((look) => !chosen.includes(look));
+  if (!remaining.length) return undefined;
+  const unseenArchetypes = remaining.filter((look) => !chosen.some((picked) => picked.archetype === look.archetype));
+  const pool = unseenArchetypes.length ? unseenArchetypes : remaining;
+  return [...pool].sort((a, b) => {
+    const diversityA = chosen.length ? Math.min(...chosen.map((picked) => lookDistance(a, picked, anchorIds))) : 0;
+    const diversityB = chosen.length ? Math.min(...chosen.map((picked) => lookDistance(b, picked, anchorIds))) : 0;
+    return (rank(b) + 0.22 * diversityB) - (rank(a) + 0.22 * diversityA);
+  })[0];
+}
+
 function cartesian(pools: Item[][]): Item[][] {
   return pools.reduce<Item[][]>((acc, pool) => acc.flatMap((previous) => pool.map((item) => [...previous, item])), [[]]);
 }
@@ -349,28 +421,55 @@ export function recommend(
       const score = scoreBreakdown.total;
       const cohesion = scoreBreakdown.compatibility;
       const reason = buildReason(formula.name, combo, roles, prefs);
-      built.push({ formula: formula.name, items: combo, roles, score, cohesion, scoreBreakdown, reason, deterministicReason: reason });
+      const archetype = inferArchetype(formula.name, combo, prefs);
+      built.push({ formula: formula.name, archetype, selectionMode: "alternate", items: combo, roles, score, cohesion, scoreBreakdown, reason, deterministicReason: reason });
     }
   }
 
   const included = (look: Look) => coreAnchors.filter((id) => look.items.some((item) => item.id === id)).length;
   const eligible = coreAnchors.length ? built.filter((look) => included(look) === coreAnchors.length) : built;
-  eligible.sort((a, b) => b.score - a.score);
-
   const anchorSet = new Set(ids);
-  const signature = (look: Look) => look.items.filter((i) => !anchorSet.has(i.id)).map((i) => i.id).sort().join("|");
+  const signature = (look: Look) => look.items.filter((item) => !anchorSet.has(item.id)).map((item) => item.id).sort().join("|");
+  const uniqueEligible = [...eligible]
+    .sort((a, b) => b.score - a.score)
+    .filter((look, index, values) => values.findIndex((candidate) => signature(candidate) === signature(look)) === index);
   const candidateCount = Math.max(k, options.candidateLimit ?? k);
   const chosen: Look[] = [];
-  const seen = new Set<string>();
-  const layered = eligible.find((look) => look.formula === "Layered" || look.formula === "With layer");
-  if (layered && candidateCount > 1) { chosen.push(layered); seen.add(signature(layered)); }
-  for (const look of eligible) {
-    const sig = signature(look);
-    if (chosen.includes(look) || seen.has(sig)) continue;
-    chosen.push(look); seen.add(sig);
-    if (chosen.length >= candidateCount) break;
+  const strategyRank = (look: Look) => look.score + occasionStrategyBonus(look.archetype, prefs.occasion);
+
+  if (candidateCount === 1) {
+    const balanced = [...uniqueEligible].sort((a, b) => strategyRank(b) - strategyRank(a))[0];
+    if (balanced) { balanced.selectionMode = "balanced"; chosen.push(balanced); }
+  } else {
+    const conservativeArchetypes = new Set<OutfitArchetype>(["safe-casual", "soft-casual", "polished-smart", "dress"]);
+    const conservative = uniqueEligible.filter((look) => conservativeArchetypes.has(look.archetype));
+    const safePool = conservative.length ? conservative : uniqueEligible;
+    const safe = chooseDistinctCandidate(safePool, chosen, anchorSet, (look) => {
+      const stability = Math.min(look.scoreBreakdown.palette, look.scoreBreakdown.formality, look.scoreBreakdown.footwear);
+      return strategyRank(look) + 0.14 * stability;
+    });
+    if (safe) { safe.selectionMode = "safe"; chosen.push(safe); }
+
+    const balanced = chooseDistinctCandidate(uniqueEligible, chosen, anchorSet, strategyRank);
+    if (balanced) { balanced.selectionMode = "balanced"; chosen.push(balanced); }
+
+    if (candidateCount >= 3) {
+      const expressive = chooseDistinctCandidate(uniqueEligible, chosen, anchorSet, (look) => {
+        const accents = look.items.filter((item) => item.color_role === "accent").length;
+        const archetypeSignal = look.archetype === "statement-top" || look.archetype === "statement-bottom" || look.archetype === "utility-street" ? 0.12 : 0;
+        const layerSignal = look.formula === "Layered" || look.formula === "With layer" ? 0.06 : 0;
+        return strategyRank(look) + archetypeSignal + layerSignal + Math.min(0.08, accents * 0.04);
+      });
+      if (expressive) { expressive.selectionMode = "expressive"; chosen.push(expressive); }
+    }
   }
-  chosen.sort((a, b) => b.score - a.score);
+
+  while (chosen.length < candidateCount) {
+    const alternate = chooseDistinctCandidate(uniqueEligible, chosen, anchorSet, strategyRank);
+    if (!alternate) break;
+    alternate.selectionMode = "alternate";
+    chosen.push(alternate);
+  }
 
   for (const look of chosen) {
     for (const id of accessoryAnchors) {
