@@ -1,0 +1,34 @@
+{
+  "task": "Outfit quality rebuild — semantic foundation",
+  "status": "completed",
+  "completedSteps": [
+    "Added normalized rich garment semantics for garment type, pattern, pattern scale, fabric, weight, collar, closure, open-layer capability, layer role, silhouette volume, length, loungewear, and substantial-layer capability",
+    "Extended Gemini wardrobe analysis to produce the semantic schema and normalized all model output before use",
+    "Persisted semantics in a dedicated wardrobe_items JSONB column through a Supabase migration",
+    "Added conservative semantic inference and persistence for legacy wardrobe records",
+    "Added editable multi-role wardrobe categories for innerwear, top, outerwear, bottom, dress, shoe, and accessory",
+    "Added real-world negative fixtures for double collared shirts and polished shirts with sweatpants",
+    "Added an isolated bright-shoe regression proving neutral footwear ranks higher without a color echo",
+    "Replaced heuristic-only layer checks with semantic candidate validation"
+  ],
+  "verification": {
+    "tests": "16 passed, 0 failed",
+    "evaluation": "11 fixtures passed, 0 failed",
+    "typecheck": "passed",
+    "lint": "passed with 30 existing warnings and 0 errors",
+    "productionBuild": "passed",
+    "migration": "created but not applied to a live Supabase project"
+  },
+  "outputFiles": [
+    "web/lib/recommend.ts",
+    "web/lib/wardrobe-analysis.ts",
+    "web/lib/garment-semantics.test.ts",
+    "web/lib/wardrobe-analysis.test.ts",
+    "web/app/api/wardrobe/analyze/route.ts",
+    "web/app/components/AddItemModal.tsx",
+    "web/lib/db.ts",
+    "supabase/migrations/20261028152000_wardrobe_item_semantics.sql"
+  ],
+  "nextStep": "Calibrate ranking labels and add explicit user feedback/lock/swap learning after applying the semantics migration.",
+  "updatedAt": "2026-10-28T15:30:00+03:00"
+}

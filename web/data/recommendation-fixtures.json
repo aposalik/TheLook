@@ -114,6 +114,46 @@
         { "id": "diverse-black-loafer", "slot": "shoe", "title": "Black Loafer", "color": "#171717", "palette": "neutral", "image": "/fixtures/diverse-black-loafer.png", "category": "shoe", "formality": 3, "fit": "regular", "color_role": "neutral", "styles": ["smart-casual"], "gender": "men" }
       ],
       "expect": { "minLooks": 3, "maxLooks": 3, "allLooksContain": [], "allowedFormulas": ["Layered", "Simple", "With layer"], "requireUniqueItems": true, "minDistinctArchetypes": 3 }
+    },
+    {
+      "id": "reject-double-collared-shirts",
+      "description": "Two lightweight collared cotton shirts cannot be layered without a substantial overshirt.",
+      "anchors": ["striped-button-up", "pink-cotton-shirt"],
+      "limit": 3,
+      "preferences": { "occasion": "casual", "gender": "men", "goal": "balanced" },
+      "wardrobe": [
+        { "id": "striped-button-up", "slot": "top", "title": "Blue Striped Button-Up Shirt", "color": "#a8c3d8", "palette": "cool", "image": "/fixtures/striped-shirt.png", "category": "upper", "layer": "base", "formality": 3, "fit": "regular", "color_role": "neutral", "styles": ["smart-casual"], "gender": "men" },
+        { "id": "pink-cotton-shirt", "slot": "top", "slots": ["top", "outerwear"], "title": "Pink Cotton Shirt", "color": "#e5b8c2", "palette": "warm", "image": "/fixtures/pink-shirt.png", "category": "upper", "layer": "mid", "formality": 2, "fit": "regular", "color_role": "accent", "styles": ["smart-casual"], "gender": "men" },
+        { "id": "black-wide-jean", "slot": "bottom", "title": "Black Wide Jeans", "color": "#212124", "palette": "neutral", "image": "/fixtures/black-wide-jean.png", "category": "bottom", "formality": 2, "fit": "baggy", "color_role": "neutral", "styles": ["streetwear"], "gender": "men" }
+      ],
+      "expect": { "minLooks": 0, "maxLooks": 0, "allLooksContain": [], "allowedFormulas": [], "requireUniqueItems": true }
+    },
+    {
+      "id": "reject-button-up-with-sweatpants",
+      "description": "A polished striped button-up shirt cannot be paired with lounge sweatpants.",
+      "anchors": ["polished-striped-shirt", "grey-lounge-sweatpants"],
+      "limit": 3,
+      "preferences": { "occasion": "casual", "gender": "men", "goal": "balanced" },
+      "wardrobe": [
+        { "id": "polished-striped-shirt", "slot": "top", "title": "Blue Striped Button-Up Shirt", "color": "#a8c3d8", "palette": "cool", "image": "/fixtures/striped-shirt.png", "category": "upper", "layer": "base", "formality": 3, "fit": "regular", "color_role": "neutral", "styles": ["smart-casual"], "gender": "men" },
+        { "id": "burgundy-leather-bomber", "slot": "outerwear", "title": "Burgundy Leather Bomber Jacket", "color": "#5d1f2d", "palette": "warm", "image": "/fixtures/burgundy-bomber.png", "category": "upper", "layer": "outer", "formality": 2, "fit": "relaxed", "color_role": "accent", "styles": ["streetwear"], "gender": "men" },
+        { "id": "grey-lounge-sweatpants", "slot": "bottom", "title": "Grey Lounge Sweatpants", "color": "#9a9da1", "palette": "neutral", "image": "/fixtures/grey-sweatpants.png", "category": "bottom", "formality": 1, "fit": "relaxed", "color_role": "neutral", "styles": ["sporty"], "gender": "men" }
+      ],
+      "expect": { "minLooks": 0, "maxLooks": 0, "allLooksContain": [], "allowedFormulas": [], "requireUniqueItems": true }
+    },
+    {
+      "id": "prefer-echoed-or-neutral-shoe-over-isolated-red",
+      "description": "With a striped shirt and cream trousers, a neutral sneaker ranks above an un-echoed bright red high-top.",
+      "anchors": ["echo-striped-shirt", "echo-cream-trouser"],
+      "limit": 1,
+      "preferences": { "occasion": "casual", "gender": "men", "goal": "balanced" },
+      "wardrobe": [
+        { "id": "echo-striped-shirt", "slot": "top", "title": "Blue Striped Shirt", "color": "#9ab7d1", "palette": "cool", "image": "/fixtures/striped-shirt.png", "category": "upper", "layer": "base", "formality": 2, "fit": "regular", "color_role": "neutral", "styles": ["minimal", "smart-casual"], "gender": "men" },
+        { "id": "echo-cream-trouser", "slot": "bottom", "title": "Cream Relaxed Trousers", "color": "#dcd3be", "palette": "neutral", "image": "/fixtures/cream-trouser.png", "category": "bottom", "formality": 2, "fit": "relaxed", "color_role": "neutral", "styles": ["minimal", "smart-casual"], "gender": "men" },
+        { "id": "echo-red-hightop", "slot": "shoe", "title": "Bright Red High-Top Sneakers", "color": "#d12626", "palette": "warm", "image": "/fixtures/red-hightop.png", "category": "shoe", "formality": 1, "fit": "regular", "color_role": "accent", "styles": ["streetwear"], "gender": "men" },
+        { "id": "echo-white-sneaker", "slot": "shoe", "title": "Clean White Sneakers", "color": "#f3f1ec", "palette": "neutral", "image": "/fixtures/white-sneaker.png", "category": "shoe", "formality": 2, "fit": "regular", "color_role": "neutral", "styles": ["minimal", "smart-casual"], "gender": "men" }
+      ],
+      "expect": { "minLooks": 1, "maxLooks": 1, "allLooksContain": ["echo-striped-shirt", "echo-cream-trouser", "echo-white-sneaker"], "allowedFormulas": ["Simple"], "requireUniqueItems": true }
     }
   ]
 }

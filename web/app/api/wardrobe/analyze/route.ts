@@ -1,73 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { askGeminiJson, geminiConfigured, parseDataImage } from "@/lib/gemini";
+import {
+  fallbackWardrobeAnalysis,
+  normalizeWardrobeAnalysis,
+  type WardrobeAnalysis,
+} from "@/lib/wardrobe-analysis";
 
 export const runtime = "nodejs";
-
-const CATEGORIES = ["upper", "bottom", "shoe", "accessory", "dress"] as const;
-const LAYERS = ["base", "mid", "outer"] as const;
-const FITS = ["slim", "regular", "relaxed", "baggy"] as const;
-const PALETTES = ["warm", "cool", "neutral"] as const;
-const COLOR_ROLES = ["neutral", "accent"] as const;
-const GENDERS = ["men", "women"] as const;
-
-type Analysis = {
-  title: string;
-  category: (typeof CATEGORIES)[number];
-  subcategory: string;
-  layer: (typeof LAYERS)[number] | null;
-  dominantColor: string;
-  palette: (typeof PALETTES)[number];
-  colorRole: (typeof COLOR_ROLES)[number];
-  fit: (typeof FITS)[number];
-  formality: number;
-  seasons: string[];
-  styles: string[];
-  material: string;
-  description: string;
-  gender: (typeof GENDERS)[number];
-};
-
-function fallback(rowHint: string, fallbackName: string): Analysis {
-  const category = rowHint === "bottoms" ? "bottom" : rowHint === "accessories" ? "accessory" : "upper";
-  return {
-    title: fallbackName || "Wardrobe item",
-    category,
-    subcategory: category === "upper" ? "top" : category,
-    layer: category === "upper" ? "base" : null,
-    dominantColor: "#8A8480",
-    palette: "neutral",
-    colorRole: "neutral",
-    fit: "regular",
-    formality: 2,
-    seasons: ["all-season"],
-    styles: ["casual"],
-    material: "unknown",
-    description: "User-added wardrobe item",
-    gender: "men",
-  };
-}
-
-function normalize(raw: Partial<Analysis>, rowHint: string, fallbackName: string): Analysis {
-  const base = fallback(rowHint, fallbackName);
-  const category = CATEGORIES.includes(raw.category as Analysis["category"]) ? raw.category! : base.category;
-  const layer = category === "upper" && LAYERS.includes(raw.layer as NonNullable<Analysis["layer"]>) ? raw.layer! : category === "upper" ? "base" : null;
-  return {
-    title: String(raw.title || base.title).slice(0, 80),
-    category,
-    subcategory: String(raw.subcategory || base.subcategory).slice(0, 40),
-    layer,
-    dominantColor: /^#[0-9a-f]{6}$/i.test(String(raw.dominantColor)) ? String(raw.dominantColor) : base.dominantColor,
-    palette: PALETTES.includes(raw.palette as Analysis["palette"]) ? raw.palette! : base.palette,
-    colorRole: COLOR_ROLES.includes(raw.colorRole as Analysis["colorRole"]) ? raw.colorRole! : base.colorRole,
-    fit: FITS.includes(raw.fit as Analysis["fit"]) ? raw.fit! : base.fit,
-    formality: Math.max(1, Math.min(5, Math.round(Number(raw.formality) || base.formality))),
-    seasons: Array.isArray(raw.seasons) ? raw.seasons.map(String).slice(0, 4) : base.seasons,
-    styles: Array.isArray(raw.styles) ? raw.styles.map(String).slice(0, 5) : base.styles,
-    material: String(raw.material || base.material).slice(0, 40),
-    description: String(raw.description || base.description).slice(0, 240),
-    gender: raw.gender === "women" ? "women" : "men",
-  };
-}
 
 export async function POST(req: NextRequest) {
   const { imageBase64, rowHint = "tops", fallbackName = "Wardrobe item" } = await req.json();
@@ -75,36 +14,61 @@ export async function POST(req: NextRequest) {
   if (!image) return NextResponse.json({ error: "A valid image data URL is required" }, { status: 400 });
 
   if (!geminiConfigured()) {
-    return NextResponse.json({ analysis: fallback(rowHint, fallbackName), source: "fallback" });
+    return NextResponse.json({ analysis: fallbackWardrobeAnalysis(rowHint, fallbackName), source: "fallback" });
   }
 
   try {
-    const raw = await askGeminiJson<Partial<Analysis>>({
+    const raw = await askGeminiJson<Partial<WardrobeAnalysis>>({
       images: [image],
-      prompt: `You are a fashion cataloging system. Inspect the garment or accessory in the image and return JSON only.
+      prompt: `You are an expert fashion cataloging system. Inspect the single visible garment or accessory and return JSON only.
 Required schema:
 {
-  "title": "short ecommerce product name",
+  "title": "short factual product name",
   "category": "upper|bottom|shoe|accessory|dress",
-  "subcategory": "t-shirt|overshirt|jeans|sneaker|bag etc",
+  "subcategory": "specific garment subtype",
   "layer": "base|mid|outer|null",
+  "roles": ["innerwear", "top", "outerwear"],
   "dominantColor": "#RRGGBB",
   "palette": "warm|cool|neutral",
   "colorRole": "neutral|accent",
   "fit": "slim|regular|relaxed|baggy",
   "formality": 1,
   "gender": "men|women",
-  "seasons": ["spring","summer","autumn","winter"],
-  "styles": ["minimal","streetwear","smart-casual"],
+  "seasons": ["spring", "summer", "autumn", "winter"],
+  "styles": ["minimal", "streetwear", "smart-casual"],
   "material": "best visual estimate",
-  "description": "one factual sentence"
+  "description": "one factual sentence",
+  "semantics": {
+    "garmentType": "t-shirt|tank|button-up-shirt|overshirt|sweater|cardigan|hoodie|bomber-jacket|jacket|blazer|coat|jeans|trousers|sweatpants|shorts|skirt|dress|sneaker|dress-shoe|boot|sandal|accessory|other",
+    "pattern": "solid|stripe|check|graphic|floral|camo|other",
+    "patternScale": "none|fine|medium|bold",
+    "fabric": "cotton|linen|wool|denim|leather|suede|knit|fleece|synthetic|silk|other",
+    "fabricWeight": "light|medium|heavy",
+    "collarType": "none|crew|v-neck|point|camp|polo|turtleneck|lapel|hood|zip-neck|other",
+    "closure": "none|buttons|zip|pullover|open-front|other",
+    "canWearOpen": false,
+    "layerRole": "base|mid|outer",
+    "silhouetteVolume": "low|medium|high",
+    "length": "cropped|regular|long",
+    "isLoungewear": false,
+    "isSubstantialLayer": false
+  }
 }
-Rules: classify what is visibly present, do not invent branding, set layer only for upper garments, formality is 1 casual to 5 formal, gender MUST be strictly either 'men' or 'women' (never unisex; classify based on cut, styling, and tailoring). The upload UI hint was '${rowHint}', but visual evidence wins.`,
+Rules:
+- Classify only visible evidence and do not invent branding.
+- A normal button-up shirt is a top/base, not automatically outerwear.
+- Use outerwear for jackets/coats or a true substantial overshirt/cardigan that can be worn over another top.
+- A basic tee may use roles ["innerwear", "top"]. A true overshirt may use ["top", "outerwear"].
+- Set canWearOpen only for a visible button, zip, or open-front construction.
+- Set isSubstantialLayer only when fabric weight and construction can realistically support another upper beneath it.
+- Set isLoungewear for sweatpants, lounge pants, and similar athletic-home bottoms.
+- The upload UI hint is '${rowHint}', but visual evidence wins.`,
+      temperature: 0.05,
     });
-    return NextResponse.json({ analysis: normalize(raw, rowHint, fallbackName), source: "gemini" });
+    return NextResponse.json({ analysis: normalizeWardrobeAnalysis(raw, rowHint, fallbackName), source: "gemini" });
   } catch (error) {
     return NextResponse.json({
-      analysis: fallback(rowHint, fallbackName),
+      analysis: fallbackWardrobeAnalysis(rowHint, fallbackName),
       source: "fallback",
       warning: error instanceof Error ? error.message : String(error),
     });

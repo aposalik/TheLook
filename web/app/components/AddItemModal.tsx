@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { Item } from "@/lib/recommend";
+import type { WardrobeAnalysis as GarmentAnalysis } from "@/lib/wardrobe-analysis";
 
 export type RowKey = "tops" | "bottoms" | "accessories" | "single" | "bulk";
 
@@ -45,6 +46,9 @@ function toggleKindSelection(current: GarmentKind[], clicked: GarmentKind): Garm
 
 function analysisToKinds(analysis: GarmentAnalysis | null): GarmentKind[] {
   if (!analysis) return ["top"];
+  if (Array.isArray(analysis.roles) && analysis.roles.length > 0) {
+    return analysis.roles.slice(0, MAX_SELECTED_KINDS);
+  }
   if (analysis.category === "bottom") return ["bottom"];
   if (analysis.category === "shoe") return ["shoe"];
   if (analysis.category === "accessory") return ["accessory"];
@@ -54,7 +58,7 @@ function analysisToKinds(analysis: GarmentAnalysis | null): GarmentKind[] {
   if (/undershirt|tank|camisole|thermal|innerwear|base\s*layer|singlet|bodysuit/.test(text)) {
     return ["innerwear", "top"];
   }
-  if (/overshirt|shacket|cardigan|hoodie|half-zip|quarter-zip|flannel|vest|zip-up|sweater|knit|shirt/.test(text) || analysis.layer === "mid") {
+  if (/overshirt|shacket|cardigan|hoodie|half-zip|quarter-zip|flannel|vest|zip-up/.test(text) || analysis.layer === "mid" || analysis.semantics.canWearOpen) {
     return ["top", "outerwear"];
   }
   if (/t-shirt|tee|henley|turtleneck/.test(text)) {
@@ -69,23 +73,6 @@ type Props = {
   category?: RowKey;
   onClose: () => void;
   onSave: (item: Item | Item[]) => void;
-};
-
-type GarmentAnalysis = {
-  title: string;
-  category: "upper" | "bottom" | "shoe" | "accessory" | "dress";
-  subcategory: string;
-  layer: "base" | "mid" | "outer" | null;
-  dominantColor: string;
-  palette: "warm" | "cool" | "neutral";
-  colorRole: "neutral" | "accent";
-  fit: "slim" | "regular" | "relaxed" | "baggy";
-  formality: number;
-  seasons: string[];
-  styles: string[];
-  material: string;
-  description: string;
-  gender: "men" | "women";
 };
 
 type BulkEntry = {
@@ -214,6 +201,7 @@ function buildItemFromAnalysis(
     description: analysis?.description,
     source: "user",
     gender: analysis?.gender ?? "men",
+    semantics: analysis?.semantics,
   };
 }
 

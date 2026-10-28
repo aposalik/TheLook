@@ -17,6 +17,9 @@
     "lib/recommend.eval.test.ts",
     "lib/stylist-judge.ts",
     "lib/stylist-judge.test.ts",
+    "lib/garment-semantics.test.ts",
+    "lib/wardrobe-analysis.ts",
+    "lib/wardrobe-analysis.test.ts",
     "data/*.json"
   ]
 }

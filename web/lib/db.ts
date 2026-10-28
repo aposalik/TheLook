@@ -4,7 +4,7 @@
  * session — RLS enforces ownership automatically.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Item, StylePreferences } from "@/lib/recommend";
+import { normalizeGarmentSemantics, type GarmentSemantics, type Item, type StylePreferences } from "@/lib/recommend";
 
 // ---------------------------------------------------------------------------
 // Avatars
@@ -73,6 +73,7 @@ export type DbWardrobeItem = {
   seasons: string[];
   material: string | null;
   description: string | null;
+  semantics: GarmentSemantics;
   created_at: string;
 };
 
@@ -162,6 +163,7 @@ export async function dbInsertWardrobeItem(
     seasons: item.seasons ?? [],
     material: item.material ?? null,
     description: item.description ?? null,
+    semantics: normalizeGarmentSemantics(item.semantics),
   });
   if (error) throw new Error(`dbInsertWardrobeItem: ${error.message}`);
 }

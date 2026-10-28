@@ -1,6 +1,27 @@
 "use client";
 
-import type { Item, Look, StylePreferences } from "@/lib/recommend";
+import { isClosedOuterOrMid, type Item, type Look, type StylePreferences } from "@/lib/recommend";
+
+function lookQualityBadge(look: Look): { label: string; tone: string } {
+  if (look.stylistVerdict === "reject" || look.score < 0.58) {
+    return { label: "Needs review", tone: "text-amber-700 bg-amber-50 border-amber-200" };
+  }
+  if (look.stylistVerdict === "strong") {
+    return { label: "Strong match", tone: "text-emerald-700 bg-emerald-50 border-emerald-200" };
+  }
+  if (look.selectionMode === "safe") {
+    return { label: "Safe choice", tone: "text-[#735F43] bg-[#FBF8F1] border-[#D9C6A8]" };
+  }
+  if (look.selectionMode === "expressive") {
+    return { label: "Expressive", tone: "text-[#735F43] bg-[#FBF8F1] border-[#D9C6A8]" };
+  }
+  return { label: "Balanced", tone: "text-[#735F43] bg-[#FBF8F1] border-[#D9C6A8]" };
+}
+
+function formatArchetype(archetype?: string): string {
+  if (!archetype) return "";
+  return archetype.replace(/-/g, " ");
+}
 
 type Props = {
   equipped: Item[];
@@ -13,6 +34,7 @@ type Props = {
   preferences: StylePreferences;
   onPreferencesChange: (preferences: StylePreferences) => void;
   stylistSource: "gemini" | "deterministic" | null;
+  stylistWarning?: string | null;
   recommendedLooks: Look[];
   onSelectLook: (look: Look) => void;
   onClearSuggestions?: () => void;
@@ -30,6 +52,7 @@ export default function WearingPanel({
   preferences,
   onPreferencesChange,
   stylistSource,
+  stylistWarning,
   recommendedLooks,
   onSelectLook,
   onClearSuggestions,
@@ -150,6 +173,7 @@ export default function WearingPanel({
           <div className="grid grid-cols-3 gap-2">
             {recommendedLooks.map((look, index) => {
               const selected = currentLook === look;
+              const badge = lookQualityBadge(look);
               return (
                 <button
                   key={`${look.formula}-${look.items.map((item) => item.id).join("-")}`}
@@ -169,8 +193,8 @@ export default function WearingPanel({
                       </span>
                     ))}
                   </div>
-                  <p className="truncate text-[11px] font-semibold text-[#1A1A1A]">{index + 1}. {look.stylistTitle ?? look.formula}</p>
-                  <p className="mt-0.5 text-[10px] text-[#8A8480]">{(look.cohesion * 100).toFixed(0)}% cohesion</p>
+                  <p className="truncate text-[11px] font-semibold text-[#1A1A1A]">{index + 1}. {look.stylistTitle ?? (formatArchetype(look.archetype) || look.formula)}</p>
+                  <p className="mt-0.5 text-[10px] font-medium text-[#8A8480] capitalize">{badge.label}</p>
                 </button>
               );
             })}
@@ -234,6 +258,16 @@ export default function WearingPanel({
                       <span className="text-[9px] text-emerald-700 font-medium">Applied in virtual try-on</span>
                     </div>
                     {renderables.map((item) => renderCard(item, false))}
+                    {(() => {
+                      const uppers = renderables.filter((i) => i.category === "upper" || i.slot === "innerwear" || i.slot === "top" || i.slot === "outerwear");
+                      const closedLayer = uppers.length >= 2 ? uppers.find((u) => (u.layer === "outer" || u.layer === "mid" || u.slot === "outerwear") && isClosedOuterOrMid(u)) : undefined;
+                      if (!closedLayer) return null;
+                      return (
+                        <p className="rounded-xl border border-amber-200 bg-amber-50/80 px-3 py-1.5 text-[10px] text-amber-800">
+                          Layered try-on note: <span className="font-semibold">{closedLayer.title}</span> is a closed outer/mid piece and may partially cover the base shirt in virtual try-on.
+                        </p>
+                      );
+                    })()}
                   </div>
                 )}
 
@@ -253,23 +287,35 @@ export default function WearingPanel({
       </div>
 
       {/* Stylist rationale */}
-      {currentLook && (
-        <div className="mx-6 mb-4 rounded-2xl border border-[#EDE5D8] bg-[#F7F5F0] p-4">
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="rounded-full bg-[#EDE5D8] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#8A8480]">{currentLook.formula}</span>
-              {stylistSource && (
-                <span className="rounded-full border border-[#D9C6A8] bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#9B7A4A]">
-                  {stylistSource === "gemini" ? "Gemini stylist" : "Outfit engine"}
+      {currentLook && (() => {
+        const badge = lookQualityBadge(currentLook);
+        return (
+          <div className="mx-6 mb-4 rounded-2xl border border-[#EDE5D8] bg-[#F7F5F0] p-4">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="rounded-full bg-[#EDE5D8] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#8A8480]">
+                  {formatArchetype(currentLook.archetype) || currentLook.formula}
                 </span>
-              )}
+                {stylistSource && (
+                  <span className="rounded-full border border-[#D9C6A8] bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#9B7A4A]">
+                    {stylistSource === "gemini" ? "Gemini stylist" : "Outfit engine"}
+                  </span>
+                )}
+              </div>
+              <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${badge.tone}`}>
+                {badge.label}
+              </span>
             </div>
-            <span className="shrink-0 text-xs font-semibold text-[#C4A882]">{(currentLook.cohesion * 100).toFixed(0)}% cohesion</span>
+            {currentLook.stylistTitle && <p className="mb-1 text-sm font-semibold text-[#1A1A1A]">{currentLook.stylistTitle}</p>}
+            <p className="text-xs leading-relaxed text-[#1A1A1A]/80">{currentLook.reason}</p>
+            {stylistWarning && (
+              <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] text-amber-800">
+                Visual judge note: {stylistWarning}
+              </p>
+            )}
           </div>
-          {currentLook.stylistTitle && <p className="mb-1 text-sm font-semibold text-[#1A1A1A]">{currentLook.stylistTitle}</p>}
-          <p className="text-xs leading-relaxed text-[#1A1A1A]/80">{currentLook.reason}</p>
-        </div>
-      )}
+        );
+      })()}
 
       <div className="px-6 pb-6 mt-auto">
         <button

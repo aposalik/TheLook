@@ -16,15 +16,23 @@ import { createClient } from "@/lib/supabase/client";
 
 import AvatarUploadModal from "./AvatarUploadModal";
 
-import type { Item, Look, StylePreferences } from "@/lib/recommend";
+import {
+  inferLegacyGarmentSemantics,
+  inferSmartUpperSlots,
+  isSubstantialLayerPiece,
+  normalizeGarmentSemantics,
+  type Item,
+  type Look,
+  type StylePreferences,
+} from "@/lib/recommend";
 type Avatar = { id: string; url: string; storagePath?: string; isCutout?: boolean };
 const AV_KEY = "thelook_avatars";
 const LOOKS_KEY = "thelook_looks";
 const WARDROBE_KEY = "thelook_wardrobe";
 const PREFS_KEY = "thelook_style_preferences";
-const RECOMMENDED_KEY = "thelook_recommended_looks";
-const CURRENT_LOOK_KEY = "thelook_current_look";
-const EQUIPPED_KEY = "thelook_equipped";
+const RECOMMENDED_KEY = "thelook_recommended_looks_v2";
+const CURRENT_LOOK_KEY = "thelook_current_look_v2";
+const EQUIPPED_KEY = "thelook_equipped_v2";
 const ACTIVE_AV_KEY = "thelook_active_avatar_id";
 
 function userKey(base: string, userId: string) {
@@ -86,6 +94,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const [userItems, setUserItems] = useState<Item[]>([]);
   const [preferences, setPreferences] = useState<StylePreferences>({ occasion: "any", goal: "balanced" });
   const [stylistSource, setStylistSource] = useState<"gemini" | "deterministic" | null>(null);
+  const [stylistWarning, setStylistWarning] = useState<string | null>(null);
   const [addModal, setAddModal] = useState<RowKey | null>(null);
   const [avatarUploadOpen, setAvatarUploadOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -177,8 +186,10 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
               : (row.category as string) === "accessory" ? "accessory"
               : (row.category as string) === "dress" ? "dress"
               : (row.layer as string) === "outer" ? "outerwear" : "top";
-            const slots = storedSlots.length > 0 ? storedSlots : [defaultSlot];
-            return {
+            let slots = storedSlots.length > 0 ? storedSlots : [defaultSlot];
+            let layer = row.layer as string | null;
+
+            const candidateItem: Item = {
               id: row.id as string,
               slot: slots[0] ?? defaultSlot,
               slots,
@@ -187,7 +198,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
               palette: (row.palette as string) ?? "neutral",
               image: d.signedUrl ?? "",
               category: row.category as string,
-              layer: row.layer as string | null,
+              layer,
               formality: (row.formality as number) ?? 2,
               fit: (row.fit as string) ?? "regular",
               color_role: (row.color_role as string) ?? "neutral",
@@ -197,7 +208,55 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
               material: row.material as string | undefined,
               description: row.description as string | undefined,
               source: "user" as const,
+              semantics: normalizeGarmentSemantics(row.semantics),
             };
+            const hadStoredSemantics = Object.keys(candidateItem.semantics ?? {}).length > 0;
+            if (!hadStoredSemantics) candidateItem.semantics = inferLegacyGarmentSemantics(candidateItem);
+
+            // Auto-repair legacy shirts/sweaters that were over-broadly tagged as mid-layer outerwear
+            if (
+              candidateItem.category === "upper" &&
+              layer === "mid" &&
+              !isSubstantialLayerPiece(candidateItem)
+            ) {
+              layer = "base";
+              slots = slots.filter((s) => s !== "outerwear");
+              if (!slots.length) slots = ["top"];
+              candidateItem.layer = layer;
+              candidateItem.slots = slots;
+              candidateItem.slot = slots[0]!;
+            }
+
+            // If an existing upper item in DB never had explicit slot:* tags, infer smart roles
+            // (e.g. ["innerwear", "top"] for tees, ["top", "outerwear"] for camp collar / half-zip / overshirts)
+            if (storedSlots.length === 0 && candidateItem.category === "upper") {
+              const inferred = inferSmartUpperSlots(candidateItem);
+              if (inferred.length > 0) {
+                slots = inferred;
+                candidateItem.slots = slots;
+                candidateItem.slot = slots[0]!;
+                if (slots.includes("outerwear") && slots.includes("top")) {
+                  candidateItem.layer = "mid";
+                } else if (slots.includes("outerwear") && !slots.includes("top")) {
+                  candidateItem.layer = "outer";
+                } else {
+                  candidateItem.layer = "base";
+                }
+              }
+            }
+
+            if (storedSlots.length === 0 || !hadStoredSemantics) {
+              void supabase
+                .from("wardrobe_items")
+                .update({
+                  layer: candidateItem.layer ?? null,
+                  styles: [...cleanStyles, ...slots.map((s) => `slot:${s}`)],
+                  semantics: candidateItem.semantics ?? {},
+                })
+                .eq("id", candidateItem.id);
+            }
+
+            return candidateItem;
           }),
         );
         const dbIds = new Set(items.map((i) => i.id));
@@ -393,6 +452,53 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     fetch(`/api/wardrobe/${id}`, { method: "DELETE" }).catch(() => {});
   }
 
+  function updateUserItemSlots(id: string, nextSlots: string[]) {
+    if (!nextSlots.length) return;
+    const primary = nextSlots[0]!;
+    const hasOuter = nextSlots.includes("outerwear");
+    const hasTop = nextSlots.includes("top");
+    const hasInner = nextSlots.includes("innerwear");
+    const hasUpper = hasOuter || hasTop || hasInner;
+    const category = hasUpper
+      ? "upper"
+      : primary === "bottom" || primary === "dress" || primary === "shoe" || primary === "accessory"
+        ? primary
+        : "upper";
+    const layer = hasUpper
+      ? (hasOuter && (hasTop || hasInner) ? "mid" : hasOuter ? "outer" : "base")
+      : null;
+
+    let updatedItemStyles: string[] = [];
+    setUserItems((prev) => {
+      const next = prev.map((it) => {
+        if (it.id !== id) return it;
+        updatedItemStyles = it.styles ?? [];
+        return {
+          ...it,
+          slot: primary,
+          slots: nextSlots,
+          category,
+          layer,
+        };
+      });
+      if (user) {
+        safeSetStorage(userKey(WARDROBE_KEY, user.id), JSON.stringify(next));
+      }
+      return next;
+    });
+
+    setEquipped((prev) =>
+      prev.map((it) => (it.id === id ? { ...it, slot: primary, slots: nextSlots, category, layer } : it)),
+    );
+
+    showToast(`Updated roles: ${nextSlots.join(" · ")}`);
+    fetch(`/api/wardrobe/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slots: nextSlots, category, layer, styles: updatedItemStyles }),
+    }).catch(() => {});
+  }
+
   function persistAvatars(next: Avatar[]) {
     if (!user) return;
     setAvatars(next);
@@ -543,6 +649,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setIsGenerating(true);
     setGenerateError(null);
     setStylistSource(null);
+    setStylistWarning(null);
 
     try {
       const res = await fetch("/api/recommend", {
@@ -558,11 +665,13 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       const stylist = await fetch("/api/stylist/rerank", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ candidates: looks, preferences }),
+        body: JSON.stringify({ candidates: looks, wardrobeItems: userItems, anchors: anchorIds, preferences }),
       });
-      const styled = await stylist.json();
+      const styled = await stylist.json() as { looks?: Look[]; source?: string; warning?: string };
       if (stylist.ok && Array.isArray(styled.looks) && styled.looks.length) looks = styled.looks;
-      setStylistSource(styled.source === "gemini" ? "gemini" : "deterministic");
+      const source = styled.source === "gemini" ? "gemini" : "deterministic";
+      setStylistSource(source);
+      if (styled.warning) setStylistWarning(styled.warning);
 
       const top = looks[0]!;
       const recs = looks.slice(0, 3);
@@ -577,7 +686,14 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         safeSetStorage(userKey(EQUIPPED_KEY, user.id), JSON.stringify(top.items.map(stripItemImages)));
       }
 
-      showToast(`${styled.source === "gemini" ? "Gemini stylist" : "Outfit engine"} ranked ${Math.min(3, looks.length)} looks · ${(top.cohesion * 100).toFixed(0)}% top cohesion`);
+      const modeLabel = top.stylistVerdict === "strong"
+        ? "Strong match"
+        : top.selectionMode === "safe"
+          ? "Safe choice"
+          : top.selectionMode === "expressive"
+            ? "Expressive choice"
+            : "Balanced choice";
+      showToast(`${source === "gemini" ? "Gemini stylist" : "Outfit engine"} ranked ${Math.min(3, looks.length)} looks · ${modeLabel}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setGenerateError(msg);
@@ -608,6 +724,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setRecommendedLooks([]);
     setCurrentLook(null);
     setStylistSource(null);
+    setStylistWarning(null);
     if (user) {
       safeSetStorage(userKey(RECOMMENDED_KEY, user.id), "[]");
       safeSetStorage(userKey(CURRENT_LOOK_KEY, user.id), "null");
@@ -621,6 +738,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setCurrentLook(null);
     setRecommendedLooks([]);
     setStylistSource(null);
+    setStylistWarning(null);
     setTryOnResult(null);
     setTryOnRenderPath(null);
     setMockPreview(null);
@@ -820,6 +938,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
             preferences={preferences}
             onPreferencesChange={updatePreferences}
             stylistSource={stylistSource}
+            stylistWarning={stylistWarning}
             recommendedLooks={recommendedLooks}
             onSelectLook={chooseRecommendedLook}
             onClearSuggestions={clearSuggestions}
@@ -834,6 +953,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
           onToggle={toggleEquip}
           onAdd={(row) => setAddModal(row)}
           onRemoveUserItem={removeUserItem}
+          onUpdateUserItemSlots={updateUserItemSlots}
         />
       </main>
       <AddItemModal
