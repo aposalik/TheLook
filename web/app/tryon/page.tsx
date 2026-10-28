@@ -1,8 +1,5 @@
-import catalog from "@/data/catalog.json";
-import TryOn from "../components/TryOn";
-
-type Item = { id: string; slot: string; title: string; image: string };
+import { redirect } from "next/navigation";
 
 export default function TryOnPage() {
-  return <TryOn catalog={catalog as Item[]} />;
+  redirect("/");
 }

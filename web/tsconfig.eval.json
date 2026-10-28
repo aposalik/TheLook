@@ -1,0 +1,31 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "incremental": false,
+    "isolatedModules": false,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": false,
+    "outDir": ".eval-dist",
+    "rootDir": ".",
+    "target": "ES2022"
+  },
+  "include": [
+    "lib/recommend.ts",
+    "lib/recommend.eval.ts",
+    "lib/recommend.eval.test.ts",
+    "lib/stylist-judge.ts",
+    "lib/stylist-judge.test.ts",
+    "lib/garment-semantics.test.ts",
+    "lib/wardrobe-analysis.ts",
+    "lib/wardrobe-analysis.test.ts",
+    "lib/outfit-feedback.ts",
+    "lib/outfit-feedback.test.ts",
+    "lib/collage.ts",
+    "lib/collage.test.ts",
+    "lib/tryon-plan.ts",
+    "lib/tryon-plan.test.ts",
+    "data/*.json"
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "task": "Outfit Generator v2 — Phase 4 archetypes and diversity",
+  "status": "completed",
+  "completedSteps": [
+    "Added nine named outfit archetypes covering safe casual, relaxed layering, polished smart, utility street, soft casual, structured autumn, statement top, statement bottom, and dress looks",
+    "Added Safe, Balanced, Expressive, and Alternate selection modes to generated looks",
+    "Added occasion-aware archetype bonuses for casual, work, and evening contexts",
+    "Replaced nearest-score selection with diversity-aware selection using item overlap, formula difference, and archetype difference",
+    "Added a diverse nine-item capsule fixture that requires three distinct archetypes",
+    "Added tests proving the capsule returns Safe, Balanced, and Expressive looks with distinct strategies"
+  ],
+  "exampleOutput": [
+    "Safe: safe-casual / Simple — white tee, cream tailored trouser, black loafer",
+    "Balanced: utility-street / Layered — white tee, olive overshirt, dark jean, white sneaker",
+    "Expressive: statement-top / Simple — graphic tee, cargo, white sneaker"
+  ],
+  "verification": {
+    "recommendationTests": "4 passed, 0 failed",
+    "fixtureEvaluation": "8 passed, 0 failed",
+    "diverseFixture": "3 returned looks across 3 distinct archetypes and all 3 primary selection modes",
+    "typecheck": "passed",
+    "lint": "passed with 31 pre-existing warnings and 0 errors",
+    "productionBuild": "passed"
+  },
+  "nextStep": "Phase 5 — replace free-form Gemini reranking with a strict structured verdict that consumes archetypes and score breakdowns, can reject candidates, and can suggest only a role-level swap.",
+  "updatedAt": "2026-10-28T13:05:00+03:00"
+}

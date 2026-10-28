@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "fixtures": [
+    {
+      "id": "mens-relaxed-layered-casual",
+      "description": "Muted overshirt, white base, cream wide trouser, and neutral sneakers.",
+      "anchors": ["fixture-olive-overshirt"],
+      "limit": 3,
+      "preferences": { "occasion": "casual", "gender": "men", "goal": "balanced" },
+      "wardrobe": [
+        { "id": "fixture-white-tee", "slot": "top", "title": "White Tee", "color": "#f4f1e8", "palette": "neutral", "image": "/fixtures/white-tee.png", "category": "upper", "layer": "base", "formality": 1, "fit": "regular", "color_role": "neutral", "seasons": ["spring", "summer"], "styles": ["minimal", "streetwear"], "gender": "men" },
+        { "id": "fixture-olive-overshirt", "slot": "top", "slots": ["top", "outerwear"], "title": "Olive Overshirt", "color": "#68704d", "palette": "warm", "image": "/fixtures/olive-overshirt.png", "category": "upper", "layer": "mid", "formality": 2, "fit": "relaxed", "color_role": "accent", "seasons": ["spring", "autumn"], "styles": ["minimal", "utility"], "gender": "men" },
+        { "id": "fixture-navy-knit", "slot": "top", "title": "Navy Knit", "color": "#243247", "palette": "neutral", "image": "/fixtures/navy-knit.png", "category": "upper", "layer": "base", "formality": 2, "fit": "regular", "color_role": "neutral", "seasons": ["autumn", "winter"], "styles": ["minimal"], "gender": "men" },
+        { "id": "fixture-cream-trouser", "slot": "bottom", "title": "Cream Wide Trouser", "color": "#d8cfb8", "palette": "neutral", "image": "/fixtures/cream-trouser.png", "category": "bottom", "formality": 2, "fit": "relaxed", "color_role": "neutral", "seasons": ["spring", "summer", "autumn"], "styles": ["minimal", "smart-casual"], "gender": "men" },
+        { "id": "fixture-washed-jean", "slot": "bottom", "title": "Washed Black Jean", "color": "#48494b", "palette": "neutral", "image": "/fixtures/washed-jean.png", "category": "bottom", "formality": 1, "fit": "baggy", "color_role": "neutral", "seasons": ["all-season"], "styles": ["streetwear"], "gender": "men" },
+        { "id": "fixture-white-sneaker", "slot": "shoe", "title": "White Low-profile Sneaker", "color": "#efede8", "palette": "neutral", "image": "/fixtures/white-sneaker.png", "category": "shoe", "formality": 1, "fit": "regular", "color_role": "neutral", "seasons": ["all-season"], "styles": ["minimal", "streetwear"], "gender": "men" }
+      ],
+      "expect": { "minLooks": 1, "maxLooks": 3, "allLooksContain": ["fixture-olive-overshirt"], "allowedFormulas": ["Layered", "With layer"], "requireUniqueItems": true }
+    },
+    {
+      "id": "mens-polished-work",
+      "description": "A burgundy cardigan is locked into a neutral smart-casual work wardrobe.",
+      "anchors": ["fixture-burgundy-cardigan"],
+      "limit": 3,
+      "preferences": { "occasion": "work", "gender": "men", "goal": "vertical-line" },
+      "wardrobe": [
+        { "id": "fixture-white-shirt", "slot": "top", "title": "White Shirt", "color": "#f2f0ea", "palette": "neutral", "image": "/fixtures/white-shirt.png", "category": "upper", "layer": "base", "formality": 3, "fit": "regular", "color_role": "neutral", "seasons": ["all-season"], "styles": ["smart-casual"], "gender": "men" },
+        { "id": "fixture-burgundy-cardigan", "slot": "outerwear", "title": "Burgundy Cardigan", "color": "#6f263d", "palette": "warm", "image": "/fixtures/burgundy-cardigan.png", "category": "upper", "layer": "outer", "formality": 3, "fit": "regular", "color_role": "accent", "seasons": ["autumn", "winter"], "styles": ["smart-casual", "preppy"], "gender": "men" },
+        { "id": "fixture-beige-trouser", "slot": "bottom", "title": "Beige Tailored Trouser", "color": "#b9a98e", "palette": "neutral", "image": "/fixtures/beige-trouser.png", "category": "bottom", "formality": 3, "fit": "relaxed", "color_role": "neutral", "seasons": ["all-season"], "styles": ["smart-casual"], "gender": "men" },
+        { "id": "fixture-black-derby", "slot": "shoe", "title": "Black Derby", "color": "#181818", "palette": "neutral", "image": "/fixtures/black-derby.png", "category": "shoe", "formality": 4, "fit": "regular", "color_role": "neutral", "seasons": ["all-season"], "styles": ["smart-casual"], "gender": "men" }
+      ],
+      "expect": { "minLooks": 1, "maxLooks": 3, "allLooksContain": ["fixture-burgundy-cardigan"], "allowedFormulas": ["With layer"], "requireUniqueItems": true }
+    },
+    {
+      "id": "womens-evening-dress",
+      "description": "A dress-only wardrobe verifies the dress construction path and locked footwear.",
+      "anchors": ["fixture-black-dress", "fixture-burgundy-heel"],
+      "limit": 2,
+      "preferences": { "occasion": "evening", "gender": "women", "goal": "define-waist" },
+      "wardrobe": [
+        { "id": "fixture-black-dress", "slot": "dress", "title": "Black Midi Dress", "color": "#191919", "palette": "neutral", "image": "/fixtures/black-dress.png", "category": "dress", "formality": 4, "fit": "fitted", "color_role": "neutral", "seasons": ["all-season"], "styles": ["minimal", "smart-casual"], "gender": "women" },
+        { "id": "fixture-burgundy-heel", "slot": "shoe", "title": "Burgundy Heel", "color": "#702d42", "palette": "warm", "image": "/fixtures/burgundy-heel.png", "category": "shoe", "formality": 4, "fit": "regular", "color_role": "accent", "seasons": ["all-season"], "styles": ["smart-casual"], "gender": "women" },
+        { "id": "fixture-white-sneaker-w", "slot": "shoe", "title": "White Sneaker", "color": "#eeeeea", "palette": "neutral", "image": "/fixtures/white-sneaker-w.png", "category": "shoe", "formality": 1, "fit": "regular", "color_role": "neutral", "seasons": ["all-season"], "styles": ["casual"], "gender": "women" }
+      ],
+      "expect": { "minLooks": 1, "maxLooks": 2, "allLooksContain": ["fixture-black-dress", "fixture-burgundy-heel"], "allowedFormulas": ["Dress"], "requireUniqueItems": true }
+    },
+    {
+      "id": "incomplete-wardrobe",
+      "description": "A wardrobe without a bottom or dress must return no complete looks.",
+      "anchors": [],
+      "limit": 3,
+      "preferences": { "occasion": "casual", "gender": "women", "goal": "balanced" },
+      "wardrobe": [
+        { "id": "fixture-lone-tee", "slot": "top", "title": "Lone Tee", "color": "#ffffff", "palette": "neutral", "image": "/fixtures/lone-tee.png", "category": "upper", "layer": "base", "formality": 1, "fit": "regular", "color_role": "neutral", "gender": "women" },
+        { "id": "fixture-lone-sneaker", "slot": "shoe", "title": "Lone Sneaker", "color": "#222222", "palette": "neutral", "image": "/fixtures/lone-sneaker.png", "category": "shoe", "formality": 1, "fit": "regular", "color_role": "neutral", "gender": "women" }
+      ],
+      "expect": { "minLooks": 0, "maxLooks": 0, "allLooksContain": [], "allowedFormulas": [], "requireUniqueItems": true }
+    },
+    {
+      "id": "reject-mid-layer-as-solo-top",
+      "description": "An overshirt marked as a mid-layer cannot become a solo Simple top.",
+      "anchors": ["invalid-mid-overshirt"],
+      "limit": 3,
+      "preferences": { "occasion": "casual", "gender": "men", "goal": "balanced" },
+      "wardrobe": [
+        { "id": "invalid-mid-overshirt", "slot": "top", "slots": ["top", "outerwear"], "title": "Checked Overshirt", "color": "#713d32", "palette": "warm", "image": "/fixtures/checked-overshirt.png", "category": "upper", "layer": "mid", "formality": 2, "fit": "relaxed", "color_role": "accent", "styles": ["streetwear"], "gender": "men" },
+        { "id": "invalid-mid-jean", "slot": "bottom", "title": "Wide Jean", "color": "#53606a", "palette": "neutral", "image": "/fixtures/wide-jean.png", "category": "bottom", "formality": 1, "fit": "baggy", "color_role": "neutral", "styles": ["streetwear"], "gender": "men" },
+        { "id": "invalid-mid-sneaker", "slot": "shoe", "title": "White Sneaker", "color": "#eeeeea", "palette": "neutral", "image": "/fixtures/white-sneaker-invalid-mid.png", "category": "shoe", "formality": 1, "fit": "regular", "color_role": "neutral", "styles": ["streetwear"], "gender": "men" }
+      ],
+      "expect": { "minLooks": 0, "maxLooks": 0, "allLooksContain": [], "allowedFormulas": [], "requireUniqueItems": true }
+    },
+    {
+      "id": "reject-mutually-exclusive-anchors",
+      "description": "Two locked bottoms cannot be split across partial-anchor recommendations.",
+      "anchors": ["invalid-anchor-trouser-a", "invalid-anchor-trouser-b"],
+      "limit": 3,
+      "preferences": { "occasion": "casual", "gender": "men", "goal": "balanced" },
+      "wardrobe": [
+        { "id": "invalid-anchor-tee", "slot": "top", "title": "White Tee", "color": "#eeeeea", "palette": "neutral", "image": "/fixtures/anchor-tee.png", "category": "upper", "layer": "base", "formality": 1, "fit": "regular", "color_role": "neutral", "gender": "men" },
+        { "id": "invalid-anchor-trouser-a", "slot": "bottom", "title": "Black Trouser", "color": "#202020", "palette": "neutral", "image": "/fixtures/anchor-trouser-a.png", "category": "bottom", "formality": 2, "fit": "regular", "color_role": "neutral", "gender": "men" },
+        { "id": "invalid-anchor-trouser-b", "slot": "bottom", "title": "Cream Trouser", "color": "#d7cdb7", "palette": "neutral", "image": "/fixtures/anchor-trouser-b.png", "category": "bottom", "formality": 2, "fit": "regular", "color_role": "neutral", "gender": "men" },
+        { "id": "invalid-anchor-sneaker", "slot": "shoe", "title": "White Sneaker", "color": "#eeeeea", "palette": "neutral", "image": "/fixtures/anchor-sneaker.png", "category": "shoe", "formality": 1, "fit": "regular", "color_role": "neutral", "gender": "men" }
+      ],
+      "expect": { "minLooks": 0, "maxLooks": 0, "allLooksContain": [], "allowedFormulas": [], "requireUniqueItems": true }
+    },
+    {
+      "id": "reject-extreme-formality-gap",
+      "description": "Formal leather shoes cannot be paired with an entirely athletic casual core.",
+      "anchors": ["invalid-formal-derby"],
+      "limit": 3,
+      "preferences": { "occasion": "casual", "gender": "men", "goal": "balanced" },
+      "wardrobe": [
+        { "id": "invalid-formal-sport-tee", "slot": "top", "title": "Athletic Tee", "color": "#ffffff", "palette": "neutral", "image": "/fixtures/sport-tee.png", "category": "upper", "layer": "base", "formality": 1, "fit": "regular", "color_role": "neutral", "styles": ["sporty"], "gender": "men" },
+        { "id": "invalid-formal-jogger", "slot": "bottom", "title": "Technical Jogger", "color": "#222222", "palette": "neutral", "image": "/fixtures/jogger.png", "category": "bottom", "formality": 1, "fit": "relaxed", "color_role": "neutral", "styles": ["sporty"], "gender": "men" },
+        { "id": "invalid-formal-derby", "slot": "shoe", "title": "Patent Leather Derby", "color": "#111111", "palette": "neutral", "image": "/fixtures/formal-derby.png", "category": "shoe", "formality": 4, "fit": "regular", "color_role": "neutral", "styles": ["formal"], "gender": "men" }
+      ],
+      "expect": { "minLooks": 0, "maxLooks": 0, "allLooksContain": [], "allowedFormulas": [], "requireUniqueItems": true }
+    },
+    {
+      "id": "casual-diverse-capsule",
+      "description": "A mixed casual capsule should return different outfit strategies rather than score-neighbor duplicates.",
+      "anchors": [],
+      "limit": 3,
+      "preferences": { "occasion": "casual", "gender": "men", "goal": "balanced" },
+      "wardrobe": [
+        { "id": "diverse-white-tee", "slot": "top", "title": "White Tee", "color": "#f1efe8", "palette": "neutral", "image": "/fixtures/diverse-white-tee.png", "category": "upper", "layer": "base", "formality": 1, "fit": "regular", "color_role": "neutral", "styles": ["minimal"], "gender": "men" },
+        { "id": "diverse-graphic-tee", "slot": "top", "title": "Black Graphic Tee", "color": "#242424", "palette": "neutral", "image": "/fixtures/diverse-graphic-tee.png", "category": "upper", "layer": "base", "formality": 1, "fit": "relaxed", "color_role": "accent", "styles": ["streetwear"], "gender": "men" },
+        { "id": "diverse-olive-overshirt", "slot": "top", "title": "Olive Utility Overshirt", "color": "#62694a", "palette": "warm", "image": "/fixtures/diverse-olive-overshirt.png", "category": "upper", "layer": "mid", "formality": 2, "fit": "relaxed", "color_role": "accent", "styles": ["utility", "streetwear"], "gender": "men" },
+        { "id": "diverse-navy-blazer", "slot": "outerwear", "title": "Navy Blazer", "color": "#253047", "palette": "neutral", "image": "/fixtures/diverse-navy-blazer.png", "category": "upper", "layer": "outer", "formality": 3, "fit": "regular", "color_role": "neutral", "styles": ["smart-casual"], "gender": "men" },
+        { "id": "diverse-cream-trouser", "slot": "bottom", "title": "Cream Tailored Trouser", "color": "#d3c7af", "palette": "neutral", "image": "/fixtures/diverse-cream-trouser.png", "category": "bottom", "formality": 3, "fit": "regular", "color_role": "neutral", "styles": ["smart-casual"], "gender": "men" },
+        { "id": "diverse-cargo", "slot": "bottom", "title": "Black Cargo", "color": "#282828", "palette": "neutral", "image": "/fixtures/diverse-cargo.png", "category": "bottom", "formality": 1, "fit": "relaxed", "color_role": "neutral", "styles": ["utility", "streetwear"], "gender": "men" },
+        { "id": "diverse-dark-jean", "slot": "bottom", "title": "Dark Straight Jean", "color": "#30363d", "palette": "neutral", "image": "/fixtures/diverse-dark-jean.png", "category": "bottom", "formality": 2, "fit": "regular", "color_role": "neutral", "styles": ["minimal"], "gender": "men" },
+        { "id": "diverse-white-sneaker", "slot": "shoe", "title": "White Sneaker", "color": "#efeee9", "palette": "neutral", "image": "/fixtures/diverse-white-sneaker.png", "category": "shoe", "formality": 1, "fit": "regular", "color_role": "neutral", "styles": ["minimal", "streetwear"], "gender": "men" },
+        { "id": "diverse-black-loafer", "slot": "shoe", "title": "Black Loafer", "color": "#171717", "palette": "neutral", "image": "/fixtures/diverse-black-loafer.png", "category": "shoe", "formality": 3, "fit": "regular", "color_role": "neutral", "styles": ["smart-casual"], "gender": "men" }
+      ],
+      "expect": { "minLooks": 3, "maxLooks": 3, "allLooksContain": [], "allowedFormulas": ["Layered", "Simple", "With layer"], "requireUniqueItems": true, "minDistinctArchetypes": 3 }
+    },
+    {
+      "id": "reject-double-collared-shirts",
+      "description": "Two lightweight collared cotton shirts cannot be layered without a substantial overshirt.",
+      "anchors": ["striped-button-up", "pink-cotton-shirt"],
+      "limit": 3,
+      "preferences": { "occasion": "casual", "gender": "men", "goal": "balanced" },
+      "wardrobe": [
+        { "id": "striped-button-up", "slot": "top", "title": "Blue Striped Button-Up Shirt", "color": "#a8c3d8", "palette": "cool", "image": "/fixtures/striped-shirt.png", "category": "upper", "layer": "base", "formality": 3, "fit": "regular", "color_role": "neutral", "styles": ["smart-casual"], "gender": "men" },
+        { "id": "pink-cotton-shirt", "slot": "top", "slots": ["top", "outerwear"], "title": "Pink Cotton Shirt", "color": "#e5b8c2", "palette": "warm", "image": "/fixtures/pink-shirt.png", "category": "upper", "layer": "mid", "formality": 2, "fit": "regular", "color_role": "accent", "styles": ["smart-casual"], "gender": "men" },
+        { "id": "black-wide-jean", "slot": "bottom", "title": "Black Wide Jeans", "color": "#212124", "palette": "neutral", "image": "/fixtures/black-wide-jean.png", "category": "bottom", "formality": 2, "fit": "baggy", "color_role": "neutral", "styles": ["streetwear"], "gender": "men" }
+      ],
+      "expect": { "minLooks": 0, "maxLooks": 0, "allLooksContain": [], "allowedFormulas": [], "requireUniqueItems": true }
+    },
+    {
+      "id": "reject-button-up-with-sweatpants",
+      "description": "A polished striped button-up shirt cannot be paired with lounge sweatpants.",
+      "anchors": ["polished-striped-shirt", "grey-lounge-sweatpants"],
+      "limit": 3,
+      "preferences": { "occasion": "casual", "gender": "men", "goal": "balanced" },
+      "wardrobe": [
+        { "id": "polished-striped-shirt", "slot": "top", "title": "Blue Striped Button-Up Shirt", "color": "#a8c3d8", "palette": "cool", "image": "/fixtures/striped-shirt.png", "category": "upper", "layer": "base", "formality": 3, "fit": "regular", "color_role": "neutral", "styles": ["smart-casual"], "gender": "men" },
+        { "id": "burgundy-leather-bomber", "slot": "outerwear", "title": "Burgundy Leather Bomber Jacket", "color": "#5d1f2d", "palette": "warm", "image": "/fixtures/burgundy-bomber.png", "category": "upper", "layer": "outer", "formality": 2, "fit": "relaxed", "color_role": "accent", "styles": ["streetwear"], "gender": "men" },
+        { "id": "grey-lounge-sweatpants", "slot": "bottom", "title": "Grey Lounge Sweatpants", "color": "#9a9da1", "palette": "neutral", "image": "/fixtures/grey-sweatpants.png", "category": "bottom", "formality": 1, "fit": "relaxed", "color_role": "neutral", "styles": ["sporty"], "gender": "men" }
+      ],
+      "expect": { "minLooks": 0, "maxLooks": 0, "allLooksContain": [], "allowedFormulas": [], "requireUniqueItems": true }
+    },
+    {
+      "id": "prefer-echoed-or-neutral-shoe-over-isolated-red",
+      "description": "With a striped shirt and cream trousers, a neutral sneaker ranks above an un-echoed bright red high-top.",
+      "anchors": ["echo-striped-shirt", "echo-cream-trouser"],
+      "limit": 1,
+      "preferences": { "occasion": "casual", "gender": "men", "goal": "balanced" },
+      "wardrobe": [
+        { "id": "echo-striped-shirt", "slot": "top", "title": "Blue Striped Shirt", "color": "#9ab7d1", "palette": "cool", "image": "/fixtures/striped-shirt.png", "category": "upper", "layer": "base", "formality": 2, "fit": "regular", "color_role": "neutral", "styles": ["minimal", "smart-casual"], "gender": "men" },
+        { "id": "echo-cream-trouser", "slot": "bottom", "title": "Cream Relaxed Trousers", "color": "#dcd3be", "palette": "neutral", "image": "/fixtures/cream-trouser.png", "category": "bottom", "formality": 2, "fit": "relaxed", "color_role": "neutral", "styles": ["minimal", "smart-casual"], "gender": "men" },
+        { "id": "echo-red-hightop", "slot": "shoe", "title": "Bright Red High-Top Sneakers", "color": "#d12626", "palette": "warm", "image": "/fixtures/red-hightop.png", "category": "shoe", "formality": 1, "fit": "regular", "color_role": "accent", "styles": ["streetwear"], "gender": "men" },
+        { "id": "echo-white-sneaker", "slot": "shoe", "title": "Clean White Sneakers", "color": "#f3f1ec", "palette": "neutral", "image": "/fixtures/white-sneaker.png", "category": "shoe", "formality": 2, "fit": "regular", "color_role": "neutral", "styles": ["minimal", "smart-casual"], "gender": "men" }
+      ],
+      "expect": { "minLooks": 1, "maxLooks": 1, "allLooksContain": ["echo-striped-shirt", "echo-cream-trouser", "echo-white-sneaker"], "allowedFormulas": ["Simple"], "requireUniqueItems": true }
+    }
+  ]
+}

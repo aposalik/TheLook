@@ -105,11 +105,15 @@ export default function AvatarSettingsModal({
                         av.isCutout ? "bg-[#F7F5F0]" : "bg-neutral-100"
                       } border-[#E8E3DB] flex items-center justify-center`}
                     >
-                      <img
-                        src={av.url}
-                        alt={`Avatar ${index + 1}`}
-                        className={`h-full w-full ${av.isCutout ? "object-contain" : "object-cover"}`}
-                      />
+                      {av.url ? (
+                        <img
+                          src={av.url}
+                          alt={`Avatar ${index + 1}`}
+                          className={`h-full w-full ${av.isCutout ? "object-contain" : "object-cover"}`}
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-xs text-[#8A8480]">👤</div>
+                      )}
                     </div>
 
                     {/* Metadata & Badges */}

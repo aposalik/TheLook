@@ -12,6 +12,21 @@ function serviceClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
+async function withStorageRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (i < attempts) {
+        await new Promise((r) => setTimeout(r, 300 * i));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 /** Upload bytes to a private bucket. Overwrites if the path already exists. */
 export async function uploadToStorage(
   bucket: "avatars" | "wardrobe" | "renders",
@@ -19,12 +34,14 @@ export async function uploadToStorage(
   data: Buffer,
   contentType: string,
 ): Promise<void> {
-  const supabase = serviceClient();
-  const { error } = await supabase.storage.from(bucket).upload(path, data, {
-    contentType,
-    upsert: true,
+  await withStorageRetry(async () => {
+    const supabase = serviceClient();
+    const { error } = await supabase.storage.from(bucket).upload(path, data, {
+      contentType,
+      upsert: true,
+    });
+    if (error) throw new Error(`Storage upload failed (${bucket}/${path}): ${error.message}`);
   });
-  if (error) throw new Error(`Storage upload failed (${bucket}/${path}): ${error.message}`);
 }
 
 /** Generate a signed URL valid for the given number of seconds (default 1 hour). */
@@ -33,10 +50,12 @@ export async function signedUrl(
   path: string,
   expiresIn = 3600,
 ): Promise<string> {
-  const supabase = serviceClient();
-  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
-  if (error || !data?.signedUrl) throw new Error(`Could not sign URL (${bucket}/${path}): ${error?.message}`);
-  return data.signedUrl;
+  return withStorageRetry(async () => {
+    const supabase = serviceClient();
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
+    if (error || !data?.signedUrl) throw new Error(`Could not sign URL (${bucket}/${path}): ${error?.message}`);
+    return data.signedUrl;
+  });
 }
 
 /** Delete an object from a private bucket. Silently ignores not-found. */
@@ -44,7 +63,9 @@ export async function deleteFromStorage(
   bucket: "avatars" | "wardrobe" | "renders",
   path: string,
 ): Promise<void> {
-  const supabase = serviceClient();
-  const { error } = await supabase.storage.from(bucket).remove([path]);
-  if (error) throw new Error(`Storage delete failed (${bucket}/${path}): ${error.message}`);
+  await withStorageRetry(async () => {
+    const supabase = serviceClient();
+    const { error } = await supabase.storage.from(bucket).remove([path]);
+    if (error) throw new Error(`Storage delete failed (${bucket}/${path}): ${error.message}`);
+  });
 }

@@ -4,6 +4,8 @@ import { signedUrl } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
+const RENDER_PATH_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/[A-Za-z0-9_-]+\.jpg$/i;
+
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ path: string }> }) {
   try {
     const supabase = await createClient();
@@ -13,7 +15,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pat
     const { path } = await params;
     const storagePath = decodeURIComponent(path);
     // Verify the path belongs to this user
-    if (!storagePath.startsWith(data.user.id)) {
+    if (!RENDER_PATH_RE.test(storagePath) || !storagePath.startsWith(`${data.user.id}/`)) {
       return NextResponse.json({ error: "Forbidden." }, { status: 403 });
     }
     const url = await signedUrl("renders", storagePath);

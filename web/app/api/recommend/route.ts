@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { normalizeOutfitFeedback, type OutfitFeedbackEvent } from "@/lib/outfit-feedback";
 import { recommend, type Item, type StylePreferences } from "@/lib/recommend";
 
 export const runtime = "nodejs";
@@ -14,10 +15,27 @@ export async function GET(req: NextRequest) {
 // same deterministic constructor; five candidates are returned for AI reranking.
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json() as { anchors?: string[]; wardrobeItems?: Item[]; preferences?: StylePreferences };
+    const body = await req.json() as {
+      anchors?: string[];
+      wardrobeItems?: Item[];
+      recentlyUsedItemIds?: string[];
+      seed?: number;
+      preferences?: StylePreferences;
+      feedback?: OutfitFeedbackEvent[];
+    };
     const anchors = Array.isArray(body.anchors) ? body.anchors.slice(0, 12) : [];
     const wardrobeItems = Array.isArray(body.wardrobeItems) ? body.wardrobeItems.slice(0, 60) : [];
-    const looks = recommend(anchors, 3, { extraItems: wardrobeItems, preferences: body.preferences, candidateLimit: 5 });
+    const recentlyUsedItemIds = Array.isArray(body.recentlyUsedItemIds) ? body.recentlyUsedItemIds.slice(0, 30) : [];
+    const seed = typeof body.seed === "number" && Number.isFinite(body.seed) ? body.seed : undefined;
+    const feedback = normalizeOutfitFeedback(body.feedback);
+    const looks = recommend(anchors, 3, {
+      extraItems: wardrobeItems,
+      recentlyUsedItemIds,
+      seed,
+      preferences: body.preferences,
+      feedback,
+      candidateLimit: 5,
+    });
     return NextResponse.json({ anchors, looks });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 400 });

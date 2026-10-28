@@ -68,7 +68,11 @@ export default function TryOn({ catalog }: { catalog: Item[] }) {
                 onClick={() => setSel(it.id)}
                 className={`rounded-lg border p-2 text-left ${sel === it.id ? "ring-2 ring-black" : ""}`}
               >
-                <img src={it.image} alt={it.title} className="aspect-square w-full object-contain" />
+                {it.image ? (
+                  <img src={it.image} alt={it.title} className="aspect-square w-full object-contain" />
+                ) : (
+                  <div className="aspect-square w-full flex items-center justify-center text-xl bg-neutral-100 rounded">👕</div>
+                )}
                 <div className="mt-1 truncate text-xs">{it.title}</div>
                 <div className="text-[10px] uppercase text-neutral-400">{it.slot}</div>
               </button>

@@ -1,0 +1,27 @@
+{
+  "task": "Audit guest cloud uploads and Storage rollback behavior",
+  "completedSteps": [
+    "Confirmed guest FittingRoom paths keep avatars and wardrobe items browser-local and guard cloud uploads with !isGuest",
+    "Confirmed permanent upload routes authenticate and reject anonymous users",
+    "Serialized permanent upload order as Storage upload -> metadata row -> signed URL",
+    "Added cleanup of uploaded Storage objects and inserted metadata rows when a later upload step fails",
+    "Validated UUID/path shapes for avatar, wardrobe, and render signed-URL routes",
+    "Documented guest-local behavior and rollback guarantees"
+  ],
+  "evidence": [
+    "web/app/components/FittingRoom.tsx guards both upload calls with !isGuest",
+    "web/app/api/avatar/upload/route.ts and web/app/api/wardrobe/upload/route.ts reject anonymous sessions",
+    "web/app/api/renders/[path]/url/route.ts now rejects traversal-like paths instead of prefix-only matches"
+  ],
+  "nextStep": "Commit the verified production-readiness changes; hosted Supabase/browser verification remains pending",
+  "outputFiles": [
+    "web/app/api/avatar/upload/route.ts",
+    "web/app/api/wardrobe/upload/route.ts",
+    "web/app/api/avatar/[id]/url/route.ts",
+    "web/app/api/wardrobe/[id]/url/route.ts",
+    "web/app/api/renders/[path]/url/route.ts",
+    "README.md",
+    "PRODUCTION-ARCHITECTURE.md"
+  ],
+  "updatedAt": "2026-10-28T11:42:00+03:00"
+}

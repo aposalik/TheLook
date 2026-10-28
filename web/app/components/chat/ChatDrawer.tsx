@@ -1,11 +1,13 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import ChatMessage, { type Message } from "./ChatMessage";
-import type { Item } from "@/lib/recommend";
+import type { Item, WeatherContext } from "@/lib/recommend";
 
 type Props = {
-  /** The user's own wardrobe only — demo catalog items are never offered by the assistant. */
+  /** The user's own wardrobe items (falls back to catalogItems if empty). */
   userItems: Item[];
+  catalogItems?: Item[];
+  userWeather?: WeatherContext | null;
   onEquip: (items: Item[]) => void;
 };
 
@@ -37,7 +39,7 @@ function slim(item: Item): Omit<Item, "image"> & { image: string } {
   return { ...item, image: "" };
 }
 
-export default function ChatDrawer({ userItems, onEquip }: Props) {
+export default function ChatDrawer({ userItems, catalogItems = [], userWeather, onEquip }: Props) {
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -45,6 +47,7 @@ export default function ChatDrawer({ userItems, onEquip }: Props) {
   const [hasNewLook, setHasNewLook] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const activeWardrobe = userItems.length >= 2 ? userItems : [...userItems, ...catalogItems];
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -81,7 +84,13 @@ export default function ChatDrawer({ userItems, onEquip }: Props) {
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ message: text, history, wardrobe: userItems.map(slim), today: localToday() }),
+        body: JSON.stringify({
+          message: text,
+          history,
+          wardrobe: activeWardrobe.map(slim),
+          today: localToday(),
+          userWeather,
+        }),
       });
       const data = await res.json() as ChatResponse;
 
@@ -91,7 +100,7 @@ export default function ChatDrawer({ userItems, onEquip }: Props) {
       }
 
       // Map returned IDs back to the local items so cards show the real cutout images.
-      const byId = new Map(userItems.map((i) => [i.id, i]));
+      const byId = new Map(activeWardrobe.map((i) => [i.id, i]));
       const items = (data.itemIds ?? []).map((id) => byId.get(id)).filter((i): i is Item => Boolean(i));
       const isOutfit = !data.noOutfit && items.length > 0;
 

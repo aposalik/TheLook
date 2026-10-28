@@ -1,137 +1,132 @@
 # TheLook
 
-**An AI stylist that builds complete outfits from a real wardrobe, explains why they work, and proves the selected look with YouCam virtual try-on.**
+[![CI](https://github.com/aposalik/TheLook/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/aposalik/TheLook/actions/workflows/ci.yml)
 
-TheLook is a web-first submission for the **YouCam API Skin AI & eCommerce VTO Hackathon**. A shopper can upload garments, receive three grounded outfit recommendations, choose one, and render it on a saved full-body photo.
+> **An AI wardrobe stylist that creates grounded outfit options from a user’s own clothes, explains the choice, and renders a selected look with YouCam virtual try-on.**
 
-## What makes it different
-
-Most virtual try-on demos begin with a fixed product and render immediately. TheLook separates the free styling decision from the credit-consuming proof step:
+TheLook is a web application built for the **YouCam API Skin AI & eCommerce VTO Hackathon**. It separates inexpensive styling exploration from the explicit, credit-consuming virtual try-on action:
 
 ```text
-Personal wardrobe
-  → deterministic outfit construction
-  → Gemini visual reranking and explanation
-  → choose one of three real-SKU looks
-  → explicit “Show On Me”
-  → YouCam Cloth-v4 render
+Wardrobe → valid outfit construction → AI stylist explanation → user selects a look → Show On Me → virtual try-on
 ```
 
-- **The algorithm constructs valid outfits.** It enforces garment slots, layering, color, fit, formality, season, occasion, styling goals, and diversity.
-- **Gemini acts as a visual stylist.** It reranks only valid candidates and cannot invent products.
-- **YouCam supplies the proof.** Credits are spent only after the user explicitly asks to see the chosen look.
+The project combines deterministic outfit rules, Gemini Vision, Perfect Corp YouCam Cloth-v4, Supabase, and a Next.js interface designed around private, user-owned wardrobes.
 
-## Features
+## Contents
 
-- Curated catalog displayed as boutique garment rails and shelves
-- Multiple selected anchors and valid base/mid/outer layering
-- Device upload or direct image URL for personal garments
-- Client-side background removal; original garment upload is not persisted
-- Gemini Vision metadata: category, layer, color, palette, fit, formality, season, style, and material
-- Deterministic five-candidate outfit generator with top-three diversity
-- Gemini visual reranking with deterministic fallback
-- Optional occasion and styling-goal preferences
-- Multiple saved 9:16 avatar photos
-- YouCam Cloth-v4 full-look rendering with image normalization and result caching
-- Saved lookbook, outfit details, mock bag, and checkout flow
-- Style Assistant chat: weather-aware outfit picks from your own wardrobe (Gemini + Open-Meteo)
-- Premium loading sequence, responsive interface, final TheLook branding, and optional sound design
-- Mock mode for development without spending YouCam units
+- [What it does](#what-it-does)
+- [Architecture](#architecture)
+- [Guest and account model](#guest-and-account-model)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [How the AI workflow works](#how-the-ai-workflow-works)
+- [Security and privacy](#security-and-privacy)
+- [Verification](#verification)
+- [Project structure](#project-structure)
+- [Roadmap and current boundaries](#roadmap-and-current-boundaries)
+- [Contributing](#contributing)
+
+## What it does
+
+### Wardrobe and styling
+
+- Add personal garments from a device or a direct image URL.
+- Remove backgrounds in the browser and classify garments with Gemini Vision when configured.
+- Build five valid outfit candidates using slots, layers, color, formality, season, style, occasion, and diversity rules.
+- Let Gemini rerank only those valid candidates; Gemini cannot introduce unowned products.
+- Keep shoes and accessories as styling accents. They appear in recommendations but are not sent to the current Cloth-v4 render pipeline.
+- Use the Style Assistant chat for weather-aware wardrobe suggestions powered by Gemini and Open-Meteo.
+
+### Virtual try-on
+
+- Save multiple full-body avatars.
+- Render a dress in one full-body step or compose upper layers and chain a lower-body step.
+- Cache repeated renders by avatar/look fingerprint.
+- Keep YouCam rendering behind an explicit **Show On Me** action.
+- Use `MOCK=1` for a credit-free development preview.
+
+### Ownership and persistence
+
+- Create an anonymous Supabase session for first-time visitors.
+- Support permanent email and Google accounts.
+- Keep guest and permanent accounts intentionally separate; guest data never transfers into an existing account.
+- Store permanent-account files in private Supabase Storage and metadata in Supabase Postgres.
+- Serve private files through authenticated checks or short-lived signed URLs.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  Browser[Next.js / React browser UI]
-  Storage[Browser localStorage]
-  Recommend[Deterministic recommender]
-  Gemini[Gemini Vision]
-  API[Next.js server routes]
-  YouCam[YouCam Cloth-v4]
-  Cache[Local result cache]
+  U[User browser] --> UI[Next.js + React UI]
+  UI --> AUTH[Supabase Auth\nanonymous, email, Google]
+  UI --> REC[Outfit recommendation API]
+  REC --> RULES[Deterministic outfit engine]
+  REC --> GEM[Gemini Vision\nreranking and explanations]
 
-  Browser -->|avatars, wardrobe, preferences, looks| Storage
-  Browser -->|processed garment| API
-  API --> Gemini
-  Browser -->|anchors + wardrobe metadata| Recommend
-  Recommend -->|5 valid candidates| Gemini
-  Gemini -->|ranked top 3 + grounded advice| Browser
-  Browser -->|chosen look + avatar| API
-  API --> YouCam
-  YouCam --> API
-  API --> Cache
-  API --> Browser
+  UI --> UPLOAD[Upload API]
+  UPLOAD --> STORE[Private Supabase Storage\navatars · wardrobe · renders]
+  UPLOAD --> DB[Supabase Postgres\nmetadata · ownership · preferences]
+
+  UI --> TRYON[Show On Me API]
+  TRYON --> GUARD[Verified-account and quota guard]
+  GUARD --> YOUCAM[Perfect Corp YouCam Cloth-v4]
+  YOUCAM --> STORE
+  TRYON --> DB
+  STORE --> SIGNED[Short-lived signed URL]
+  SIGNED --> UI
 ```
 
-### Wardrobe ingestion
+### Responsibility boundaries
+
+| Component | Responsibility |
+| --- | --- |
+| **Browser** | Interaction, client-side background removal, temporary guest data, outfit selection |
+| **Next.js route handlers** | Verify the session, validate ownership, call external AI APIs, enforce paid-render controls |
+| **Supabase Auth** | Anonymous and permanent user identities, sessions, OAuth/email authentication |
+| **Supabase Postgres** | Metadata, ownership, preferences, saved looks, render jobs, and usage counters |
+| **Supabase Storage** | Private avatar, wardrobe-cutout, and render image bytes |
+| **Gemini Vision** | Garment analysis, candidate reranking, grounded explanations, and style chat |
+| **YouCam Cloth-v4** | The final virtual try-on image only after explicit user intent |
+
+### Private file layout
 
 ```text
-Device file or direct URL
-  → guarded server fetch when needed
-  → browser image normalization
-  → browser background removal
-  → Gemini Vision metadata extraction
-  → transparent cutout + metadata saved to this browser
+avatars/{user_id}/{avatar_id}.jpg
+wardrobe/{user_id}/{wardrobe_item_id}.png
+renders/{user_id}/{render_job_id}.jpg
 ```
 
-### Recommendation
+Every user-owned database row and Storage object is scoped to a Supabase user ID. Storage buckets are private.
 
-Fixed catalog pairs use an offline OpenCLIP/Polyvore compatibility matrix. Pairs containing uploaded garments use structured metadata compatibility. Outfit formulas and hard constraints create five valid candidates; Gemini sees their real images and returns the strongest three with explanations.
+## Guest and account model
 
-### Try-on
-
-The server normalizes all images to JPEG, uploads them through Perfect Corp's File API, creates Cloth-v4 tasks, polls for completion, downloads the result, and caches identical avatar/outfit combinations. Layered upper garments are composed into one reference image; bottoms are rendered as a subsequent step.
-
-## Style Assistant (AI Chat)
-
-A floating chat panel (✦, bottom-left) powered by Gemini and Open-Meteo live weather.
-
-Describe where you're going and when. The assistant checks the forecast, picks a complete outfit from **your own wardrobe**, and equips it in the fitting room when you press **Wear this look**.
-
-Example: "Going to a wedding in Istanbul this Saturday"
-→ checks Saturday's forecast → picks an occasion-appropriate outfit → explains why
-
-Follow-up messages refine the same look: "make it more casual" or "I prefer darker colors". The new look replaces the previous outfit card.
+TheLook deliberately avoids silent data merging.
 
 ```text
-POST /api/chat
-  → Gemini pass 1: { location, date, occasion, vibe, isFollowUp }   (today's date sent by the browser)
-  → Open-Meteo geocode + daily forecast (no API key)
-  → Gemini pass 2: wardrobe metadata + weather + occasion → { itemIds, explanation, stylistTitle }
-  → server keeps only IDs that were sent and enforces slot rules (one bottom, one item per upper layer, dress replaces top + bottom)
+First visit
+  → anonymous Supabase identity
+  → guest wardrobe/session
+
+Create account or sign in
+  → clear warning: guest wardrobe will not transfer
+  → permanent account identity
+  → empty permanent wardrobe
+  → user uploads permanent-account items again
 ```
 
-| Case | Behavior |
-|---|---|
-| Empty wardrobe | Asks the user to add their own clothes; demo catalog items are never used |
-| Location not found | Still picks an outfit, skips the weather card, says the weather couldn't be found |
-| Date more than 16 days ahead | Uses typical seasonal weather for the location (hemisphere-aware) |
-| Gemini returns unknown IDs | Dropped server-side; no invented items |
-| Wear this look | Equips the items only; **Show On Me** stays a manual, credit-spending action |
+This avoids unsafe ownership reassignment and ambiguous account-conflict logic. Guests can explore the wardrobe experience; verified permanent accounts are required for paid **Show On Me** rendering.
 
-Privacy: only garment metadata (no images, no user photo) is sent to Gemini by the assistant.
-
-## Technology
-
-- Next.js 16 App Router
-- React 19 and TypeScript
-- Tailwind CSS 4
-- Sharp for server-side image normalization and composition
-- `@imgly/background-removal` for browser-side cutouts
-- Gemini Vision (`gemini-2.5-flash` by default)
-- Perfect Corp YouCam Cloth-v4
-- OpenCLIP embeddings and a Polyvore-trained compatibility model in the offline catalog pipeline
-
-## Local setup
+## Quick start
 
 ### Requirements
 
 - Node.js 22+
 - npm
-- A Perfect Corp / YouCam API key for real rendering
-- Optional Gemini API key for visual categorization and reranking
+- A Supabase project for Auth, private Storage, and Postgres persistence
+- Perfect Corp YouCam credentials only for real virtual try-on
+- Gemini API key only for Gemini-powered classification, reranking, and chat
 
-### Install and run
+### Install
 
 ```bash
 git clone https://github.com/aposalik/TheLook.git
@@ -143,25 +138,122 @@ npm run dev
 
 Open <http://localhost:3000>.
 
-Edit `web/.env.local` through your local editor. Never commit it or share credentials in issues, pull requests, screenshots, commands, or chat.
+> [!IMPORTANT]
+> `.env.local` is ignored by Git. Keep all credentials in that local file or in protected deployment environment variables. Never paste credentials into an issue, pull request, terminal command, screenshot, or chat.
 
-```dotenv
-PERFECTCORP_KEY=replace_with_your_youcam_key
-GEMINI_API_KEY=replace_with_your_gemini_key
-GEMINI_MODEL=gemini-2.5-flash
+### Database migration
+
+The versioned database migrations are in [`supabase/migrations`](supabase/migrations). Apply them to the intended Supabase project through the Supabase CLI or SQL Editor before testing persistent account data.
+
+The foundation migration creates the user-owned tables, usage tables, Row-Level Security policies, and private buckets. The quota migration adds atomic render reservation functions.
+
+## Configuration
+
+Copy [`web/.env.local.example`](web/.env.local.example) to `web/.env.local` and add only the integrations you intend to use.
+
+| Variable | Required | Visibility | Purpose |
+| --- | --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Browser-safe | Hosted Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes | Browser-safe | Supabase publishable key; RLS still protects data |
+| `SUPABASE_SERVICE_ROLE_KEY` | For server-side Storage/quota work | Server only | Private Storage writes, signed URLs, and trusted server operations |
+| `RATE_LIMIT_HASH_SECRET` | For real quota enforcement | Server only | HMAC secret for hashing the trusted client IP before aggregation |
+| `PERFECTCORP_KEY` | For real try-on | Server only | YouCam Cloth-v4 bearer credential |
+| `GEMINI_API_KEY` | Optional | Server only | Gemini Vision and Style Assistant integration |
+| `GEMINI_MODEL` | Optional | Server only | Defaults to `gemini-2.5-flash` when Gemini is configured |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Optional | Browser-safe | Cloudflare Turnstile site key |
+| `MOCK=1` | Recommended for development | Server only | Avoids a real YouCam render and returns a preview instead |
+
+### Supabase Auth setup
+
+1. Add the Supabase URL and publishable key locally.
+2. Enable Anonymous and Email providers in Supabase Auth.
+3. Require email confirmation for permanent email accounts.
+4. Configure Google OAuth if Google sign-in is enabled.
+5. Add `http://localhost:3000/auth/callback` and deployed callback URLs to Supabase Auth URL configuration.
+6. Optionally configure Turnstile in both the application and Supabase Auth CAPTCHA settings.
+
+## How the AI workflow works
+
+### 1. Wardrobe ingestion
+
+```text
+Image file or direct URL
+  → normalized browser image
+  → client-side background removal
+  → Gemini garment metadata when available
+  → private Storage upload for a permanent account
+  → Postgres metadata row
 ```
 
-Only `PERFECTCORP_KEY` is required for a real Cloth-v4 render. The V2 API uses the key directly as a Bearer token; `PERFECTCORP_SECRET` is not used by this application.
+The application uses a deterministic fallback when Gemini is unavailable. Direct image URLs are routed through a guarded fetch endpoint with protocol, DNS/private-address, redirect, MIME, size, and timeout checks.
 
-### Credit-free development
+### 2. Recommendation
 
-Set this in `web/.env.local`:
-
-```dotenv
-MOCK=1
+```text
+Selected anchors + wardrobe metadata
+  → hard slot/layer constraints
+  → deterministic compatibility scoring
+  → five valid candidates
+  → Gemini visual rerank of those candidates
+  → three diverse, grounded recommendations
 ```
 
-Mock mode exercises the UI and recommendation flow without starting a YouCam task. Turn it off only for deliberate end-to-end verification.
+Catalog pairs use the offline compatibility matrix. User-uploaded garment combinations use structured metadata compatibility. The deterministic engine always remains the source of truth for valid item IDs.
+
+### 3. Virtual try-on
+
+```text
+Verified account + selected avatar + selected look
+  → ownership checks
+  → cache / in-flight / quota checks
+  → YouCam File API upload
+  → Cloth-v4 render task(s)
+  → private render Storage upload
+  → signed result URL
+```
+
+- Dresses use one `full_body` render.
+- Upper layers may be combined into one reference image.
+- Bottoms may be applied in a subsequent `lower_body` render.
+- Shoes and accessories are recommendations only in the current render pipeline.
+
+### 4. Style Assistant
+
+The Style Assistant uses Gemini plus Open-Meteo weather data to suggest outfits from the user’s wardrobe. It sends garment metadata, not the user’s avatar/photo, to the assistant workflow. The server rejects unknown item IDs and re-applies outfit slot rules before presenting a suggested look.
+
+## Security and privacy
+
+### Access control
+
+- User-owned Postgres tables use Row-Level Security.
+- Private Storage object paths begin with the owning user ID.
+- Route handlers derive ownership from the verified Supabase session; they never trust a client-supplied user ID.
+- Signed URLs are created only after server-side ownership checks.
+- The Supabase service-role key is server-only and bypasses RLS; use is deliberately limited to trusted server code.
+
+### Paid-render controls
+
+For real YouCam renders, the application has a layered design:
+
+```text
+verified permanent account
++ per-user daily quota
++ global daily / total-credit budget
++ duplicate-render fingerprint cache
++ in-flight render lock
++ HMAC-hashed IP aggregate
++ optional Turnstile and edge-rate controls
+```
+
+Raw IP addresses are not persisted by the quota helper. Cache hits do not create a new YouCam request.
+
+### Data boundaries
+
+- Guest data is browser-local until the user deliberately starts a separate permanent account; guest UI paths do not call the cloud upload routes.
+- Permanent-account avatars, wardrobe cutouts, and renders are intended for private Supabase Storage.
+- Permanent upload handlers write Storage and metadata in order, return a signed URL only after both succeed, and remove partial artifacts on failure.
+- Real try-on inputs are sent to Perfect Corp to perform Cloth-v4 processing.
+- External API credentials remain server-side.
 
 ## Verification
 
@@ -173,66 +265,67 @@ npx tsc --noEmit
 npm run build
 ```
 
-Pull requests run the same checks through GitHub Actions.
+GitHub Actions runs lint, typecheck, and production build for pushes and pull requests targeting `main`.
 
-## Privacy and security
+For development without YouCam credit consumption:
 
-Current hackathon behavior:
-
-- API credentials remain server-side.
-- Avatars, uploaded wardrobe items, preferences, and saved looks stay in the user's browser storage.
-- Garment originals are discarded after processing; only the processed cutout is saved.
-- Avatar and garment bytes are sent to the server only when required for analysis or try-on.
-- Real try-on images are sent to Perfect Corp for Cloth-v4 processing.
-- Direct image URLs pass protocol, DNS/private-address, redirect, MIME, timeout, and size checks.
-- Generated local results and `.env.local` files are excluded from Git.
-
-There is currently **no account system or cloud synchronization**. Before a public production launch, TheLook needs private object storage, per-visitor ownership, durable render caching, and server-side rate limits to protect the YouCam credit pool.
-
-## Current limitations
-
-- Browser-local wardrobes do not synchronize across devices.
-- Browser storage has limited capacity for many image uploads.
-- The local filesystem result cache is suitable for the demo but not durable serverless hosting.
-- Catalog variety is intentionally small and curated.
-- Accessories are recommended but not rendered by the current pipeline.
-- Checkout is intentionally mocked.
-
-## Repository map
-
-```text
-web/app/components/             Fitting room UI
-web/app/api/recommend/          Deterministic candidate API
-web/app/api/stylist/rerank/     Gemini visual reranker
-web/app/api/wardrobe/           Upload analysis and guarded URL fetch
-web/app/api/tryon-look/         Full-look Cloth-v4 orchestration
-web/lib/recommend.ts            Outfit construction and scoring
-web/lib/gemini.ts               Server-side Gemini JSON client
-web/lib/youcam.ts               Server-side Perfect Corp client
-web/data/                       Runtime catalog and compatibility matrix
-_experiments/catalog_pipeline.py Offline catalog/cutout/embedding pipeline
-scripts/generate_sound_pack.py   Reproducible original UI sound pack
+```dotenv
+MOCK=1
 ```
 
-## Production roadmap
-
-The private Supabase/Vercel architecture, database model, rate-limit design, cleanup policy, and phase-by-phase learning plan are documented in [`PRODUCTION-ARCHITECTURE.md`](PRODUCTION-ARCHITECTURE.md).
-
-## Collaboration
-
-`main` is protected. Use:
+## Project structure
 
 ```text
-issue → feature branch → pull request → approval → squash and merge
+web/
+├── app/
+│   ├── api/                 # Route handlers: wardrobe, avatar, looks, chat, recommendation, try-on
+│   ├── auth/                # Supabase OAuth/email callback
+│   ├── components/          # Fitting room, wardrobe, lookbook, account and chat UI
+│   └── proxy.ts             # Supabase session refresh
+├── lib/
+│   ├── recommend.ts         # Deterministic outfit construction and scoring
+│   ├── gemini.ts            # Gemini server client
+│   ├── youcam.ts            # Perfect Corp / Cloth-v4 client
+│   ├── storage.ts           # Private Supabase Storage helpers
+│   ├── db.ts                # Postgres persistence helpers
+│   └── quota.ts             # Render quota reservation and completion helpers
+├── data/                    # Runtime catalog and compatibility matrix
+└── public/                  # Static catalog/reference assets and UI audio
+
+supabase/
+├── migrations/              # Versioned schema and quota migrations
+└── tests/database/          # Database/RLS test definitions
+
+_experiments/
+└── catalog_pipeline.py      # Offline catalog, cutout, embedding, and compatibility pipeline
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+## Roadmap and current boundaries
+
+The detailed build contract lives in [`PRODUCTION-ARCHITECTURE.md`](PRODUCTION-ARCHITECTURE.md). It defines the progression from schema/RLS through auth, Storage, database persistence, credit protection, deployment, operations, and final submission assets.
+
+Current implementation notes:
+
+- Supabase Free is suitable for development and an early demo, but its database, Storage, egress, and inactivity limits must be monitored.
+- Local Docker-based Supabase testing is optional; hosted Supabase migration and manual security verification are supported.
+- Some production flows require manual verification with real Supabase credentials and, where desired, real YouCam/Gemini credentials.
+- Checkout is intentionally a mock experience.
+- A repository license file is not currently included.
+
+## Contributing
+
+Use the protected-branch workflow:
+
+```text
+issue → feature branch → pull request → review → squash merge
+```
+
+Run the verification commands before opening a pull request. Use `MOCK=1` unless a deliberate real YouCam test is required.
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the collaboration workflow.
 
 ## Hackathon
 
-- Event: YouCam API Skin AI & eCommerce VTO Hackathon
-- Edition: eCommerce VTO, Devpost ID 31400
-- Deadline: November 2, 2026
-- API used: Perfect Corp YouCam AI Clothes Virtual Try-On (Cloth-v4)
-
-Submission screenshots, the demo video, and the final Devpost write-up are intentionally produced after the product UI and hosted flow are frozen.
+- **Event:** YouCam API Skin AI & eCommerce VTO Hackathon
+- **API:** Perfect Corp YouCam AI Clothes Virtual Try-On (Cloth-v4)
+- **Submission materials:** screenshots, demo video, and Devpost copy are produced after the hosted flow is frozen.

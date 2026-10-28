@@ -1,7 +1,16 @@
 "use client";
 import type { Item } from "@/lib/recommend";
 
-export type SavedLook = { id: string; image: string; items: Item[]; createdAt: number };
+export type SavedLook = {
+  id: string;
+  image: string;
+  renderPath?: string | null;
+  items: Item[];
+  createdAt: number;
+  formula?: string;
+  stylistTitle?: string | null;
+  cohesion?: number | null;
+};
 
 // Slide-over of saved outfits — review looks on other days; tap one for detail.
 export default function Lookbook({
@@ -25,7 +34,30 @@ export default function Lookbook({
             {looks.map((l) => (
               <div key={l.id} className="relative">
                 <button onClick={() => onOpen(l)} className="block w-full overflow-hidden rounded-2xl border border-[#E8E3DB] bg-[#F7F5F0]" style={{ aspectRatio: "9 / 16" }}>
-                  <img src={l.image} alt="saved look" className="h-full w-full object-cover" />
+                  {l.image ? (
+                    <img src={l.image} alt="saved look" className="h-full w-full object-cover" />
+                  ) : (
+                    <div className="flex h-full w-full flex-col items-center justify-between p-3.5 text-[#8A8480] bg-[#F7F5F0]">
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs">✨</span>
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-[#C4A882]">Saved Look</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5 w-full my-auto">
+                        {l.items.slice(0, 4).map((it) => (
+                          <div key={it.id} className="aspect-square rounded-lg bg-white border border-[#E8E3DB] p-1 flex items-center justify-center overflow-hidden">
+                            {it.image ? (
+                              <img src={it.image} alt="" className="h-full w-full object-contain" />
+                            ) : (
+                              <span className="text-xs">👕</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      <p className="text-[10px] font-medium text-[#1A1A1A] truncate w-full text-center">
+                        {l.items.length} pieces
+                      </p>
+                    </div>
+                  )}
                 </button>
                 <button onClick={() => onRemove(l.id)} aria-label="Remove" className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs text-white">×</button>
               </div>

@@ -1,0 +1,20 @@
+{
+  "task": "Implement hybrid garment fashion grammar",
+  "status": "completed",
+  "completedSteps": [
+    "Added neckline, closure, fabric-weight, silhouette-volume, and inference-confidence guidance to Gemini garment analysis",
+    "Added legacy V-neck knit and pullover semantic inference",
+    "Added deterministic hoodie-under-pullover and bulky-base-under-lighter-layer rejection rules",
+    "Added a compatibility bonus and explanation for collared shirts beneath V-neck knits",
+    "Passed complete garment semantics to the Gemini visual judge while preserving deterministic ownership and hard-constraint authority",
+    "Added regression tests for valid striped-shirt/V-neck/trouser layering and invalid hoodie/V-neck layering"
+  ],
+  "verification": {
+    "tests": "25 passed, 0 failed",
+    "evaluation": "11/11 fixtures passed",
+    "typecheck": "passed",
+    "lint": "0 errors, 30 pre-existing warnings",
+    "build": "passed"
+  },
+  "updatedAt": "2026-10-28T17:12:00+03:00"
+}

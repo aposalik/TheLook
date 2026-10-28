@@ -35,7 +35,11 @@ export default function CatalogPanel({ catalog, equipped, activeId, onToggle }: 
                 {isEquipped && <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#1A1A1A] text-[9px] text-white">✓</span>}
               </div>
               <div className="flex h-28 items-center justify-center p-1">
-                <img src={item.image} alt={item.title} className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105" />
+                {item.image ? (
+                  <img src={item.image} alt={item.title} className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105" />
+                ) : (
+                  <span className="text-2xl text-[#8A8480]" aria-hidden="true">👕</span>
+                )}
               </div>
               <div className="mt-2">
                 <p className="truncate text-xs font-semibold text-[#1A1A1A]">{item.title}</p>

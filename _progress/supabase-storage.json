@@ -6,7 +6,9 @@
     "Created web/app/api/wardrobe/upload/route.ts: receives PNG cutout base64, uploads to wardrobe/{userId}/{itemId}.png, returns storagePath + signed URL",
     "Updated web/app/api/tryon-look/route.ts: renders now saved to renders/{userId}/{key}.jpg in private Storage; cache check via signedUrl; removed all local public/results writes",
     "Updated FittingRoom.tsx: avatar upload fires /api/avatar/upload in background after local save; storagePath stored on Avatar object",
-    "Updated AddItemModal.tsx: wardrobe cutout fires /api/wardrobe/upload in background after item save",
+    "Updated AddItemModal.tsx: wardrobe cutout remains local until FittingRoom persists permanent-account items",
+    "Guest upload audit: FittingRoom guards avatar and wardrobe cloud uploads with !isGuest",
+    "Permanent upload rollback audit: Storage upload, metadata insert, and signed URL are serialized; failures clean up partial Storage and metadata",
     "Added SUPABASE_SERVICE_ROLE_KEY to .env.local.example",
     "TypeScript: 0 errors"
   ],
@@ -22,8 +24,10 @@
   ],
   "doneBar": {
     "imagesPersistedAcrossRefresh": "pending manual verification — requires SUPABASE_SERVICE_ROLE_KEY in .env.local",
-    "crossUserIsolation": "enforced by RLS (storage path must start with auth.uid())",
+    "guestUploadsStayLocal": "enforced in FittingRoom; anonymous users are rejected by upload routes",
+    "uploadRollback": "implemented for post-upload metadata/signing failures",
+    "crossUserIsolation": "enforced by RLS and route-level user-folder path validation",
     "noPublicResultsWrites": "DONE — tryon-look route no longer writes to public/results"
   },
-  "updatedAt": "2026-10-23T00:00:00+03:00"
+  "updatedAt": "2026-10-28T11:35:00+03:00"
 }
