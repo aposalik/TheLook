@@ -5,6 +5,7 @@ import {
   buildReason,
   inferLegacyGarmentSemantics,
   normalizeGarmentSemantics,
+  recommend,
   scoreOutfit,
   validateOutfitCandidate,
   type Item,
@@ -313,4 +314,31 @@ test("rejects a hoodie beneath a pullover knit", () => {
   assert.equal(result.valid, false);
   assert.ok(result.violations.includes("hood-under-pullover-layer"));
   assert.ok(result.violations.includes("bulky-base-under-lighter-layer"));
+});
+
+test("keeps a normal mid-tagged button-up available as a standalone top", () => {
+  const shirt = item({
+    id: "catalog-shirt",
+    slot: "top",
+    title: "Shirt Blue",
+    category: "upper",
+    layer: "mid",
+    formality: 3,
+  });
+  const trousers = item({ id: "catalog-trousers", slot: "bottom", title: "Trousers", category: "bottom" });
+  const looks = recommend("catalog-shirt", 3, {
+    catalogItems: [shirt, trousers],
+    preferences: { gender: "all" },
+  });
+  assert.ok(looks.length > 0, "a normal button-up should not produce an empty recommendation set");
+  assert.ok(looks.some((look) => look.formula === "Simple"));
+});
+
+test("uses the anchored garment gender when the unfiltered catalog mixes demo genders", () => {
+  const shirt = item({ id: "mens-shirt", slot: "top", title: "Shirt Blue", category: "upper", layer: "base", gender: "men" });
+  const trousers = item({ id: "mens-trousers", slot: "bottom", title: "Trousers", category: "bottom", gender: "men" });
+  const womensShoe = item({ id: "womens-shoe", slot: "shoe", title: "Red Sneaker", category: "shoe", gender: "women" });
+  const looks = recommend("mens-shirt", 3, { catalogItems: [shirt, trousers, womensShoe], preferences: { gender: "all" } });
+  assert.ok(looks.length > 0);
+  assert.ok(looks.every((look) => look.items.every((garment) => !garment.gender || garment.gender === "men")));
 });

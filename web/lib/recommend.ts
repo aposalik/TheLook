@@ -427,6 +427,9 @@ export function canBeOuterLayer(item: Item): boolean {
 export function canBeSoloTop(item: Item): boolean {
   if (!isUpperItem(item)) return false;
   if (item.semantics?.layerRole === "outer") return false;
+  // Legacy catalog data sometimes marks ordinary button-up shirts as `mid`
+  // because they can participate in layering. They remain valid standalone tops.
+  if ((item.layer === "mid" || item.layer === "outer") && isPolishedButtonUp(item)) return true;
   if ((item.layer === "mid" || item.layer === "outer") && /overshirt|shacket/i.test(itemText(item))) {
     return false;
   }
@@ -779,8 +782,11 @@ export function recommend(
   const prefs = options.preferences ?? {};
   const baseItems = options.catalogItems ?? FIXED;
   const pool = [...baseItems, ...(options.extraItems ?? []).filter((item, index, values) => values.findIndex((v) => v.id === item.id) === index)];
-  const all = prefs.gender && prefs.gender !== "all"
-    ? pool.filter((i) => !i.gender || i.gender === prefs.gender)
+  const ids = (Array.isArray(anchors) ? anchors : anchors ? [anchors] : []).filter(Boolean);
+  const anchoredGender = pool.find((item) => ids.includes(item.id) && item.category !== "accessory" && item.gender)?.gender;
+  const targetGender = prefs.gender && prefs.gender !== "all" ? prefs.gender : anchoredGender;
+  const all = targetGender
+    ? pool.filter((i) => !i.gender || i.gender === targetGender)
     : pool;
   const uppers = all.filter((i) => isUpperItem(i));
   const bottoms = all.filter((i) => i.category === "bottom" || hasSlot(i, "bottom"));
@@ -800,7 +806,6 @@ export function recommend(
     ...(dresses.length ? [{ name: "Dress", slots: [{ role: "dress", pool: dresses }, ...shoeSlot] }] : []),
   ];
 
-  const ids = (Array.isArray(anchors) ? anchors : anchors ? [anchors] : []).filter(Boolean);
   const accessoriesById = new Set(accessories.map((a) => a.id));
   const accessoryAnchors = ids.filter((id) => accessoriesById.has(id));
   const coreAnchors = ids.filter((id) => !accessoriesById.has(id));

@@ -714,7 +714,9 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         ? lockedItemIds
         : equipped.length > 0
           ? equipped.map((i) => i.id)
-          : activeItem ? [activeItem.id] : [catalog[0]?.id].filter(Boolean) as string[];
+          : activeItem
+          ? [activeItem.id]
+          : [catalog.find((item) => !["shoe", "accessory"].includes(item.category ?? item.slot))?.id].filter(Boolean) as string[];
     if (anchorIds.length === 0) return;
     setIsGenerating(true);
     setGenerateError(null);
@@ -763,7 +765,11 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
           : top.selectionMode === "expressive"
             ? "Expressive choice"
             : "Balanced choice";
-      showToast(`${source === "gemini" ? "Gemini stylist" : "Outfit engine"} ranked ${Math.min(3, looks.length)} looks · ${modeLabel}`);
+      showToast(
+        styled.warning
+          ? `AI visual judge unavailable — deterministic engine ranked ${Math.min(3, looks.length)} looks`
+          : `${source === "gemini" ? "Gemini stylist" : "Outfit engine"} ranked ${Math.min(3, looks.length)} looks · ${modeLabel}`,
+      );
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setGenerateError(msg);

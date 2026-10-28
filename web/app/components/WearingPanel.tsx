@@ -319,7 +319,7 @@ export default function WearingPanel({
                 </span>
                 {stylistSource && (
                   <span className="rounded-full border border-[#D9C6A8] bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider text-[#9B7A4A]">
-                    {stylistSource === "gemini" ? "Gemini stylist" : "Outfit engine"}
+                    {stylistSource === "gemini" ? "Gemini stylist" : stylistWarning ? "Deterministic fallback" : "Outfit engine"}
                   </span>
                 )}
               </div>
