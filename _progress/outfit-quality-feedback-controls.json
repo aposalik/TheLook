@@ -1,0 +1,27 @@
+{
+  "task": "Outfit quality rebuild — feedback, locks, and swaps",
+  "status": "completed",
+  "completedSteps": [
+    "Added normalized like/dislike feedback events with bounded similarity-based personalization",
+    "Blended prior feedback into the existing bounded preference score without bypassing hard constraints",
+    "Added authenticated feedback persistence with RLS and localStorage fallback",
+    "Added per-item lock controls so selected pieces remain anchors during regeneration",
+    "Added role-level swap controls that regenerate only the selected role while preserving the rest of the look",
+    "Added Wear this and Not my style controls to generated outfit rationale",
+    "Kept feedback influence bounded to prevent a small history from overpowering palette, formality, or semantic constraints"
+  ],
+  "verification": {
+    "tests": "19 passed, 0 failed",
+    "evaluation": "11 fixtures passed, 0 failed",
+    "typecheck": "passed",
+    "migration": "created but not applied to a live Supabase project"
+  },
+  "outputFiles": [
+    "web/lib/outfit-feedback.ts",
+    "web/lib/outfit-feedback.test.ts",
+    "web/app/api/feedback/route.ts",
+    "supabase/migrations/20261028154500_outfit_feedback.sql"
+  ],
+  "nextStep": "Finalize and verify multilayer try-on composition, cache versioning, and render diagnostics.",
+  "updatedAt": "2026-10-28T15:55:00+03:00"
+}

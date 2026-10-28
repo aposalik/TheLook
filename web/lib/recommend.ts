@@ -2,6 +2,7 @@
 // matrix; uploaded wardrobe items use Gemini-generated metadata and explicit style rules.
 import catalogData from "../data/catalog.json";
 import matrixData from "../data/compat_matrix.json";
+import { feedbackAdjustment, type OutfitFeedbackEvent } from "./outfit-feedback";
 import type { StylistVerdict, SwapRole, VisualScores } from "./stylist-judge";
 
 const GARMENT_TYPES = [
@@ -550,26 +551,25 @@ function footwearScore(items: Item[]): number {
   return clamp01(score);
 }
 
-function preferenceScore(items: Item[], prefs: StylePreferences): number {
-  if (!prefs.goal || prefs.goal === "balanced") return 0.86;
-  if (prefs.goal === "vertical-line") return items.some((item) => item.layer === "mid" || item.layer === "outer") ? 1 : 0.5;
-  if (prefs.goal === "shoulder-structure") {
-    return items.some((item) => item.layer === "outer" || /blazer|jacket/i.test(item.subcategory ?? item.title)) ? 1 : 0.5;
+function preferenceScore(items: Item[], prefs: StylePreferences, feedback: OutfitFeedbackEvent[] = []): number {
+  let goalScore = 0.86;
+  if (prefs.goal === "vertical-line") goalScore = items.some((item) => item.layer === "mid" || item.layer === "outer") ? 1 : 0.5;
+  else if (prefs.goal === "shoulder-structure") {
+    goalScore = items.some((item) => item.layer === "outer" || /blazer|jacket/i.test(item.subcategory ?? item.title)) ? 1 : 0.5;
+  } else if (prefs.goal === "define-waist") {
+    goalScore = items.some((item) => /fitted|belt|cinch/i.test(`${item.fit} ${item.description}`)) ? 1 : 0.5;
   }
-  if (prefs.goal === "define-waist") {
-    return items.some((item) => /fitted|belt|cinch/i.test(`${item.fit} ${item.description}`)) ? 1 : 0.5;
-  }
-  return 0.75;
+  return clamp01(goalScore + feedbackAdjustment(items.map((item) => item.id), feedback));
 }
 
-export function scoreOutfit(items: Item[], prefs: StylePreferences): OutfitScoreBreakdown {
+export function scoreOutfit(items: Item[], prefs: StylePreferences, feedback: OutfitFeedbackEvent[] = []): OutfitScoreBreakdown {
   const compatibility = compatibilityScore(items);
   const palette = paletteScore(items);
   const silhouette = silhouetteScore(items);
   const formality = formalityScore(items, prefs);
   const style = styleScore(items);
   const footwear = footwearScore(items);
-  const preference = preferenceScore(items, prefs);
+  const preference = preferenceScore(items, prefs, feedback);
   const total = clamp01(
     0.28 * compatibility +
     0.16 * palette +
@@ -722,6 +722,7 @@ function bestAccessory(items: Item[], accessories: Item[]): Item | null {
 export type RecommendOptions = {
   extraItems?: Item[];
   preferences?: StylePreferences;
+  feedback?: OutfitFeedbackEvent[];
   candidateLimit?: number;
   catalogItems?: Item[];
 };
@@ -764,7 +765,7 @@ export function recommend(
     for (const combo of cartesian(formula.slots.map((slot) => slot.pool))) {
       const roles = formula.slots.map((slot) => slot.role);
       if (!validateOutfitCandidate(formula.name, combo, roles).valid) continue;
-      const scoreBreakdown = scoreOutfit(combo, prefs);
+      const scoreBreakdown = scoreOutfit(combo, prefs, options.feedback);
       const score = scoreBreakdown.total;
       const cohesion = scoreBreakdown.compatibility;
       const reason = buildReason(formula.name, combo, roles, prefs);

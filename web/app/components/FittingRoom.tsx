@@ -13,6 +13,7 @@ import { useSoundEffects } from "../hooks/useSoundEffects";
 import { useAuth } from "./auth/AuthProvider";
 import AuthDialog from "./auth/AuthDialog";
 import { createClient } from "@/lib/supabase/client";
+import { normalizeOutfitFeedback, type OutfitFeedbackEvent, type OutfitFeedbackSignal } from "@/lib/outfit-feedback";
 
 import AvatarUploadModal from "./AvatarUploadModal";
 
@@ -34,6 +35,8 @@ const RECOMMENDED_KEY = "thelook_recommended_looks_v2";
 const CURRENT_LOOK_KEY = "thelook_current_look_v2";
 const EQUIPPED_KEY = "thelook_equipped_v2";
 const ACTIVE_AV_KEY = "thelook_active_avatar_id";
+const FEEDBACK_KEY = "thelook_outfit_feedback";
+const LOCKS_KEY = "thelook_locked_items";
 
 function userKey(base: string, userId: string) {
   return `${base}:${userId}`;
@@ -71,6 +74,8 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const [activeItem, setActiveItem] = useState<Item | null>(null);
   const [currentLook, setCurrentLook] = useState<Look | null>(null);
   const [recommendedLooks, setRecommendedLooks] = useState<Look[]>([]);
+  const [outfitFeedback, setOutfitFeedback] = useState<OutfitFeedbackEvent[]>([]);
+  const [lockedItemIds, setLockedItemIds] = useState<string[]>([]);
 
   const [avatars, setAvatars] = useState<Avatar[]>([]);
   const [activeAvatarId, setActiveAvatarId] = useState<string | null>(null);
@@ -295,6 +300,24 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       setPreferences(cached);
     }
 
+    // Outfit feedback — server is canonical, localStorage remains an offline fallback.
+    const cachedFeedback = normalizeOutfitFeedback(JSON.parse(localStorage.getItem(userKey(FEEDBACK_KEY, user.id)) ?? "[]"));
+    try {
+      const feedbackResponse = await fetch("/api/feedback");
+      if (feedbackResponse.ok) {
+        const body = await feedbackResponse.json() as { feedback?: OutfitFeedbackEvent[] };
+        const feedback = normalizeOutfitFeedback(body.feedback);
+        setOutfitFeedback(feedback);
+        safeSetStorage(userKey(FEEDBACK_KEY, user.id), JSON.stringify(feedback));
+      } else {
+        setOutfitFeedback(cachedFeedback);
+      }
+    } catch {
+      setOutfitFeedback(cachedFeedback);
+    }
+    const cachedLocks = JSON.parse(localStorage.getItem(userKey(LOCKS_KEY, user.id)) ?? "[]") as unknown;
+    setLockedItemIds(Array.isArray(cachedLocks) ? cachedLocks.filter((id): id is string => typeof id === "string") : []);
+
     // Saved looks
     try {
       const res = await fetch("/api/looks");
@@ -333,6 +356,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       setActiveItem(null);
       setCurrentLook(null);
       setRecommendedLooks([]);
+      setLockedItemIds([]);
     } else {
       // Restore suggestions, current look, and equipped outfit across tab switches and reloads
       try {
@@ -639,12 +663,58 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     if (activeItem?.id === item.id) setActiveItem(null);
   }
 
+  function toggleItemLock(itemId: string) {
+    setLockedItemIds((previous) => {
+      const next = previous.includes(itemId) ? previous.filter((id) => id !== itemId) : [...previous, itemId];
+      if (user) safeSetStorage(userKey(LOCKS_KEY, user.id), JSON.stringify(next));
+      return next;
+    });
+  }
+
+  function feedbackForLook(look: Look | null): OutfitFeedbackSignal | null {
+    if (!look) return null;
+    const signature = look.items.map((item) => item.id).sort().join("|");
+    const event = [...outfitFeedback].reverse().find((entry) => [...entry.itemIds].sort().join("|") === signature);
+    return event?.signal ?? null;
+  }
+
+  function submitLookFeedback(signal: OutfitFeedbackSignal) {
+    if (!currentLook || !user) return;
+    const event: OutfitFeedbackEvent = {
+      id: crypto.randomUUID(),
+      itemIds: currentLook.items.map((item) => item.id),
+      signal,
+      createdAt: Date.now(),
+    };
+    const next = normalizeOutfitFeedback([...outfitFeedback, event]);
+    setOutfitFeedback(next);
+    safeSetStorage(userKey(FEEDBACK_KEY, user.id), JSON.stringify(next));
+    void fetch("/api/feedback", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(event),
+    });
+    showToast(signal === "like" ? "Saved — recommendations will learn from this look" : "Noted — similar combinations will rank lower");
+  }
+
+  function swapLookRole(role: string) {
+    if (!currentLook) return;
+    const anchors = currentLook.items.filter((_item, index) => currentLook.roles[index] !== role).map((item) => item.id);
+    setLockedItemIds(anchors);
+    if (user) safeSetStorage(userKey(LOCKS_KEY, user.id), JSON.stringify(anchors));
+    void generateOutfit(anchors);
+  }
+
   // Deterministic constructor creates five grounded candidates. Gemini Vision
   // can rerank/explain them, but a failure always falls back to deterministic results.
-  async function generateOutfit() {
-    const anchorIds = equipped.length > 0
-      ? equipped.map((i) => i.id)
-      : activeItem ? [activeItem.id] : [catalog[0]?.id].filter(Boolean) as string[];
+  async function generateOutfit(anchorOverride?: string[]) {
+    const anchorIds = anchorOverride?.length
+      ? anchorOverride
+      : lockedItemIds.length
+        ? lockedItemIds
+        : equipped.length > 0
+          ? equipped.map((i) => i.id)
+          : activeItem ? [activeItem.id] : [catalog[0]?.id].filter(Boolean) as string[];
     if (anchorIds.length === 0) return;
     setIsGenerating(true);
     setGenerateError(null);
@@ -655,7 +725,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ anchors: anchorIds, wardrobeItems: userItems, preferences }),
+        body: JSON.stringify({ anchors: anchorIds, wardrobeItems: userItems, preferences, feedback: outfitFeedback }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -943,6 +1013,11 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
             onSelectLook={chooseRecommendedLook}
             onClearSuggestions={clearSuggestions}
             onClearAll={clearAllEquipped}
+            feedbackSignal={feedbackForLook(currentLook)}
+            lockedItemIds={lockedItemIds}
+            onFeedback={submitLookFeedback}
+            onToggleLock={toggleItemLock}
+            onSwapRole={swapLookRole}
           />
         </div>
         <WardrobeCatalog

@@ -20,6 +20,8 @@
     "lib/garment-semantics.test.ts",
     "lib/wardrobe-analysis.ts",
     "lib/wardrobe-analysis.test.ts",
+    "lib/outfit-feedback.ts",
+    "lib/outfit-feedback.test.ts",
     "data/*.json"
   ]
 }

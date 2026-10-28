@@ -1,5 +1,6 @@
 "use client";
 
+import type { OutfitFeedbackSignal } from "@/lib/outfit-feedback";
 import { isClosedOuterOrMid, type Item, type Look, type StylePreferences } from "@/lib/recommend";
 
 function lookQualityBadge(look: Look): { label: string; tone: string } {
@@ -39,6 +40,11 @@ type Props = {
   onSelectLook: (look: Look) => void;
   onClearSuggestions?: () => void;
   onClearAll?: () => void;
+  feedbackSignal: OutfitFeedbackSignal | null;
+  lockedItemIds: string[];
+  onFeedback: (signal: OutfitFeedbackSignal) => void;
+  onToggleLock: (itemId: string) => void;
+  onSwapRole: (role: string) => void;
 };
 
 export default function WearingPanel({
@@ -57,6 +63,11 @@ export default function WearingPanel({
   onSelectLook,
   onClearSuggestions,
   onClearAll,
+  feedbackSignal,
+  lockedItemIds,
+  onFeedback,
+  onToggleLock,
+  onSwapRole,
 }: Props) {
   return (
     <section className="flex flex-col rounded-3xl border border-[#E8E3DB] bg-white shadow-sm overflow-hidden">
@@ -241,6 +252,16 @@ export default function WearingPanel({
                     {isAccent ? "Style accent · Not rendered on photo" : `${item.palette} · ${item.fit ?? "regular"} fit`}
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => onToggleLock(item.id)}
+                  aria-pressed={lockedItemIds.includes(item.id)}
+                  aria-label={`${lockedItemIds.includes(item.id) ? "Unlock" : "Lock"} ${item.title}`}
+                  title={lockedItemIds.includes(item.id) ? "Keep this item in the next generation" : "Lock this item"}
+                  className={`shrink-0 rounded-lg px-1.5 py-1 text-[10px] font-semibold transition ${lockedItemIds.includes(item.id) ? "bg-[#1A1A1A] text-white" : "text-[#8A8480] hover:bg-[#E8E3DB]"}`}
+                >
+                  {lockedItemIds.includes(item.id) ? "Locked" : "Lock"}
+                </button>
                 <button onClick={() => onRemove(item)} aria-label={`Remove ${item.title}`} className="shrink-0 rounded-lg p-1 text-[#8A8480] hover:bg-[#E8E3DB] hover:text-[#1A1A1A] transition">
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -308,6 +329,35 @@ export default function WearingPanel({
             </div>
             {currentLook.stylistTitle && <p className="mb-1 text-sm font-semibold text-[#1A1A1A]">{currentLook.stylistTitle}</p>}
             <p className="text-xs leading-relaxed text-[#1A1A1A]/80">{currentLook.reason}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => onFeedback("like")}
+                aria-pressed={feedbackSignal === "like"}
+                className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold transition ${feedbackSignal === "like" ? "border-emerald-300 bg-emerald-50 text-emerald-700" : "border-[#E8E3DB] bg-white text-[#8A8480]"}`}
+              >
+                ✓ Wear this
+              </button>
+              <button
+                type="button"
+                onClick={() => onFeedback("dislike")}
+                aria-pressed={feedbackSignal === "dislike"}
+                className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold transition ${feedbackSignal === "dislike" ? "border-rose-300 bg-rose-50 text-rose-700" : "border-[#E8E3DB] bg-white text-[#8A8480]"}`}
+              >
+                ✕ Not my style
+              </button>
+              {[...new Set(currentLook.roles)].filter((role) => role !== "accessory").map((role) => (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => onSwapRole(role)}
+                  disabled={isGenerating}
+                  className="rounded-full border border-[#D9C6A8] bg-[#FBF8F1] px-2.5 py-1 text-[10px] font-semibold capitalize text-[#735F43] transition hover:bg-[#EDE5D8] disabled:opacity-50"
+                >
+                  Swap {role}
+                </button>
+              ))}
+            </div>
             {stylistWarning && (
               <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] text-amber-800">
                 Visual judge note: {stylistWarning}
