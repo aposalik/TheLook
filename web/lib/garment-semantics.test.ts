@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  buildReason,
   inferLegacyGarmentSemantics,
   normalizeGarmentSemantics,
   scoreOutfit,
@@ -37,6 +38,7 @@ test("normalizes rich garment semantics and discards unsupported values", () => 
     length: "regular",
     isLoungewear: false,
     isSubstantialLayer: false,
+    inferenceConfidence: "high",
     unexpected: "ignored",
   }), {
     garmentType: "button-up-shirt",
@@ -52,6 +54,7 @@ test("normalizes rich garment semantics and discards unsupported values", () => 
     length: "regular",
     isLoungewear: false,
     isSubstantialLayer: false,
+    inferenceConfidence: "high",
   });
 
   assert.deepEqual(normalizeGarmentSemantics({
@@ -79,6 +82,18 @@ test("infers conservative semantics for legacy wardrobe records", () => {
   assert.equal(inferred.collarType, "point");
   assert.equal(inferred.layerRole, "base");
   assert.equal(inferred.isSubstantialLayer, false);
+
+  const knit = inferLegacyGarmentSemantics(item({
+    id: "legacy-knit",
+    slot: "top",
+    title: "Medium-weight cable knit V-neck sweater",
+    category: "upper",
+    layer: "mid",
+  }));
+  assert.equal(knit.garmentType, "sweater");
+  assert.equal(knit.collarType, "v-neck");
+  assert.equal(knit.closure, "pullover");
+  assert.equal(knit.fabric, "knit");
 });
 
 test("rejects two lightweight collared shirts using semantics rather than title keywords", () => {
@@ -198,4 +213,104 @@ test("semantic loungewear and isolated accent footwear affect validity and ranki
 
   const preferences = { occasion: "casual" as const, gender: "men" as const, goal: "balanced" as const };
   assert.ok(scoreOutfit([shirt, trouser, neutralShoe], preferences).total > scoreOutfit([shirt, trouser, redShoe], preferences).total);
+});
+
+test("allows a collared shirt beneath a medium-weight v-neck knit", () => {
+  const shirt = item({
+    id: "striped-shirt",
+    slot: "top",
+    title: "Striped button-up",
+    category: "upper",
+    layer: "base",
+    formality: 3,
+    semantics: {
+      garmentType: "button-up-shirt",
+      pattern: "stripe",
+      collarType: "point",
+      fabricWeight: "light",
+      layerRole: "base",
+      silhouetteVolume: "medium",
+    },
+  });
+  const sweater = item({
+    id: "v-neck-knit",
+    slot: "top",
+    slots: ["top", "outerwear"],
+    title: "Cable-knit V-neck sweater",
+    category: "upper",
+    layer: "mid",
+    formality: 3,
+    semantics: {
+      garmentType: "sweater",
+      fabric: "knit",
+      fabricWeight: "medium",
+      collarType: "v-neck",
+      closure: "pullover",
+      layerRole: "mid",
+      silhouetteVolume: "medium",
+      isSubstantialLayer: true,
+    },
+  });
+  const trousers = item({ id: "trousers", slot: "bottom", title: "Pleated trousers", category: "bottom", formality: 3 });
+
+  const result = validateOutfitCandidate("Layered", [shirt, sweater, trousers], ["base", "overshirt", "bottom"]);
+  assert.equal(result.valid, true, result.violations.join(", "));
+
+  const plainCrew = item({
+    ...sweater,
+    id: "crew-knit",
+    title: "Crew-neck sweater",
+    semantics: { ...sweater.semantics, collarType: "crew" },
+  });
+  const preferences = { occasion: "work" as const, gender: "men" as const, goal: "balanced" as const };
+  assert.ok(
+    scoreOutfit([shirt, sweater, trousers], preferences).total > scoreOutfit([shirt, plainCrew, trousers], preferences).total,
+    "a v-neck knit should receive a neckline-geometry bonus over a collared shirt",
+  );
+  assert.match(
+    buildReason("Layered", [shirt, sweater, trousers], ["base", "overshirt", "bottom"], preferences),
+    /V-neck frames the shirt collar/i,
+  );
+});
+
+test("rejects a hoodie beneath a pullover knit", () => {
+  const hoodie = item({
+    id: "hoodie",
+    slot: "top",
+    title: "Embroidered bear hoodie",
+    category: "upper",
+    layer: "base",
+    semantics: {
+      garmentType: "hoodie",
+      collarType: "hood",
+      fabric: "fleece",
+      fabricWeight: "heavy",
+      layerRole: "base",
+      silhouetteVolume: "high",
+      isLoungewear: true,
+    },
+  });
+  const sweater = item({
+    id: "sweater",
+    slot: "top",
+    slots: ["top", "outerwear"],
+    title: "Cable-knit V-neck sweater",
+    category: "upper",
+    layer: "mid",
+    semantics: {
+      garmentType: "sweater",
+      collarType: "v-neck",
+      closure: "pullover",
+      fabric: "knit",
+      fabricWeight: "medium",
+      layerRole: "mid",
+      silhouetteVolume: "medium",
+    },
+  });
+  const trousers = item({ id: "trousers", slot: "bottom", title: "Pleated trousers", category: "bottom" });
+
+  const result = validateOutfitCandidate("Layered", [hoodie, sweater, trousers], ["base", "overshirt", "bottom"]);
+  assert.equal(result.valid, false);
+  assert.ok(result.violations.includes("hood-under-pullover-layer"));
+  assert.ok(result.violations.includes("bulky-base-under-lighter-layer"));
 });

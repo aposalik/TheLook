@@ -51,7 +51,8 @@ Required schema:
     "silhouetteVolume": "low|medium|high",
     "length": "cropped|regular|long",
     "isLoungewear": false,
-    "isSubstantialLayer": false
+    "isSubstantialLayer": false,
+    "inferenceConfidence": "low|medium|high"
   }
 }
 Rules:
@@ -62,6 +63,13 @@ Rules:
 - Set canWearOpen only for a visible button, zip, or open-front construction.
 - Set isSubstantialLayer only when fabric weight and construction can realistically support another upper beneath it.
 - Set isLoungewear for sweatpants, lounge pants, and similar athletic-home bottoms.
+- Treat neckline/collar geometry as functional evidence: distinguish v-neck, crew, point collar, turtleneck, zip-neck, and hood precisely.
+- A pullover sweater is normally a mid layer when it has enough room for a light tee or shirt; it is not open outerwear.
+- A V-neck knit can intentionally reveal a collared shirt beneath it. Record collarType "v-neck", closure "pullover", fabric "knit", and realistic weight/volume.
+- A hoodie has collarType "hood" and usually medium/high volume. Do not describe it as a suitable base beneath a fitted pullover knit.
+- Infer fabric weight and silhouette volume independently. Thick cable knit, fleece, and bulky hood constructions are not light layers.
+- If age/fit context is uncertain from the image, keep the title factual and omit unsupported claims such as "children's" or "adult".
+- Set inferenceConfidence from image evidence quality. Use low when neckline, construction, weight, or intended use is occluded or genuinely ambiguous.
 - The upload UI hint is '${rowHint}', but visual evidence wins.`,
       temperature: 0.05,
     });

@@ -19,6 +19,7 @@ const CLOSURES = ["none", "buttons", "zip", "pullover", "open-front", "other"] a
 const LAYER_ROLES = ["base", "mid", "outer"] as const;
 const SILHOUETTE_VOLUMES = ["low", "medium", "high"] as const;
 const GARMENT_LENGTHS = ["cropped", "regular", "long"] as const;
+const INFERENCE_CONFIDENCE = ["low", "medium", "high"] as const;
 
 export type GarmentSemantics = {
   garmentType?: (typeof GARMENT_TYPES)[number];
@@ -34,6 +35,7 @@ export type GarmentSemantics = {
   length?: (typeof GARMENT_LENGTHS)[number];
   isSubstantialLayer?: boolean;
   isLoungewear?: boolean;
+  inferenceConfidence?: (typeof INFERENCE_CONFIDENCE)[number];
 };
 
 function enumValue<const T extends readonly string[]>(value: unknown, allowed: T): T[number] | undefined {
@@ -55,6 +57,7 @@ export function normalizeGarmentSemantics(value: unknown): GarmentSemantics {
     layerRole: enumValue(raw.layerRole, LAYER_ROLES),
     silhouetteVolume: enumValue(raw.silhouetteVolume, SILHOUETTE_VOLUMES),
     length: enumValue(raw.length, GARMENT_LENGTHS),
+    inferenceConfidence: enumValue(raw.inferenceConfidence, INFERENCE_CONFIDENCE),
   };
   for (const [key, fieldValue] of Object.entries(fields)) {
     if (fieldValue !== undefined) (normalized as Record<string, unknown>)[key] = fieldValue;
@@ -207,7 +210,11 @@ export function inferLegacyGarmentSemantics(item: Item): GarmentSemantics {
     : /cotton/.test(text) ? "cotton"
     : undefined;
   const substantialType = ["overshirt", "cardigan", "bomber-jacket", "jacket", "blazer", "coat"].includes(garmentType);
-  const closure = /button/.test(text) ? "buttons" : /zip/.test(text) ? "zip" : substantialType ? "open-front" : "none";
+  const closure = /button/.test(text) ? "buttons"
+    : /zip/.test(text) ? "zip"
+    : garmentType === "sweater" || garmentType === "hoodie" ? "pullover"
+    : substantialType ? "open-front"
+    : "none";
   const layerRole = item.category === "upper" && (item.layer === "base" || item.layer === "mid" || item.layer === "outer") ? item.layer : undefined;
   return normalizeGarmentSemantics({
     garmentType,
@@ -218,6 +225,8 @@ export function inferLegacyGarmentSemantics(item: Item): GarmentSemantics {
     collarType: garmentType === "button-up-shirt" || garmentType === "overshirt" ? (/camp collar/.test(text) ? "camp" : "point")
       : garmentType === "blazer" || garmentType === "coat" ? "lapel"
       : garmentType === "hoodie" ? "hood"
+      : /v[ -]?neck/.test(text) ? "v-neck"
+      : /turtleneck|roll neck/.test(text) ? "turtleneck"
       : garmentType === "t-shirt" || garmentType === "sweater" ? "crew"
       : "none",
     closure,
@@ -282,6 +291,21 @@ export function isClosedOuterOrMid(item: Item): boolean {
   return /pullover|crewneck|sweater|knit|hoodie|bomber|anorak/.test(text);
 }
 
+function isPulloverLayer(item: Item): boolean {
+  if (item.semantics?.closure) return item.semantics.closure === "pullover";
+  return /pullover|sweater|jumper|crewneck|v-neck|knit/.test(itemText(item)) && !/cardigan|zip|button/.test(itemText(item));
+}
+
+function hasHood(item: Item): boolean {
+  return item.semantics?.collarType === "hood" || item.semantics?.garmentType === "hoodie" || /hoodie|hooded/.test(itemText(item));
+}
+
+function layerBulk(item: Item): number {
+  const weight = { light: 0, medium: 1, heavy: 2 }[item.semantics?.fabricWeight ?? "light"];
+  const volume = { low: 0, medium: 1, high: 2 }[item.semantics?.silhouetteVolume ?? "medium"];
+  return weight + volume;
+}
+
 function isBrightIsolatedAccentShoe(shoe: Item, core: Item[]): boolean {
   const text = itemText(shoe);
   const c = rgb(shoe.color);
@@ -322,6 +346,15 @@ function metadataCompat(a: Item, b: Item): number {
   if (seasonsA.size && (b.seasons ?? []).some((s) => seasonsA.has(s) || s === "all-season")) score += 0.05;
   const stylesA = new Set(a.styles ?? []);
   if (stylesA.size && (b.styles ?? []).some((s) => stylesA.has(s))) score += 0.07;
+  const collared = isCollaredShirt(a) ? a : isCollaredShirt(b) ? b : undefined;
+  const knitLayer = collared === a ? b : collared === b ? a : undefined;
+  if (
+    collared && knitLayer &&
+    knitLayer.semantics?.garmentType === "sweater" &&
+    knitLayer.semantics?.collarType === "v-neck"
+  ) {
+    score += 0.08;
+  }
   return Math.max(0, Math.min(1, score));
 }
 
@@ -682,6 +715,12 @@ export function validateOutfitCandidate(formula: string, items: Item[], roles: s
     if (basePat !== "solid" && layerPat !== "solid") {
       violations.push("competing-upper-patterns");
     }
+    if (hasHood(base) && isPulloverLayer(layeredUpper)) {
+      violations.push("hood-under-pullover-layer");
+    }
+    if (layerBulk(base) > layerBulk(layeredUpper)) {
+      violations.push("bulky-base-under-lighter-layer");
+    }
   }
 
   const uppers = items.filter((item) => isUpperItem(item));
@@ -702,6 +741,11 @@ export function buildReason(formula: string, items: Item[], roles: string[], pre
         ? `${name("dress")} with ${name("shoes")}`
         : `${name("top")} with ${name("bottom")}`;
   const why: string[] = [];
+  const base = items[roles.indexOf("base")];
+  const layer = items[roles.indexOf("overshirt")] ?? items[roles.indexOf("outer")];
+  if (base && layer && isCollaredShirt(base) && layer.semantics?.collarType === "v-neck") {
+    why.push("the V-neck frames the shirt collar");
+  }
   if (items.filter((i) => i.color_role === "accent").length <= 1) why.push("controlled color balance");
   const fs = items.map((i) => i.formality ?? 2);
   if (Math.max(...fs) - Math.min(...fs) <= 1) why.push("consistent formality");

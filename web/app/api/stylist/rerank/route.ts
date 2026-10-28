@@ -42,7 +42,9 @@ export async function POST(req: NextRequest) {
       deterministicScore: Number(look.score.toFixed(3)),
       deterministicScores: Object.fromEntries(Object.entries(look.scoreBreakdown).map(([name, score]) => [name, Number(score.toFixed(3))])),
       roles: look.roles,
-      items: look.items.map(({ id, title, category, subcategory, color, palette, layer, fit, formality, styles, seasons }) => ({ id, title, category, subcategory, color, palette, layer, fit, formality, styles, seasons })),
+      items: look.items.map(({ id, title, category, subcategory, color, palette, layer, fit, formality, styles, seasons, material, semantics }) => ({
+        id, title, category, subcategory, color, palette, layer, fit, formality, styles, seasons, material, semantics,
+      })),
     }));
     const imageOrder = imageItems.map((item, index) => ({ image: index + 1, itemId: item.id, title: item.title }));
 
@@ -55,6 +57,11 @@ RULES:
 - Never invent, remove, rename, or move a product.
 - Never overrule deterministic constraints or scores; use them as evidence.
 - Use verdict "reject" only for a visible styling conflict serious enough that the look should not be shown.
+- Judge physical layer grammar before aesthetics: neckline/collar geometry, closure, fabric weight, and silhouette volume must make sense together.
+- Prefer a light collared shirt under a medium-weight V-neck knit when palette and formality also cohere; the visible collar is intentional.
+- Reject a hoodie beneath a pullover sweater/knit because the hood and fleece bulk cannot sit cleanly under the closed neckline.
+- Reject a base whose combined fabric weight and silhouette volume exceed the layer worn over it.
+- Do not infer child/adult fit or branding unless visibly supported; describe uncertainty rather than inventing evidence.
 - preferredSwapRole must be one role listed on that candidate, or "none".
 - Each visual score must be a number from 0 to 1.
 - Rank values must be unique integers from 1 through the candidate count.
