@@ -4,7 +4,7 @@ import { inferSmartUpperSlots, type Item } from "@/lib/recommend";
 
 import type { RowKey as AddModeKey } from "./AddItemModal";
 
-type RowKey = "innerwear" | "tops" | "outerwear" | "bottoms" | "accessories";
+type RowKey = "tops" | "bottoms" | "dresses" | "shoes" | "accessories";
 type Row = { key: RowKey; label: string; hint: string; display: "rack" | "shelf"; items: Item[] };
 
 const DEMO_HIDDEN_KEY = "thelook_demo_hidden";
@@ -48,6 +48,21 @@ function itemSlotLabel(item: Item): string {
   return slots.join(" · ");
 }
 
+function primaryCategory(item: Item): RowKey {
+  const slots = effectiveSlots(item);
+  if (item.category === "dress" || slots.includes("dress")) return "dresses";
+  if (item.category === "bottom" || slots.includes("bottom")) return "bottoms";
+  if (item.category === "shoe" || slots.includes("shoe")) return "shoes";
+  if (item.category === "accessory" || slots.includes("accessory")) return "accessories";
+  return "tops";
+}
+
+function styleRoleLabel(item: Item): string {
+  if (item.layer === "base" || effectiveSlots(item).includes("innerwear")) return "Base layer";
+  if (item.layer === "outer" || item.layer === "mid" || effectiveSlots(item).includes("outerwear")) return "Layering piece";
+  return "Standalone";
+}
+
 function itemHasInnerwearSlot(it: Item): boolean {
   return effectiveSlots(it).includes("innerwear");
 }
@@ -77,30 +92,9 @@ function itemHasAccessoryOrDressSlot(it: Item): boolean {
 }
 
 function partition(all: Item[]): Record<RowKey, Item[]> {
-  const innerwear: Item[] = [], tops: Item[] = [], outerwear: Item[] = [], bottoms: Item[] = [], accessories: Item[] = [];
-  for (const it of all) {
-    let matched = false;
-    if (itemHasInnerwearSlot(it)) {
-      innerwear.push(it);
-      matched = true;
-    }
-    if (itemHasTopSlot(it)) {
-      tops.push(it);
-      matched = true;
-    }
-    if (itemHasOuterwearSlot(it)) {
-      outerwear.push(it);
-      matched = true;
-    }
-    if (itemHasBottomSlot(it)) {
-      bottoms.push(it);
-      matched = true;
-    }
-    if (itemHasAccessoryOrDressSlot(it) || !matched) {
-      accessories.push(it);
-    }
-  }
-  return { innerwear, tops, outerwear, bottoms, accessories };
+  const rows: Record<RowKey, Item[]> = { tops: [], bottoms: [], dresses: [], shoes: [], accessories: [] };
+  for (const item of all) rows[primaryCategory(item)].push(item);
+  return rows;
 }
 
 export default function WardrobeCatalog({
@@ -134,11 +128,11 @@ export default function WardrobeCatalog({
   const rows: Row[] = useMemo(() => {
     const p = partition(merged);
     return [
-      { key: "innerwear", label: "Innerwear & Base Tees", hint: "base tees · tanks · undershirts worn under layers", display: "rack", items: p.innerwear },
-      { key: "tops", label: "Tops & Shirts", hint: "button-ups · sweaters · polos · standalone tops", display: "rack", items: p.tops },
-      { key: "outerwear", label: "Outerwear & Layers", hint: "jackets · overshirts · cardigans · hoodies · open layers", display: "rack", items: p.outerwear },
+      { key: "tops", label: "Tops", hint: "tees · shirts · sweaters · polos · jackets", display: "rack", items: p.tops },
       { key: "bottoms", label: "Bottoms", hint: "trousers · jeans · skirts", display: "rack", items: p.bottoms },
-      { key: "accessories", label: "Shoes & accessories", hint: "shoes · bags · belts", display: "shelf", items: p.accessories },
+      { key: "dresses", label: "Dresses", hint: "one-piece looks", display: "rack", items: p.dresses },
+      { key: "shoes", label: "Shoes", hint: "sneakers · boots · loafers · heels", display: "shelf", items: p.shoes },
+      { key: "accessories", label: "Accessories", hint: "bags · belts · jewelry · scarves", display: "shelf", items: p.accessories },
     ];
   }, [merged]);
 
@@ -151,7 +145,7 @@ export default function WardrobeCatalog({
         <header className="flex items-start justify-between gap-4 pb-5 border-b border-[#E8E3DB]">
           <div>
             <h2 className="text-base font-semibold text-[#1A1A1A]">Your wardrobe</h2>
-            <p className="text-xs text-[#8A8480] mt-0.5">Tap a piece to add it to your outfit. Multi-role items appear in each rail they can play (e.g. Innerwear &amp; Top, or Top &amp; Outerwear).</p>
+            <p className="text-xs text-[#8A8480] mt-0.5">Tap a piece to add it to your outfit. Styling roles like base layer or layering piece stay behind the scenes.</p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -217,7 +211,7 @@ function ManageDrawer({
   onAdd: (c: AddModeKey) => void;
   onClose: () => void;
 }) {
-  const [selectedCat, setSelectedCat] = useState<"all" | "innerwear" | "tops" | "outerwear" | "bottoms" | "accessories">("all");
+  const [selectedCat, setSelectedCat] = useState<"all" | RowKey>("all");
   const [selectedGender, setSelectedGender] = useState<"all" | "men" | "women">("all");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -230,17 +224,7 @@ function ManageDrawer({
   const filteredItems = useMemo(() => {
     return userItems.filter((item) => {
       // Category filter
-      if (selectedCat === "innerwear") {
-        if (!itemHasInnerwearSlot(item)) return false;
-      } else if (selectedCat === "tops") {
-        if (!itemHasTopSlot(item)) return false;
-      } else if (selectedCat === "outerwear") {
-        if (!itemHasOuterwearSlot(item)) return false;
-      } else if (selectedCat === "bottoms") {
-        if (!itemHasBottomSlot(item)) return false;
-      } else if (selectedCat === "accessories") {
-        if (!itemHasAccessoryOrDressSlot(item)) return false;
-      }
+      if (selectedCat !== "all" && primaryCategory(item) !== selectedCat) return false;
 
       // Gender filter (strictly men or women)
       if (selectedGender !== "all" && item.gender && item.gender !== selectedGender) {
@@ -353,11 +337,11 @@ function ManageDrawer({
               {(
                 [
                   { id: "all", label: "All Items" },
-                  { id: "innerwear", label: "Innerwear" },
                   { id: "tops", label: "Tops" },
-                  { id: "outerwear", label: "Outerwear" },
                   { id: "bottoms", label: "Bottoms" },
-                  { id: "accessories", label: "Shoes & Accs" },
+                  { id: "dresses", label: "Dresses" },
+                  { id: "shoes", label: "Shoes" },
+                  { id: "accessories", label: "Accessories" },
                 ] as const
               ).map((tab) => (
                 <button
@@ -502,7 +486,7 @@ function ManageDrawer({
                         {item.title}
                       </h3>
                       <p className="text-[10px] text-[#8A8480] capitalize truncate mt-0.5">
-                        {item.palette} · {item.fit ?? "regular fit"}
+                        {item.palette} · {item.fit ?? "regular fit"} · {styleRoleLabel(item)}
                       </p>
 
                       {/* Multi-role category pills (1 to 3 roles) */}
@@ -846,7 +830,7 @@ function HangingItem({ item, index, equipped, isUserOwned, isDemo, onToggle }: {
         </div>
         <div className="mt-2 w-full text-center">
           <p className={`truncate text-[12px] font-semibold ${equipped ? "text-[#1A1A1A]" : "text-[#2A2622]"}`}>{item.title}</p>
-          <p className="truncate text-[10px] uppercase tracking-wide text-[#8A8480]">{itemSlotLabel(item)}{item.palette ? ` · ${item.palette}` : ""}</p>
+          <p className="truncate text-[10px] tracking-wide text-[#8A8480]">{styleRoleLabel(item)}{item.palette ? ` · ${item.palette}` : ""}</p>
           {equipped && (
             <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-[#1A1A1A]">
               <span className="h-1.5 w-1.5 rounded-full bg-[#1A1A1A]" /> in look
@@ -896,7 +880,7 @@ function ShelfItem({ item, equipped, isUserOwned, isDemo, onToggle }: {
         </div>
         <div className="mt-2 w-full text-center">
           <p className={`truncate text-[12px] font-semibold ${equipped ? "text-[#1A1A1A]" : "text-[#2A2622]"}`}>{item.title}</p>
-          <p className="truncate text-[10px] uppercase tracking-wide text-[#8A8480]">{itemSlotLabel(item)}{item.palette ? ` · ${item.palette}` : ""}</p>
+          <p className="truncate text-[10px] tracking-wide text-[#8A8480]">{styleRoleLabel(item)}{item.palette ? ` · ${item.palette}` : ""}</p>
           {equipped && (
             <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-[#1A1A1A]">
               <span className="h-1.5 w-1.5 rounded-full bg-[#1A1A1A]" /> in look
