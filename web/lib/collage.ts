@@ -8,6 +8,30 @@ const CUTOUTS = path.join(process.cwd(), "public", "cutouts");
 const W = 768, H = 1024;
 
 export type CollageInput = string | { id: string; image?: string };
+export type UpperCollagePlacement = {
+  widthRatio: number;
+  heightRatio: number;
+  leftRatio: number;
+  topRatio: number;
+};
+
+export function upperCollageLayout(count: number, _width = W, _height = H): UpperCollagePlacement[] {
+  void _width;
+  void _height;
+  if (count <= 0) return [];
+  return Array.from({ length: count }, (_, index) => {
+    if (count === 1) {
+      return { widthRatio: 0.88, heightRatio: 0.8, leftRatio: 0.06, topRatio: 0.1 };
+    }
+    const isBase = index === 0;
+    return {
+      widthRatio: isBase ? 0.8 : Math.max(0.66, 0.74 - (index - 1) * 0.06),
+      heightRatio: isBase ? 0.8 : 0.76,
+      leftRatio: isBase ? 0.06 : 0.24 + (index - 1) * 0.06,
+      topRatio: isBase ? 0.03 : 0.13 + (index - 1) * 0.06,
+    };
+  });
+}
 
 async function bytesFor(input: CollageInput): Promise<Buffer> {
   if (typeof input === "string") return readFile(path.join(CUTOUTS, `${input}.png`));
@@ -24,22 +48,31 @@ async function bytesFor(input: CollageInput): Promise<Buffer> {
 export async function buildUpperCollage(inputs: CollageInput[]): Promise<Buffer> {
   const layers: { input: Buffer; left: number; top: number }[] = [];
   // inputs is sorted by LAYER_RANK: [base (inner), mid, outer]
-  // In sharp composition, layers are composited in array order:
-  // layer 0 is placed first (base inner layer), layer 1 drapes over it (outer/mid layer).
-  for (let i = 0; i < inputs.length; i++) {
+  // Visibility-oriented layered layout:
+  // Keep the base shirt's collar, chest pattern, and upper torso clearly exposed
+  // by placing later layers slightly narrower and offset lower/right rather than
+  // occluding 94% of the canvas dead-center.
+  const count = inputs.length;
+  const layout = upperCollageLayout(count, W, H);
+  for (let i = 0; i < count; i++) {
     const input = inputs[i]!;
-    const isBase = i === 0 && inputs.length > 1;
-    // Base inner layer is fitted neatly inside (~82% width); outer layer drapes broader (~94% width)
-    const targetWidth = isBase ? Math.round(W * 0.82) : Math.round(W * 0.94);
-    const targetHeight = isBase ? Math.round(H * 0.78) : Math.round(H * 0.84);
-    const top = isBase ? Math.round(H * 0.05) : Math.round(H * 0.035);
+    const placement = layout[i]!;
+    const targetWidth = Math.round(W * placement.widthRatio);
+    const targetHeight = Math.round(H * placement.heightRatio);
 
     const resized = await sharp(await bytesFor(input))
       .trim()
       .resize({ width: targetWidth, height: targetHeight, fit: "inside" })
       .toBuffer({ resolveWithObject: true });
 
-    const left = Math.round((W - resized.info.width) / 2);
+    const top = count === 1
+      ? Math.round((H - resized.info.height) / 2)
+      : Math.round(H * placement.topRatio);
+    const desiredLeft = Math.round(W * placement.leftRatio);
+    const left = count === 1
+      ? Math.round((W - resized.info.width) / 2)
+      : Math.max(16, Math.min(W - resized.info.width - 16, desiredLeft));
+
     layers.push({ input: resized.data, left, top });
   }
 

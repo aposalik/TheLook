@@ -862,9 +862,25 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
           items: itemsPayload,
         }),
       });
-      const data = await res.json();
+      const data = await res.json() as {
+        error?: string;
+        renderPath?: string;
+        resultUrl?: string;
+        mock?: boolean;
+        renderedItemIds?: string[];
+        layerWarning?: string | null;
+      };
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      const expectedRenderableIds = items
+        .filter((item) => !["shoe", "accessory"].includes(item.category ?? item.slot))
+        .map((item) => item.id);
+      if (Array.isArray(data.renderedItemIds)) {
+        const renderedIds = new Set(data.renderedItemIds);
+        const missing = expectedRenderableIds.filter((id) => !renderedIds.has(id));
+        if (missing.length) throw new Error(`Try-on pipeline omitted ${missing.length} selected garment${missing.length === 1 ? "" : "s"}.`);
+      }
 
+      if (typeof data.resultUrl !== "string" || !data.resultUrl) throw new Error("Try-on pipeline returned no result image.");
       setTryOnRenderPath(typeof data.renderPath === "string" ? data.renderPath : null);
       if (data.mock) {
         setMockPreview({ photo, garment: data.resultUrl, title: "your look" });
@@ -872,7 +888,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         setTryOnResult(data.resultUrl);
       }
       sounds.finishTryOn(true);
-      showToast(data.mock ? "Mock preview ready" : "Try-on render complete!");
+      showToast(data.layerWarning ?? (data.mock ? "Mock preview ready" : "Try-on render complete!"));
     } catch (e) {
       sounds.finishTryOn(false);
       const msg = e instanceof Error ? e.message : String(e);

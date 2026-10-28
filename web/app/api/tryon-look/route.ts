@@ -7,14 +7,15 @@ import { buildUpperCollage } from "@/lib/collage";
 import { uploadToStorage, signedUrl } from "@/lib/storage";
 import { reserveQuota, completeJob, failJob, hashIp, trustedIp } from "@/lib/quota";
 import catalog from "@/data/catalog.json";
-import type { Item } from "@/lib/recommend";
+import { isClosedOuterOrMid, type Item } from "@/lib/recommend";
+import { partitionTryOnItems } from "@/lib/tryon-plan";
 import { requireVerifiedAccount } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { dbInsertAvatar } from "@/lib/db";
 
 export const runtime = "nodejs";
 const GARMENTS_DIR = path.join(process.cwd(), "public", "garments");
-const LAYER_RANK: Record<string, number> = { base: 0, mid: 1, outer: 2 };
+const RENDER_PIPELINE_VERSION = "v2-open-layer";
 
 async function resolvePhotoBytes(photoInput: string): Promise<Buffer> {
   if (photoInput.startsWith("http://") || photoInput.startsWith("https://")) {
@@ -64,15 +65,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "unknown item in look" }, { status: 400 });
     }
 
-    const renderable = items.filter((i) => !["shoe", "accessory"].includes(i.category ?? i.slot));
-    const dress = renderable.find((i) => i.slot === "dress" || i.category === "dress");
-    const bottom = renderable.find((i) => i.slot === "bottom" || i.category === "bottom");
-    const uppers = renderable
-      .filter((i) => i.slot === "top" || i.slot === "outerwear" || i.category === "upper")
-      .sort((a, b) => (LAYER_RANK[a.layer ?? "base"] ?? 0) - (LAYER_RANK[b.layer ?? "base"] ?? 0));
+    const { renderable, styleOnly, dress, bottom, uppers } = partitionTryOnItems(items);
     if (!dress && !bottom && !uppers.length) {
       return NextResponse.json({ error: "The look has no renderable clothing" }, { status: 400 });
     }
+    const renderDiagnostics = {
+      pipelineVersion: RENDER_PIPELINE_VERSION,
+      renderedItemIds: renderable.map((item) => item.id),
+      styleOnlyItemIds: styleOnly.map((item) => item.id),
+      upperReferenceItemIds: uppers.map((item) => item.id),
+      layerWarning: uppers.length >= 2 && uppers.some((item) => (item.layer === "mid" || item.layer === "outer") && isClosedOuterOrMid(item))
+        ? "A closed upper layer may visually cover the base garment."
+        : null,
+    };
 
     const rawPhotoBytes = await resolvePhotoBytes(body.photoBase64);
     const userJpeg = await toJpeg(rawPhotoBytes);
@@ -81,7 +86,10 @@ export async function POST(req: NextRequest) {
       .sort().join("|");
     // SHA-256 (64 hex chars) to satisfy the render_jobs fingerprint constraint
     const fingerprint = crypto.createHash("sha256")
-      .update(userJpeg).update(itemFingerprint).digest("hex");
+      .update(RENDER_PIPELINE_VERSION)
+      .update(userJpeg)
+      .update(itemFingerprint)
+      .digest("hex");
     const renderPath = `${userId}/${fingerprint.slice(0, 16)}.jpg`;
 
     // Mock mode — skip quota, write to Storage, return signed URL
@@ -91,7 +99,7 @@ export async function POST(req: NextRequest) {
         : await itemBytes((uppers[0] ?? bottom)!);
       await uploadToStorage("renders", renderPath, await toJpeg(preview), "image/jpeg");
       const url = await signedUrl("renders", renderPath);
-      return NextResponse.json({ resultUrl: url, renderPath, mock: true, steps: ["reference-preview (mock)"] });
+      return NextResponse.json({ resultUrl: url, renderPath, mock: true, steps: ["reference-preview (mock)"], ...renderDiagnostics });
     }
 
     // Quota reservation — atomic check + insert render_job + increment counters
@@ -132,11 +140,17 @@ export async function POST(req: NextRequest) {
     }
 
     const ipHash = hashIp(trustedIp(req));
-    const quota = await reserveQuota(userId, fingerprint, ipHash, avatarId, items.map((i) => ({ id: i.id, slot: i.slot })));
+    const quota = await reserveQuota(
+      userId,
+      fingerprint,
+      ipHash,
+      avatarId,
+      items.map((i) => ({ id: i.id, slot: i.slot })),
+    );
     if (!quota.ok) {
       if (quota.reason === "cached" && quota.cachedPath) {
         const url = await signedUrl("renders", quota.cachedPath);
-        return NextResponse.json({ resultUrl: url, renderPath: quota.cachedPath, cached: true, steps: ["cache"] });
+        return NextResponse.json({ resultUrl: url, renderPath: quota.cachedPath, cached: true, steps: ["cache"], ...renderDiagnostics });
       }
       if (quota.reason === "user_limit") {
         return NextResponse.json(
@@ -204,7 +218,7 @@ export async function POST(req: NextRequest) {
     ]);
 
     const resultSignedUrl = await signedUrl("renders", finalRenderPath);
-    return NextResponse.json({ resultUrl: resultSignedUrl, renderPath: finalRenderPath, steps, remaining: quota.remaining });
+    return NextResponse.json({ resultUrl: resultSignedUrl, renderPath: finalRenderPath, steps, remaining: quota.remaining, ...renderDiagnostics });
 
   } catch (error) {
     // Refund quota if a job was reserved but YouCam failed

@@ -22,6 +22,10 @@
     "lib/wardrobe-analysis.test.ts",
     "lib/outfit-feedback.ts",
     "lib/outfit-feedback.test.ts",
+    "lib/collage.ts",
+    "lib/collage.test.ts",
+    "lib/tryon-plan.ts",
+    "lib/tryon-plan.test.ts",
     "data/*.json"
   ]
 }
