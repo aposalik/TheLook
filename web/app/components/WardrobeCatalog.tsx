@@ -4,15 +4,15 @@ import { inferSmartUpperSlots, type Item } from "@/lib/recommend";
 
 import type { RowKey as AddModeKey } from "./AddItemModal";
 
-type RowKey = "tops" | "bottoms" | "dresses" | "shoes" | "accessories";
+type RowKey = "tops" | "outerwear" | "bottoms" | "dresses" | "shoes" | "accessories";
 type Row = { key: RowKey; label: string; hint: string; display: "rack" | "shelf"; items: Item[] };
 
 const DEMO_HIDDEN_KEY = "thelook_demo_hidden";
 
 const EDITABLE_SLOTS = [
-  { id: "innerwear", label: "Innerwear" },
+  { id: "innerwear", label: "Base layer" },
   { id: "top", label: "Top" },
-  { id: "outerwear", label: "Outerwear" },
+  { id: "outerwear", label: "Layering piece" },
   { id: "bottom", label: "Bottom" },
   { id: "dress", label: "Dress" },
   { id: "shoe", label: "Shoe" },
@@ -43,18 +43,26 @@ function effectiveSlots(item: Item): string[] {
   return [item.slot];
 }
 
-function itemSlotLabel(item: Item): string {
-  const slots = effectiveSlots(item);
-  return slots.join(" · ");
-}
-
 function primaryCategory(item: Item): RowKey {
   const slots = effectiveSlots(item);
   if (item.category === "dress" || slots.includes("dress")) return "dresses";
   if (item.category === "bottom" || slots.includes("bottom")) return "bottoms";
   if (item.category === "shoe" || slots.includes("shoe")) return "shoes";
   if (item.category === "accessory" || slots.includes("accessory")) return "accessories";
+  if (item.layer === "outer" || item.layer === "mid" || slots.includes("outerwear")) return "outerwear";
   return "tops";
+}
+
+function primaryCategoryLabel(item: Item): string {
+  const labels: Record<RowKey, string> = {
+    tops: "Tops",
+    outerwear: "Outerwear",
+    bottoms: "Bottoms",
+    dresses: "Dresses",
+    shoes: "Shoes",
+    accessories: "Accessories",
+  };
+  return labels[primaryCategory(item)];
 }
 
 function styleRoleLabel(item: Item): string {
@@ -63,36 +71,8 @@ function styleRoleLabel(item: Item): string {
   return "Standalone";
 }
 
-function itemHasInnerwearSlot(it: Item): boolean {
-  return effectiveSlots(it).includes("innerwear");
-}
-
-function itemHasTopSlot(it: Item): boolean {
-  return effectiveSlots(it).includes("top");
-}
-
-function itemHasOuterwearSlot(it: Item): boolean {
-  const slots = effectiveSlots(it);
-  return slots.includes("outerwear") || it.layer === "outer" || it.layer === "mid";
-}
-
-function itemHasBottomSlot(it: Item): boolean {
-  const slots = effectiveSlots(it);
-  return it.category === "bottom" || slots.includes("bottom");
-}
-
-function itemHasAccessoryOrDressSlot(it: Item): boolean {
-  const slots = effectiveSlots(it);
-  return (
-    it.category === "shoe" ||
-    it.category === "accessory" ||
-    it.category === "dress" ||
-    slots.some((s) => s === "shoe" || s === "accessory" || s === "dress")
-  );
-}
-
 function partition(all: Item[]): Record<RowKey, Item[]> {
-  const rows: Record<RowKey, Item[]> = { tops: [], bottoms: [], dresses: [], shoes: [], accessories: [] };
+  const rows: Record<RowKey, Item[]> = { tops: [], outerwear: [], bottoms: [], dresses: [], shoes: [], accessories: [] };
   for (const item of all) rows[primaryCategory(item)].push(item);
   return rows;
 }
@@ -128,7 +108,8 @@ export default function WardrobeCatalog({
   const rows: Row[] = useMemo(() => {
     const p = partition(merged);
     return [
-      { key: "tops", label: "Tops", hint: "tees · shirts · sweaters · polos · jackets", display: "rack", items: p.tops },
+      { key: "tops", label: "Tops", hint: "tees · shirts · sweaters · polos", display: "rack", items: p.tops },
+      { key: "outerwear", label: "Outerwear", hint: "jackets · overshirts · cardigans · coats", display: "rack", items: p.outerwear },
       { key: "bottoms", label: "Bottoms", hint: "trousers · jeans · skirts", display: "rack", items: p.bottoms },
       { key: "dresses", label: "Dresses", hint: "one-piece looks", display: "rack", items: p.dresses },
       { key: "shoes", label: "Shoes", hint: "sneakers · boots · loafers · heels", display: "shelf", items: p.shoes },
@@ -338,6 +319,7 @@ function ManageDrawer({
                 [
                   { id: "all", label: "All Items" },
                   { id: "tops", label: "Tops" },
+                  { id: "outerwear", label: "Outerwear" },
                   { id: "bottoms", label: "Bottoms" },
                   { id: "dresses", label: "Dresses" },
                   { id: "shoes", label: "Shoes" },
@@ -477,7 +459,7 @@ function ManageDrawer({
                         )}
                         {/* Category tag */}
                         <span className="absolute top-2 right-2 rounded-full bg-white/90 border border-[#E8E3DB] px-1.5 py-0.5 text-[9px] font-medium text-[#8A8480] uppercase">
-                          {itemSlotLabel(item)}
+                          {primaryCategoryLabel(item)}
                         </span>
                       </div>
 
