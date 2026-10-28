@@ -155,6 +155,38 @@ function cartesian(pools: Item[][]): Item[][] {
   return pools.reduce<Item[][]>((acc, pool) => acc.flatMap((previous) => pool.map((item) => [...previous, item])), [[]]);
 }
 
+type CandidateValidation = { valid: boolean; violations: string[] };
+
+export function validateOutfitCandidate(formula: string, items: Item[], roles: string[]): CandidateValidation {
+  const violations: string[] = [];
+  if (items.length !== roles.length) violations.push("role-item-count-mismatch");
+  if (new Set(items.map((item) => item.id)).size !== items.length) violations.push("duplicate-item");
+
+  const roleItems = new Map(roles.map((role, index) => [role, items[index]]));
+  const bottoms = items.filter((item) => item.category === "bottom" || hasSlot(item, "bottom"));
+  const dresses = items.filter((item) => item.category === "dress" || hasSlot(item, "dress"));
+  const shoes = items.filter((item) => item.category === "shoe" || hasSlot(item, "shoe"));
+  if (dresses.length ? bottoms.length > 0 || dresses.length !== 1 : bottoms.length !== 1) violations.push("invalid-outfit-core");
+  if (shoes.length > 1) violations.push("multiple-shoes");
+
+  const explicitGenders = new Set(items.map((item) => item.gender).filter(Boolean));
+  if (explicitGenders.size > 1) violations.push("mixed-gender-catalog-items");
+
+  const formalities = items.map((item) => item.formality).filter((value): value is number => typeof value === "number");
+  if (formalities.length && Math.max(...formalities) - Math.min(...formalities) >= 3) violations.push("extreme-formality-gap");
+
+  const base = roleItems.get("base");
+  const overshirt = roleItems.get("overshirt");
+  const outer = roleItems.get("outer");
+  const simpleTop = roleItems.get("top");
+  if (formula === "Layered" && (base?.layer === "mid" || base?.layer === "outer")) violations.push("invalid-base-layer");
+  if (formula === "Layered" && overshirt?.layer !== "mid") violations.push("invalid-mid-layer");
+  if (formula === "With layer" && outer?.layer !== "outer") violations.push("invalid-outer-layer");
+  if (formula === "Simple" && (simpleTop?.layer === "mid" || simpleTop?.layer === "outer")) violations.push("layer-piece-used-as-solo-top");
+
+  return { valid: violations.length === 0, violations };
+}
+
 function buildReason(formula: string, items: Item[], roles: string[], prefs: StylePreferences): string {
   const name = (role: string) => items[roles.indexOf(role)]?.title ?? "";
   const core = formula === "Layered"
@@ -205,10 +237,10 @@ export function recommend(
   const shoes = all.filter((i) => i.category === "shoe" || hasSlot(i, "shoe"));
   const accessories = all.filter((i) => i.category === "accessory" || hasSlot(i, "accessory"));
   const dresses = all.filter((i) => i.category === "dress" || hasSlot(i, "dress"));
-  const bases = uppers.filter((i) => hasSlot(i, "innerwear") || hasSlot(i, "top") || (i.layer ?? "base") === "base");
-  const mids = uppers.filter((i) => i.layer === "mid" || (hasSlot(i, "top") && (hasSlot(i, "outerwear") || hasSlot(i, "innerwear"))));
-  const outers = uppers.filter((i) => i.layer === "outer" || hasSlot(i, "outerwear"));
-  const solo = uppers.filter((i) => hasSlot(i, "top") || (i.layer !== "outer" && !hasSlot(i, "innerwear")));
+  const bases = uppers.filter((i) => i.layer === "base" || hasSlot(i, "innerwear") || (!i.layer && hasSlot(i, "top")));
+  const mids = uppers.filter((i) => i.layer === "mid");
+  const outers = uppers.filter((i) => i.layer === "outer");
+  const solo = uppers.filter((i) => i.layer !== "mid" && i.layer !== "outer" && (hasSlot(i, "top") || !hasSlot(i, "innerwear")));
   const shoeSlot = shoes.length ? [{ role: "shoes", pool: shoes }] : [];
   const formulas = [
     ...(bases.length && mids.length && bottoms.length ? [{ name: "Layered", slots: [{ role: "base", pool: bases }, { role: "overshirt", pool: mids }, { role: "bottom", pool: bottoms }, ...shoeSlot] }] : []),
@@ -224,8 +256,8 @@ export function recommend(
   const built: Look[] = [];
   for (const formula of formulas) {
     for (const combo of cartesian(formula.slots.map((slot) => slot.pool))) {
-      if (new Set(combo.map((i) => i.id)).size !== combo.length) continue;
       const roles = formula.slots.map((slot) => slot.role);
+      if (!validateOutfitCandidate(formula.name, combo, roles).valid) continue;
       const { score, cohesion } = scoreOutfit(combo, prefs);
       const reason = buildReason(formula.name, combo, roles, prefs);
       built.push({ formula: formula.name, items: combo, roles, score, cohesion, reason, deterministicReason: reason });
@@ -233,8 +265,7 @@ export function recommend(
   }
 
   const included = (look: Look) => coreAnchors.filter((id) => look.items.some((item) => item.id === id)).length;
-  const maxIncluded = coreAnchors.length ? Math.max(0, ...built.map(included)) : 0;
-  const eligible = coreAnchors.length ? built.filter((look) => included(look) === maxIncluded) : built;
+  const eligible = coreAnchors.length ? built.filter((look) => included(look) === coreAnchors.length) : built;
   eligible.sort((a, b) => b.score - a.score);
 
   const anchorSet = new Set(ids);
