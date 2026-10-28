@@ -15,7 +15,7 @@ import { dbInsertAvatar } from "@/lib/db";
 
 export const runtime = "nodejs";
 const GARMENTS_DIR = path.join(process.cwd(), "public", "garments");
-const RENDER_PIPELINE_VERSION = "v2-open-layer";
+const RENDER_PIPELINE_VERSION = "v6-full-torso-length";
 
 async function resolvePhotoBytes(photoInput: string): Promise<Buffer> {
   if (photoInput.startsWith("http://") || photoInput.startsWith("https://")) {
@@ -146,6 +146,7 @@ export async function POST(req: NextRequest) {
       ipHash,
       avatarId,
       items.map((i) => ({ id: i.id, slot: i.slot })),
+      auth.user!.email,
     );
     if (!quota.ok) {
       if (quota.reason === "cached" && quota.cachedPath) {

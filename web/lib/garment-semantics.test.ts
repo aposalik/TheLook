@@ -3,10 +3,11 @@ import test from "node:test";
 
 import {
   buildReason,
+  buildRollingRack,
   inferLegacyGarmentSemantics,
   normalizeGarmentSemantics,
   recommend,
-  scoreOutfit,
+  repairOutfitFromRack,
   validateOutfitCandidate,
   type Item,
 } from "./recommend";
@@ -170,7 +171,7 @@ test("allows a collared base beneath a substantial open overshirt", () => {
   );
 });
 
-test("semantic loungewear and isolated accent footwear affect validity and ranking", () => {
+test("semantic loungewear blocks invalid pairings and repairOutfitFromRack swaps offending slots", () => {
   const shirt = item({
     id: "shirt",
     slot: "top",
@@ -189,31 +190,19 @@ test("semantic loungewear and isolated accent footwear affect validity and ranki
     semantics: { garmentType: "sweatpants", isLoungewear: true, silhouetteVolume: "high" },
   });
   const trouser = item({ id: "trouser", slot: "bottom", title: "Item C", category: "bottom", formality: 2 });
-  const redShoe = item({
-    id: "red-shoe",
-    slot: "shoe",
-    title: "Item D",
-    category: "shoe",
-    color: "#d12626",
-    palette: "warm",
-    color_role: "accent",
-    formality: 2,
-  });
-  const neutralShoe = item({
-    id: "neutral-shoe",
-    slot: "shoe",
-    title: "Item E",
-    category: "shoe",
-    color: "#f3f1ec",
-    formality: 2,
-  });
 
   const invalid = validateOutfitCandidate("Simple", [shirt, loungeBottom], ["top", "bottom"]);
   assert.equal(invalid.valid, false);
   assert.ok(invalid.violations.includes("polished-shirt-with-lounge-bottom"));
 
-  const preferences = { occasion: "casual" as const, gender: "men" as const, goal: "balanced" as const };
-  assert.ok(scoreOutfit([shirt, trouser, neutralShoe], preferences).total > scoreOutfit([shirt, trouser, redShoe], preferences).total);
+  const rack = buildRollingRack({
+    catalogItems: [shirt, loungeBottom, trouser],
+    anchorIds: ["shirt"],
+    preferences: { occasion: "casual", gender: "men", goal: "balanced" },
+  });
+  const repaired = repairOutfitFromRack("Simple", [shirt, loungeBottom], ["top", "bottom"], rack, ["shirt"]);
+  assert.ok(repaired, "repairOutfitFromRack should swap loungeBottom for trouser");
+  assert.equal(repaired?.items[1]?.id, "trouser");
 });
 
 test("allows a collared shirt beneath a medium-weight v-neck knit", () => {
@@ -257,17 +246,7 @@ test("allows a collared shirt beneath a medium-weight v-neck knit", () => {
   const result = validateOutfitCandidate("Layered", [shirt, sweater, trousers], ["base", "overshirt", "bottom"]);
   assert.equal(result.valid, true, result.violations.join(", "));
 
-  const plainCrew = item({
-    ...sweater,
-    id: "crew-knit",
-    title: "Crew-neck sweater",
-    semantics: { ...sweater.semantics, collarType: "crew" },
-  });
   const preferences = { occasion: "work" as const, gender: "men" as const, goal: "balanced" as const };
-  assert.ok(
-    scoreOutfit([shirt, sweater, trousers], preferences).total > scoreOutfit([shirt, plainCrew, trousers], preferences).total,
-    "a v-neck knit should receive a neckline-geometry bonus over a collared shirt",
-  );
   assert.match(
     buildReason("Layered", [shirt, sweater, trousers], ["base", "overshirt", "bottom"], preferences),
     /V-neck frames the shirt collar/i,
@@ -341,4 +320,125 @@ test("uses the anchored garment gender when the unfiltered catalog mixes demo ge
   const looks = recommend("mens-shirt", 3, { catalogItems: [shirt, trousers, womensShoe], preferences: { gender: "all" } });
   assert.ok(looks.length > 0);
   assert.ok(looks.every((look) => look.items.every((garment) => !garment.gender || garment.gender === "men")));
+});
+
+test("validates three-layer outfits (base + overshirt + outer + bottom) and blocks invalid middle layers", () => {
+  const tee = item({
+    id: "base-tee",
+    slot: "top",
+    slots: ["innerwear", "top"],
+    title: "White Tee",
+    category: "upper",
+    layer: "base",
+    semantics: { garmentType: "t-shirt", collarType: "crew", fabricWeight: "light", layerRole: "base" },
+  });
+  const cardigan = item({
+    id: "mid-cardigan",
+    slot: "top",
+    slots: ["top", "outerwear"],
+    title: "Merino Cardigan",
+    category: "upper",
+    layer: "mid",
+    semantics: { garmentType: "cardigan", fabricWeight: "medium", layerRole: "mid", canWearOpen: true, isSubstantialLayer: true },
+  });
+  const coat = item({
+    id: "outer-coat",
+    slot: "outerwear",
+    slots: ["outerwear"],
+    title: "Wool Overcoat",
+    category: "upper",
+    layer: "outer",
+    semantics: { garmentType: "coat", fabricWeight: "heavy", layerRole: "outer", canWearOpen: true, isSubstantialLayer: true },
+  });
+  const trouser = item({ id: "trouser", slot: "bottom", title: "Tailored Trouser", category: "bottom" });
+
+  const validThreeLayer = validateOutfitCandidate(
+    "Three layer",
+    [tee, cardigan, coat, trouser],
+    ["base", "overshirt", "outer", "bottom"],
+  );
+  assert.equal(validThreeLayer.valid, true, validThreeLayer.violations.join(", "));
+});
+
+test("buildRollingRack pins anchors and penalizes recentlyUsedItemIds for rotation", () => {
+  const tops = Array.from({ length: 8 }, (_, idx) =>
+    item({
+      id: `top-${idx + 1}`,
+      slot: "top",
+      title: `Tee ${idx + 1}`,
+      category: "upper",
+      layer: "base",
+      palette: idx % 2 === 0 ? "neutral" : "cool",
+    }),
+  );
+  const bottom = item({ id: "bottom-1", slot: "bottom", title: "Jeans", category: "bottom" });
+  const rack1 = buildRollingRack({
+    catalogItems: [...tops, bottom],
+    anchorIds: ["top-1"],
+    seed: 1,
+  });
+  assert.ok(rack1.items.some((i) => i.id === "top-1"), "anchored top must always be on the rack");
+
+  const firstRackNonAnchorTops = rack1.byRole.solo.filter((i) => i.id !== "top-1").map((i) => i.id);
+  const rack2 = buildRollingRack({
+    catalogItems: [...tops, bottom],
+    anchorIds: ["top-1"],
+    recentlyUsedItemIds: firstRackNonAnchorTops,
+    seed: 2,
+  });
+  assert.ok(rack2.items.some((i) => i.id === "top-1"), "anchored top remains pinned on rotated rack");
+  const secondRackTops = rack2.byRole.solo.map((i) => i.id);
+  assert.notDeepEqual(secondRackTops, rack1.byRole.solo.map((i) => i.id), "rack should rotate non-anchor tops when recentlyUsedItemIds are supplied");
+});
+
+test("rejects Navy Blue Embroidered Bear Hoodie underneath a Pink Cotton Overshirt", () => {
+  const bearHoodie = item({
+    id: "bear-hoodie",
+    slot: "top",
+    title: "Navy Blue Embroidered Bear Hoodie",
+    category: "upper",
+    layer: "base",
+    fit: "relaxed",
+  });
+  bearHoodie.semantics = inferLegacyGarmentSemantics(bearHoodie);
+  assert.equal(bearHoodie.semantics.garmentType, "hoodie");
+  assert.equal(bearHoodie.semantics.fabricWeight, "heavy");
+  assert.equal(bearHoodie.semantics.pattern, "graphic");
+
+  const pinkOvershirt = item({
+    id: "pink-overshirt",
+    slot: "top",
+    slots: ["top", "outerwear"],
+    title: "Men's Pink Long Sleeve Cotton Overshirt",
+    category: "upper",
+    layer: "mid",
+    fit: "relaxed",
+  });
+  pinkOvershirt.semantics = inferLegacyGarmentSemantics(pinkOvershirt);
+
+  const baggyJeans = item({
+    id: "baggy-jeans",
+    slot: "bottom",
+    title: "Baggy Jeans",
+    category: "bottom",
+    fit: "baggy",
+  });
+
+  const check = validateOutfitCandidate(
+    "Layered",
+    [bearHoodie, pinkOvershirt, baggyJeans],
+    ["base", "overshirt", "bottom"],
+  );
+  assert.equal(check.valid, false);
+  assert.ok(check.violations.includes("hoodie-under-shirt-or-overshirt"));
+  assert.ok(check.violations.includes("bulky-base-under-lighter-layer"));
+
+  const looks = recommend("bear-hoodie", 3, {
+    catalogItems: [bearHoodie, pinkOvershirt, baggyJeans],
+  });
+  assert.ok(looks.length > 0);
+  assert.ok(
+    looks.every((look) => !look.items.some((it) => it.id === "pink-overshirt")),
+    "recommend() must never layer a cotton overshirt over an anchored hoodie",
+  );
 });

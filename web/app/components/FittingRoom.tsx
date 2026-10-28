@@ -25,6 +25,7 @@ import {
   type Item,
   type Look,
   type StylePreferences,
+  type WeatherContext,
 } from "@/lib/recommend";
 type Avatar = { id: string; url: string; storagePath?: string; isCutout?: boolean };
 const AV_KEY = "thelook_avatars";
@@ -37,6 +38,7 @@ const EQUIPPED_KEY = "thelook_equipped_v2";
 const ACTIVE_AV_KEY = "thelook_active_avatar_id";
 const FEEDBACK_KEY = "thelook_outfit_feedback";
 const LOCKS_KEY = "thelook_locked_items";
+const LOCATION_PROMPT_KEY = "thelook_location_weather_enabled";
 
 function userKey(base: string, userId: string) {
   return `${base}:${userId}`;
@@ -76,6 +78,8 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   const [recommendedLooks, setRecommendedLooks] = useState<Look[]>([]);
   const [outfitFeedback, setOutfitFeedback] = useState<OutfitFeedbackEvent[]>([]);
   const [lockedItemIds, setLockedItemIds] = useState<string[]>([]);
+  const [recentlyUsedItemIds, setRecentlyUsedItemIds] = useState<string[]>([]);
+  const generationSeedRef = useRef<number>(1);
 
   const [avatars, setAvatars] = useState<Avatar[]>([]);
   const [activeAvatarId, setActiveAvatarId] = useState<string | null>(null);
@@ -98,6 +102,11 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
 
   const [userItems, setUserItems] = useState<Item[]>([]);
   const [preferences, setPreferences] = useState<StylePreferences>({ occasion: "any", goal: "balanced" });
+  const [locationPromptEnabled, setLocationPromptEnabled] = useState<boolean>(true);
+  const [pendingGenerateAnchors, setPendingGenerateAnchors] = useState<string[] | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState<boolean>(false);
+  const [manualCityInput, setManualCityInput] = useState<string>("");
+  const [weatherModalError, setWeatherModalError] = useState<string | null>(null);
   const [stylistSource, setStylistSource] = useState<"gemini" | "deterministic" | null>(null);
   const [stylistWarning, setStylistWarning] = useState<string | null>(null);
   const [addModal, setAddModal] = useState<RowKey | null>(null);
@@ -107,6 +116,22 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
+  }
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(LOCATION_PROMPT_KEY);
+      if (saved === "false") setLocationPromptEnabled(false);
+      else if (saved === "true") setLocationPromptEnabled(true);
+    } catch {
+      // ignore storage errors
+    }
+  }, []);
+
+  function toggleLocationPrompt(enabled: boolean) {
+    setLocationPromptEnabled(enabled);
+    safeSetStorage(LOCATION_PROMPT_KEY, String(enabled));
+    showToast(enabled ? "Location & weather prompt enabled" : "Location & weather prompt turned off");
   }
 
   // Load all user data from DB on mount / identity change.
@@ -705,29 +730,132 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     void generateOutfit(anchors);
   }
 
-  // Deterministic constructor creates five grounded candidates. Gemini Vision
-  // can rerank/explain them, but a failure always falls back to deterministic results.
-  async function generateOutfit(anchorOverride?: string[]) {
-    const anchorIds = anchorOverride?.length
+  // Deterministic constructor creates grounded candidates; Gemini Vision composes/reranks them.
+  function resolveDefaultAnchors(anchorOverride?: string[]): string[] {
+    return anchorOverride?.length
       ? anchorOverride
       : lockedItemIds.length
         ? lockedItemIds
         : equipped.length > 0
           ? equipped.map((i) => i.id)
           : activeItem
-          ? [activeItem.id]
-          : [catalog.find((item) => !["shoe", "accessory"].includes(item.category ?? item.slot))?.id].filter(Boolean) as string[];
+            ? [activeItem.id]
+            : [catalog.find((item) => !["shoe", "accessory"].includes(item.category ?? item.slot))?.id].filter(Boolean) as string[];
+  }
+
+  function generateOutfit(anchorOverride?: string[]) {
+    const anchorIds = resolveDefaultAnchors(anchorOverride);
     if (anchorIds.length === 0) return;
+    if (locationPromptEnabled) {
+      setWeatherModalError(null);
+      setPendingGenerateAnchors(anchorIds);
+      return;
+    }
+    void executeGenerateOutfit(anchorIds, preferences.weather ?? null);
+  }
+
+  async function handleUseCurrentLocationAndGenerate() {
+    const anchorIds = pendingGenerateAnchors ?? resolveDefaultAnchors();
+    if (!anchorIds.length) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setWeatherModalError("Browser geolocation is not supported. Enter your city below instead.");
+      return;
+    }
+    setWeatherLoading(true);
+    setWeatherModalError(null);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const res = await fetch("/api/weather", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+          });
+          const wx = await res.json() as WeatherContext & { error?: string };
+          if (!res.ok || wx.error) {
+            throw new Error(wx.error ?? "Could not fetch weather for your coordinates.");
+          }
+          const nextPrefs: StylePreferences = { ...preferences, weather: wx };
+          setPreferences(nextPrefs);
+          if (user) safeSetStorage(userKey(PREFS_KEY, user.id), JSON.stringify(nextPrefs));
+          setPendingGenerateAnchors(null);
+          showToast(`📍 ${wx.location} · ${wx.tempCurrent ?? `${wx.tempMin}–${wx.tempMax}`}°C, ${wx.condition}`);
+          await executeGenerateOutfit(anchorIds, wx);
+        } catch (err) {
+          setWeatherModalError(err instanceof Error ? err.message : "Failed to load weather.");
+        } finally {
+          setWeatherLoading(false);
+        }
+      },
+      (geoErr) => {
+        setWeatherLoading(false);
+        setWeatherModalError(
+          geoErr.code === 1
+            ? "Location permission denied by browser. Please allow location access or enter your city below."
+            : "Could not detect GPS location. Enter your city name below.",
+        );
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 300000 },
+    );
+  }
+
+  async function handleUseCityAndGenerate() {
+    const city = manualCityInput.trim();
+    if (!city) {
+      setWeatherModalError("Please enter a city name (e.g. Istanbul, London).");
+      return;
+    }
+    const anchorIds = pendingGenerateAnchors ?? resolveDefaultAnchors();
+    if (!anchorIds.length) return;
+    setWeatherLoading(true);
+    setWeatherModalError(null);
+    try {
+      const res = await fetch("/api/weather", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ location: city }),
+      });
+      const wx = await res.json() as WeatherContext & { error?: string };
+      if (!res.ok || wx.error) {
+        throw new Error(wx.error ?? `Could not find weather for "${city}".`);
+      }
+      const nextPrefs: StylePreferences = { ...preferences, weather: wx };
+      setPreferences(nextPrefs);
+      if (user) safeSetStorage(userKey(PREFS_KEY, user.id), JSON.stringify(nextPrefs));
+      setPendingGenerateAnchors(null);
+      showToast(`📍 ${wx.location} · ${wx.tempCurrent ?? `${wx.tempMin}–${wx.tempMax}`}°C, ${wx.condition}`);
+      await executeGenerateOutfit(anchorIds, wx);
+    } catch (err) {
+      setWeatherModalError(err instanceof Error ? err.message : "Could not load city weather.");
+    } finally {
+      setWeatherLoading(false);
+    }
+  }
+
+  async function executeGenerateOutfit(anchorIds: string[], weatherOverride?: WeatherContext | null) {
+    if (anchorIds.length === 0) return;
+    const effectivePreferences: StylePreferences = {
+      ...preferences,
+      weather: weatherOverride !== undefined ? weatherOverride : preferences.weather ?? null,
+    };
     setIsGenerating(true);
     setGenerateError(null);
     setStylistSource(null);
     setStylistWarning(null);
 
     try {
+      const seed = Date.now() + generationSeedRef.current++;
       const res = await fetch("/api/recommend", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ anchors: anchorIds, wardrobeItems: userItems, preferences, feedback: outfitFeedback }),
+        body: JSON.stringify({
+          anchors: anchorIds,
+          wardrobeItems: userItems,
+          recentlyUsedItemIds,
+          seed,
+          preferences: effectivePreferences,
+          feedback: outfitFeedback,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
@@ -737,7 +865,15 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       const stylist = await fetch("/api/stylist/rerank", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ candidates: looks, wardrobeItems: userItems, anchors: anchorIds, preferences }),
+        body: JSON.stringify({
+          candidates: looks,
+          wardrobeItems: userItems,
+          anchors: anchorIds,
+          recentlyUsedItemIds,
+          seed,
+          preferences: effectivePreferences,
+          feedback: outfitFeedback,
+        }),
       });
       const styled = await stylist.json() as { looks?: Look[]; source?: string; warning?: string };
       if (stylist.ok && Array.isArray(styled.looks) && styled.looks.length) looks = styled.looks;
@@ -751,6 +887,10 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       setCurrentLook(top);
       setEquipped(top.items);
       setActiveItem(top.items[0] ?? null);
+
+      const anchorSet = new Set(anchorIds);
+      const newlyUsed = recs.flatMap((l) => l.items.map((it) => it.id)).filter((id) => !anchorSet.has(id));
+      setRecentlyUsedItemIds((prev) => [...new Set([...newlyUsed, ...prev])].slice(0, 14));
 
       if (user) {
         safeSetStorage(userKey(RECOMMENDED_KEY, user.id), JSON.stringify(recs.map(stripLookImages)));
@@ -995,6 +1135,10 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         onLookbookClick={() => setLookbookOpen(true)}
         soundEnabled={sounds.enabled}
         onSoundToggle={sounds.toggle}
+        locationPromptEnabled={locationPromptEnabled}
+        onLocationPromptToggle={toggleLocationPrompt}
+        activeWeather={preferences.weather ?? null}
+        onClearWeather={() => updatePreferences({ ...preferences, weather: null })}
         accountLabel={isVerifiedAccount ? (user?.email ?? "Account") : "Guest wardrobe"}
         isGuest={isGuest}
         onAccountClick={() => setAccountOpen(true)}
@@ -1064,7 +1208,131 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         onClose={() => setAvatarUploadOpen(false)}
         onSaveAvatar={handleSaveAvatarFromModal}
       />
-      <ChatDrawer userItems={userItems} onEquip={onChatEquip} />
+      <ChatDrawer
+        userItems={userItems}
+        catalogItems={catalog}
+        userWeather={preferences.weather ?? null}
+        onEquip={onChatEquip}
+      />
+      {pendingGenerateAnchors && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs">
+          <div className="w-full max-w-md rounded-3xl border border-[#E8E3DB] bg-white p-6 shadow-2xl space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#EDE5D8] text-lg">📍</span>
+                <div>
+                  <h3 className="text-base font-semibold text-[#1A1A1A]">Use Location &amp; Live Weather?</h3>
+                  <p className="text-xs text-[#8A8480]">
+                    Open your location so we can match fabrics and layers to today&apos;s forecast.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPendingGenerateAnchors(null)}
+                className="rounded-full p-1 text-[#8A8480] hover:bg-[#F7F5F0] hover:text-[#1A1A1A]"
+              >
+                ✕
+              </button>
+            </div>
+
+            {preferences.weather && (
+              <div className="flex items-center justify-between rounded-2xl border border-[#D9C6A8] bg-[#FBF8F1] px-3.5 py-2.5 text-xs">
+                <div>
+                  <p className="font-semibold text-[#1A1A1A]">Current saved weather: {preferences.weather.location}</p>
+                  <p className="text-[#735F43]">
+                    {preferences.weather.tempCurrent ?? `${preferences.weather.tempMin}–${preferences.weather.tempMax}`}°C · {preferences.weather.condition}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const anchors = pendingGenerateAnchors;
+                    setPendingGenerateAnchors(null);
+                    void executeGenerateOutfit(anchors, preferences.weather);
+                  }}
+                  className="rounded-xl bg-[#1A1A1A] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#333]"
+                >
+                  Use this
+                </button>
+              </div>
+            )}
+
+            {weatherModalError && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                {weatherModalError}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => void handleUseCurrentLocationAndGenerate()}
+              disabled={weatherLoading}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#1A1A1A] px-4 py-3 text-xs font-semibold text-white shadow-sm transition hover:bg-[#333] active:scale-[0.99] disabled:opacity-50"
+            >
+              {weatherLoading ? (
+                <>
+                  <span className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  Checking location &amp; live forecast…
+                </>
+              ) : (
+                <>
+                  <span>📍</span>
+                  Open My Location &amp; Generate Outfit
+                </>
+              )}
+            </button>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={manualCityInput}
+                onChange={(e) => setManualCityInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void handleUseCityAndGenerate();
+                  }
+                }}
+                placeholder="Or type a city (e.g. Istanbul, London)…"
+                className="flex-1 rounded-xl border border-[#E8E3DB] bg-[#F7F5F0] px-3 py-2 text-xs text-[#1A1A1A] placeholder-[#8A8480] outline-none focus:border-[#C4A882]"
+              />
+              <button
+                type="button"
+                onClick={() => void handleUseCityAndGenerate()}
+                disabled={weatherLoading || !manualCityInput.trim()}
+                className="rounded-xl border border-[#E8E3DB] bg-white px-3 py-2 text-xs font-semibold text-[#1A1A1A] transition hover:border-[#C4A882] disabled:opacity-40"
+              >
+                Use City
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between border-t border-[#E8E3DB] pt-3">
+              <label className="flex items-center gap-2 text-[11px] text-[#8A8480] cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={locationPromptEnabled}
+                  onChange={(e) => toggleLocationPrompt(e.target.checked)}
+                  className="rounded border-[#E8E3DB] accent-[#1A1A1A]"
+                />
+                Ask every time I generate (can change in Settings)
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  const anchors = pendingGenerateAnchors;
+                  setPendingGenerateAnchors(null);
+                  void executeGenerateOutfit(anchors, null);
+                }}
+                disabled={weatherLoading}
+                className="text-xs font-semibold text-[#8A8480] hover:text-[#1A1A1A]"
+              >
+                Skip weather →
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {accountOpen && <AuthDialog open onClose={() => setAccountOpen(false)} />}
       <BagDrawer
         open={bagOpen}

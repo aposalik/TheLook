@@ -160,6 +160,28 @@ export default function WearingPanel({
         </label>
       </div>
 
+      {preferences.weather && (
+        <div className="mx-6 mt-3 flex items-center justify-between rounded-xl border border-[#D9C6A8] bg-[#FBF8F1] px-3 py-1.5 text-[11px] text-[#735F43]">
+          <span className="truncate font-medium">
+            📍 <span className="font-semibold text-[#1A1A1A]">{preferences.weather.location}</span>
+            {" · "}
+            {typeof preferences.weather.tempCurrent === "number"
+              ? `${preferences.weather.tempCurrent}°C (${preferences.weather.tempMin}–${preferences.weather.tempMax}°C)`
+              : `${preferences.weather.tempMin}–${preferences.weather.tempMax}°C`}
+            {", "}
+            {preferences.weather.condition}
+          </span>
+          <button
+            type="button"
+            onClick={() => onPreferencesChange({ ...preferences, weather: null })}
+            title="Clear active weather filter"
+            className="ml-2 shrink-0 text-[10px] font-semibold text-[#8A8480] hover:text-[#1A1A1A]"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {recommendedLooks.length > 0 && (
         <div className="px-6 pt-4">
           <div className="mb-2 flex items-center justify-between">
@@ -231,6 +253,21 @@ export default function WearingPanel({
             const renderables = equipped.filter(isRenderable);
             const accents = equipped.filter((i) => !isRenderable(i));
 
+            const roleLabelFor = (item: Item): string => {
+              const lookIdx = currentLook?.items.findIndex((it) => it.id === item.id) ?? -1;
+              const role = lookIdx >= 0 ? currentLook?.roles[lookIdx] : undefined;
+              if (role === "base") return "innerwear";
+              if (role === "overshirt") return "mid-layer";
+              if (role === "outer") return "outerwear";
+              if (role === "top") return "top";
+              if (item.category === "upper" || item.slot === "top" || item.slot === "innerwear" || item.slot === "outerwear") {
+                if (item.layer === "mid") return "mid-layer";
+                if (item.layer === "outer") return "outerwear";
+                if (item.slot === "innerwear") return "innerwear";
+              }
+              return item.slot;
+            };
+
             const renderCard = (item: Item, isAccent: boolean) => (
               <div key={item.id} className="flex items-center gap-3 rounded-2xl border border-[#E8E3DB] bg-[#F7F5F0]/60 p-2.5 transition hover:border-[#C4A882]/40">
                 <div className="h-12 w-12 shrink-0 rounded-xl border border-[#E8E3DB] bg-white p-1 flex items-center justify-center">
@@ -243,7 +280,7 @@ export default function WearingPanel({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-xs font-semibold text-[#1A1A1A] truncate">{item.title}</span>
-                    <span className="shrink-0 rounded bg-[#EDE5D8] px-1.5 py-0.5 text-[8.5px] font-bold uppercase text-[#8A8480]">{item.slot}</span>
+                    <span className="shrink-0 rounded bg-[#EDE5D8] px-1.5 py-0.5 text-[8.5px] font-bold uppercase text-[#8A8480]">{roleLabelFor(item)}</span>
                     {item.gender && (
                       <span className="shrink-0 rounded bg-stone-100 px-1 py-0.5 text-[8px] font-medium text-[#735F43]">{item.gender === "men" ? "Men" : "Women"}</span>
                     )}

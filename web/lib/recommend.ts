@@ -1,7 +1,7 @@
-// Deterministic outfit constructor. Fixed catalog pairs use the offline CLIP/Polyvore
-// matrix; uploaded wardrobe items use Gemini-generated metadata and explicit style rules.
+// Rolling Rack + Hard Physical Guardrail architecture.
+// TypeScript curates a diverse Rolling Rack (12-20 items) and enforces hard physical/layering
+// constraints via validateOutfitCandidate(); Gemini Vision acts as the primary creative stylist.
 import catalogData from "../data/catalog.json";
-import matrixData from "../data/compat_matrix.json";
 import { feedbackAdjustment, type OutfitFeedbackEvent } from "./outfit-feedback";
 import type { StylistVerdict, SwapRole, VisualScores } from "./stylist-judge";
 
@@ -91,10 +91,21 @@ export type Item = {
   semantics?: GarmentSemantics;
 };
 
+export type WeatherContext = {
+  location: string;
+  tempMin: number;
+  tempMax: number;
+  tempCurrent?: number;
+  condition: string;
+  season?: "winter" | "spring" | "summer" | "autumn";
+  summary?: string;
+};
+
 export type StylePreferences = {
   occasion?: "any" | "casual" | "work" | "evening";
   goal?: "balanced" | "define-waist" | "vertical-line" | "shoulder-structure";
   gender?: "all" | "men" | "women";
+  weather?: WeatherContext | null;
 };
 
 export type OutfitScoreBreakdown = {
@@ -141,20 +152,7 @@ export type Look = {
 };
 
 const FIXED = catalogData as Item[];
-const M = matrixData as Record<string, Record<string, number>>;
 export function getCatalog(): Item[] { return FIXED; }
-
-const CVALS = Object.values(M).flatMap((row) => Object.values(row)).sort((a, b) => a - b);
-const pctl = (p: number) => CVALS.length ? CVALS[Math.min(CVALS.length - 1, Math.max(0, Math.round(p * (CVALS.length - 1))))]! : 0;
-const CLO = pctl(0.05), CHI = pctl(0.95);
-const normC = (c: number) => CHI > CLO ? Math.max(0, Math.min(1, (c - CLO) / (CHI - CLO))) : c;
-
-function rgb(hex: string): [number, number, number] | null {
-  const m = String(hex).match(/^#([0-9a-f]{6})$/i);
-  if (!m) return null;
-  const n = Number.parseInt(m[1]!, 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
 
 function isFitted(fit?: string): boolean {
   return fit === "fitted" || fit === "slim";
@@ -195,7 +193,7 @@ export function inferLegacyGarmentSemantics(item: Item): GarmentSemantics {
 
   const pattern = /stripe|pinstripe|breton/.test(text) ? "stripe"
     : /check|plaid|gingham|tartan/.test(text) ? "check"
-    : /graphic|logo|printed/.test(text) ? "graphic"
+    : /graphic|logo|printed|embroider|bear|patch|motif|crest|illustration/.test(text) ? "graphic"
     : /floral/.test(text) ? "floral"
     : /camo/.test(text) ? "camo"
     : "solid";
@@ -209,7 +207,7 @@ export function inferLegacyGarmentSemantics(item: Item): GarmentSemantics {
     : /knit/.test(text) ? "knit"
     : /cotton/.test(text) ? "cotton"
     : undefined;
-  const substantialType = ["overshirt", "cardigan", "bomber-jacket", "jacket", "blazer", "coat"].includes(garmentType);
+  const substantialType = ["overshirt", "cardigan", "hoodie", "bomber-jacket", "jacket", "blazer", "coat"].includes(garmentType);
   const closure = /button/.test(text) ? "buttons"
     : /zip/.test(text) ? "zip"
     : garmentType === "sweater" || garmentType === "hoodie" ? "pullover"
@@ -221,7 +219,7 @@ export function inferLegacyGarmentSemantics(item: Item): GarmentSemantics {
     pattern,
     patternScale: pattern === "solid" ? "none" : "medium",
     fabric,
-    fabricWeight: /heavy|thick|puffer|leather|wool|fleece/.test(text) ? "heavy" : substantialType ? "medium" : "light",
+    fabricWeight: garmentType === "hoodie" || /heavy|thick|puffer|leather|wool|fleece|hoodie/.test(text) ? "heavy" : substantialType ? "medium" : "light",
     collarType: garmentType === "button-up-shirt" || garmentType === "overshirt" ? (/camp collar/.test(text) ? "camp" : "point")
       : garmentType === "blazer" || garmentType === "coat" ? "lapel"
       : garmentType === "hoodie" ? "hood"
@@ -276,12 +274,12 @@ export function isLoungeBottom(item: Item): boolean {
 }
 
 export function inferPattern(item: Item): GarmentSemantics["pattern"] {
-  if (item.semantics?.pattern) return item.semantics.pattern;
+  if (item.semantics?.pattern && item.semantics.pattern !== "solid") return item.semantics.pattern;
   const text = itemText(item);
   if (/stripe|striped|pinstripe|breton/.test(text)) return "stripe";
   if (/check|checked|plaid|gingham|tartan|houndstooth/.test(text)) return "check";
-  if (/graphic|print|printed|logo|floral|camo/.test(text)) return "graphic";
-  return "solid";
+  if (/graphic|print|printed|logo|floral|camo|embroider|bear|patch|motif|crest|illustration/.test(text)) return "graphic";
+  return item.semantics?.pattern ?? "solid";
 }
 
 export function isClosedOuterOrMid(item: Item): boolean {
@@ -300,62 +298,22 @@ function hasHood(item: Item): boolean {
   return item.semantics?.collarType === "hood" || item.semantics?.garmentType === "hoodie" || /hoodie|hooded/.test(itemText(item));
 }
 
+function isShirtOvershirtOrCardigan(item: Item): boolean {
+  const gType = item.semantics?.garmentType ?? inferLegacyGarmentSemantics(item).garmentType;
+  if (gType === "button-up-shirt" || gType === "overshirt" || gType === "cardigan" || gType === "t-shirt") {
+    return true;
+  }
+  const text = itemText(item);
+  return /\bshirt\b|overshirt|shacket|cardigan|flannel|polo|blouse/.test(text) && !/jacket|coat|bomber|puffer|parka|blazer|vest|gilet/.test(text);
+}
+
 function layerBulk(item: Item): number {
-  const weight = { light: 0, medium: 1, heavy: 2 }[item.semantics?.fabricWeight ?? "light"];
+  const inferredWeight = hasHood(item)
+    ? "heavy"
+    : item.semantics?.fabricWeight ?? inferLegacyGarmentSemantics(item).fabricWeight ?? "light";
+  const weight = { light: 0, medium: 1, heavy: 2 }[inferredWeight];
   const volume = { low: 0, medium: 1, high: 2 }[item.semantics?.silhouetteVolume ?? "medium"];
   return weight + volume;
-}
-
-function isBrightIsolatedAccentShoe(shoe: Item, core: Item[]): boolean {
-  const text = itemText(shoe);
-  const c = rgb(shoe.color);
-  const isHighChromaRgb = c
-    ? (Math.max(...c) - Math.min(...c)) > 85 && Math.max(...c) > 155
-    : false;
-  const isBrightNamed = /\bred\b|crimson|scarlet|pink|magenta|neon|orange|yellow|cobalt|bright|lime/.test(text);
-  const isCasualBrightShoe = (shoe.color_role === "accent" || isBrightNamed || isHighChromaRgb) && (shoe.formality ?? 2) <= 2;
-  if (!isCasualBrightShoe) return false;
-
-  const echoedInCore = core.some((item) => {
-    if (item.color_role === "accent" && item.palette === shoe.palette) return true;
-    const ir = rgb(item.color);
-    if (c && ir) {
-      const dist = Math.sqrt(c.reduce((sum, val, idx) => sum + (val - ir[idx]!) ** 2, 0)) / 441.67;
-      if (dist < 0.22) return true;
-    }
-    return false;
-  });
-  return !echoedInCore;
-}
-
-function metadataCompat(a: Item, b: Item): number {
-  let score = 0.52;
-  const ar = rgb(a.color), br = rgb(b.color);
-  if (ar && br) {
-    const distance = Math.sqrt(ar.reduce((sum, value, i) => sum + (value - br[i]!) ** 2, 0)) / 441.67;
-    const bothAccent = a.color_role === "accent" && b.color_role === "accent";
-    score += bothAccent ? (distance > 0.3 ? -0.12 : -0.2) : 0.1 * (1 - Math.abs(distance - 0.42));
-  }
-  if (a.palette === "neutral" || b.palette === "neutral" || a.palette === b.palette) score += 0.06;
-  const formalityGap = Math.abs((a.formality ?? 2) - (b.formality ?? 2));
-  score += formalityGap === 0 ? 0.09 : formalityGap === 1 ? 0.06 : formalityGap === 2 ? -0.06 : -0.18;
-  if (isOversized(a.fit) && isOversized(b.fit)) score -= 0.1;
-  const patA = inferPattern(a), patB = inferPattern(b);
-  if (patA !== "solid" && patB !== "solid") score -= 0.14;
-  const seasonsA = new Set(a.seasons ?? []);
-  if (seasonsA.size && (b.seasons ?? []).some((s) => seasonsA.has(s) || s === "all-season")) score += 0.05;
-  const stylesA = new Set(a.styles ?? []);
-  if (stylesA.size && (b.styles ?? []).some((s) => stylesA.has(s))) score += 0.07;
-  const collared = isCollaredShirt(a) ? a : isCollaredShirt(b) ? b : undefined;
-  const knitLayer = collared === a ? b : collared === b ? a : undefined;
-  if (
-    collared && knitLayer &&
-    knitLayer.semantics?.garmentType === "sweater" &&
-    knitLayer.semantics?.collarType === "v-neck"
-  ) {
-    score += 0.08;
-  }
-  return Math.max(0, Math.min(1, score));
 }
 
 function hasSlot(item: Item, s: string): boolean {
@@ -372,7 +330,7 @@ export function inferSmartUpperSlots(item: Item): string[] {
   }
   const semanticType = item.semantics?.garmentType;
   const semanticRole = item.semantics?.layerRole;
-  if (semanticRole === "outer" || ["bomber-jacket", "jacket", "blazer", "coat"].includes(semanticType ?? "")) return ["outerwear"];
+  if (semanticRole === "outer" || item.layer === "outer" || (item.slot === "outerwear" && !item.slots?.includes("top")) || ["bomber-jacket", "jacket", "blazer", "coat"].includes(semanticType ?? "")) return ["outerwear"];
   if (semanticRole === "mid" || semanticType === "overshirt" || semanticType === "cardigan") return ["top", "outerwear"];
   if (semanticType === "t-shirt" || semanticType === "tank") return ["innerwear", "top"];
   if (semanticType === "button-up-shirt" || semanticType === "sweater" || semanticType === "hoodie") return ["top"];
@@ -409,6 +367,7 @@ export function canBeBaseLayer(item: Item): boolean {
 
 export function canBeMidLayer(item: Item): boolean {
   if (!isUpperItem(item)) return false;
+  if (item.semantics?.layerRole === "outer" || item.layer === "outer") return false;
   if (item.semantics?.layerRole === "mid") return true;
   if (item.layer === "mid") return true;
   if (hasExplicitSlot(item, "outerwear") && hasExplicitSlot(item, "top")) return true;
@@ -453,181 +412,28 @@ function isUpperItem(item: Item): boolean {
   );
 }
 
-function compatibility(a: Item, b: Item): number {
-  if (a.id === b.id) return 1;
-  const aIsUpper = isUpperItem(a);
-  const bIsUpper = isUpperItem(b);
-  if (aIsUpper && bIsUpper) {
-    let score = metadataCompat(a, b);
-    if (a.layer && b.layer && a.layer !== b.layer) score += 0.08;
-    // Penalize two collared shirts layered together unless one is a heavy/substantial overshirt over a tee
-    if (isCollaredShirt(a) && isCollaredShirt(b)) {
-      score -= (isSubstantialLayerPiece(a) || isSubstantialLayerPiece(b)) ? 0.12 : 0.28;
-    }
-    // Penalize closed outer hiding a patterned base
-    const patA = inferPattern(a), patB = inferPattern(b);
-    if ((isClosedOuterOrMid(a) && patB !== "solid") || (isClosedOuterOrMid(b) && patA !== "solid")) {
-      score -= 0.12;
-    }
-    return clamp01(score);
-  }
-  const fixed = M[a.id]?.[b.id] ?? M[b.id]?.[a.id];
-  return typeof fixed === "number" ? normC(fixed) : metadataCompat(a, b);
-}
-
-function pairWeight(a: Item, b: Item): number {
-  const key = [a.category ?? a.slot, b.category ?? b.slot].sort().join("|");
-  if (key === "bottom|upper") return 2;
-  if (key === "bottom|shoe") return 1.5;
-  if (key === "accessory|upper") return 0.65;
-  return 1;
-}
-
 const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
-function compatibilityScore(items: Item[]): number {
-  let weighted = 0, weightTotal = 0, weakest = 1, pairs = 0;
-  for (let i = 0; i < items.length; i++) {
-    for (let j = i + 1; j < items.length; j++) {
-      const c = compatibility(items[i]!, items[j]!);
-      const w = pairWeight(items[i]!, items[j]!);
-      weighted += c * w; weightTotal += w; weakest = Math.min(weakest, c); pairs++;
-    }
-  }
-  const mean = weightTotal ? weighted / weightTotal : 0;
-  return clamp01(pairs ? 0.72 * mean + 0.28 * weakest : 0);
-}
-
-function paletteScore(items: Item[]): number {
-  const accents = items.filter((item) => item.color_role === "accent").length;
-  const accentBalance = accents === 1 ? 1 : accents === 0 ? 0.86 : accents === 2 ? 0.5 : 0.2;
-  const neutralRatio = items.filter((item) => item.palette === "neutral" || item.color_role === "neutral").length / Math.max(1, items.length);
-  const neutralAnchor = neutralRatio >= 0.5 ? 1 : neutralRatio > 0 ? 0.72 : 0.45;
-  let score = 0.72 * accentBalance + 0.28 * neutralAnchor;
-
-  const shoe = items.find((item) => item.category === "shoe" || hasSlot(item, "shoe"));
-  if (shoe) {
-    const core = items.filter((item) => item.id !== shoe.id && item.category !== "accessory");
-    if (isBrightIsolatedAccentShoe(shoe, core)) {
-      score -= 0.22;
-    }
-  }
-  return clamp01(score);
-}
-
-function silhouetteScore(items: Item[]): number {
-  const uppers = items.filter((item) => isUpperItem(item));
-  const bottom = items.find((item) => item.category === "bottom" || hasSlot(item, "bottom"));
-  if (!uppers.length || !bottom) return 0.82;
-  const primaryUpper = uppers.find((item) => item.layer !== "outer") ?? uppers[0]!;
-  const outerOrMid = uppers.find((item) => item.layer === "outer" || item.layer === "mid");
-  const upperFit = primaryUpper.fit ?? "regular";
-  const bottomFit = bottom.fit ?? "regular";
-
-  let score = 0.88;
-  if (isFitted(upperFit) && (bottomFit === "relaxed" || isOversized(bottomFit))) score = 0.96;
-  else if (isOversized(upperFit) && isOversized(bottomFit)) score = 0.68;
-  else if (upperFit === bottomFit) score = upperFit === "regular" ? 0.92 : 0.84;
-
-  // Check outer/mid layer volume against bottom volume (e.g. heavy bomber + wide sweatpants/baggy bottom)
-  if (outerOrMid) {
-    const outerFit = outerOrMid.fit ?? "regular";
-    const heavyOuter = /bomber|puffer|parka|leather|shearling/.test(itemText(outerOrMid));
-    if ((isOversized(outerFit) || (outerFit === "relaxed" && heavyOuter)) && (bottomFit === "relaxed" || isOversized(bottomFit))) {
-      score -= 0.14;
-    }
-  }
-  return clamp01(score);
-}
-
-function formalityScore(items: Item[], prefs: StylePreferences): number {
-  const values = items.map((item) => item.formality).filter((value): value is number => typeof value === "number");
-  if (!values.length) return 0.65;
-  const range = Math.max(...values) - Math.min(...values);
-  const consistency = range === 0 ? 1 : range === 1 ? 0.9 : range === 2 ? 0.62 : 0;
-  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
-  let occasionFit = 0.8;
-  if (prefs.occasion === "casual") occasionFit = average <= 2.5 ? 1 : average <= 3 ? 0.7 : 0.35;
-  if (prefs.occasion === "work") occasionFit = average >= 2 && average <= 4 ? 1 : 0.45;
-  if (prefs.occasion === "evening") occasionFit = average >= 3 ? 1 : average >= 2 ? 0.65 : 0.35;
-  return clamp01(0.62 * consistency + 0.38 * occasionFit);
-}
-
-function styleScore(items: Item[]): number {
-  const tagged = items.filter((item) => item.styles?.length);
-  if (tagged.length < 2) return 0.65;
-  let overlapTotal = 0, pairs = 0;
-  for (let i = 0; i < tagged.length; i++) {
-    for (let j = i + 1; j < tagged.length; j++) {
-      const a = new Set(tagged[i]!.styles);
-      const b = new Set(tagged[j]!.styles);
-      const intersection = [...a].filter((tag) => b.has(tag)).length;
-      const union = new Set([...a, ...b]).size;
-      overlapTotal += union ? intersection / union : 0;
-      pairs++;
-    }
-  }
-  return clamp01(0.55 + 0.45 * (pairs ? overlapTotal / pairs : 0));
-}
-
-function footwearScore(items: Item[]): number {
-  const shoe = items.find((item) => item.category === "shoe" || hasSlot(item, "shoe"));
-  if (!shoe) return 0.68;
-  const core = items.filter((item) => item.id !== shoe.id && item.category !== "accessory");
-  const formalities = core.map((item) => item.formality).filter((value): value is number => typeof value === "number");
-  const coreFormality = formalities.length ? formalities.reduce((sum, value) => sum + value, 0) / formalities.length : 2;
-  const gap = Math.abs((shoe.formality ?? 2) - coreFormality);
-  const formalityFit = gap <= 0.5 ? 1 : gap <= 1 ? 0.9 : gap <= 2 ? 0.58 : 0.2;
-  const coreStyles = new Set(core.flatMap((item) => item.styles ?? []));
-  const styleFit = shoe.styles?.some((style) => coreStyles.has(style)) ? 1 : coreStyles.size && shoe.styles?.length ? 0.55 : 0.72;
-  let score = 0.78 * formalityFit + 0.22 * styleFit;
-  if (isBrightIsolatedAccentShoe(shoe, core)) {
-    score -= 0.28;
-  }
-  return clamp01(score);
-}
-
-function preferenceScore(items: Item[], prefs: StylePreferences, feedback: OutfitFeedbackEvent[] = []): number {
-  let goalScore = 0.86;
-  if (prefs.goal === "vertical-line") goalScore = items.some((item) => item.layer === "mid" || item.layer === "outer") ? 1 : 0.5;
-  else if (prefs.goal === "shoulder-structure") {
-    goalScore = items.some((item) => item.layer === "outer" || /blazer|jacket/i.test(item.subcategory ?? item.title)) ? 1 : 0.5;
-  } else if (prefs.goal === "define-waist") {
-    goalScore = items.some((item) => /fitted|belt|cinch/i.test(`${item.fit} ${item.description}`)) ? 1 : 0.5;
-  }
-  return clamp01(goalScore + feedbackAdjustment(items.map((item) => item.id), feedback));
-}
-
-export function scoreOutfit(items: Item[], prefs: StylePreferences, feedback: OutfitFeedbackEvent[] = []): OutfitScoreBreakdown {
-  const compatibility = compatibilityScore(items);
-  const palette = paletteScore(items);
-  const silhouette = silhouetteScore(items);
-  const formality = formalityScore(items, prefs);
-  const style = styleScore(items);
-  const footwear = footwearScore(items);
-  const preference = preferenceScore(items, prefs, feedback);
-  const total = clamp01(
-    0.28 * compatibility +
-    0.16 * palette +
-    0.14 * silhouette +
-    0.16 * formality +
-    0.10 * style +
-    0.10 * footwear +
-    0.06 * preference,
-  );
-  return { compatibility, palette, silhouette, formality, style, footwear, preference, total };
+function mulberry32(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 export function inferArchetype(formula: string, items: Item[], prefs: StylePreferences): OutfitArchetype {
   const upper = items.find((item) => isUpperItem(item) && item.layer !== "outer");
   const bottom = items.find((item) => item.category === "bottom" || hasSlot(item, "bottom"));
-  const outer = items.find((item) => item.layer === "outer");
+  const outer = items.find((item) => item.layer === "outer" || canBeOuterLayer(item));
   const styles = new Set(items.flatMap((item) => item.styles ?? []));
   const formalities = items.map((item) => item.formality).filter((value): value is number => typeof value === "number");
   const averageFormality = formalities.length ? formalities.reduce((sum, value) => sum + value, 0) / formalities.length : 2;
 
   if (formula === "Dress") return "dress";
-  if (formula === "With layer") {
+  if (formula === "Three layer" || formula === "With layer") {
     if (outer?.styles?.some((style) => style === "smart-casual" || style === "preppy") || averageFormality >= 2.5) return "structured-autumn";
     return "relaxed-layered";
   }
@@ -640,13 +446,374 @@ export function inferArchetype(formula: string, items: Item[], prefs: StylePrefe
   return "safe-casual";
 }
 
-function occasionStrategyBonus(archetype: OutfitArchetype, occasion: StylePreferences["occasion"]): number {
-  if (occasion === "work") return archetype === "polished-smart" || archetype === "structured-autumn" ? 0.06 : archetype === "statement-top" ? 0.015 : 0;
-  if (occasion === "evening") return archetype === "dress" ? 0.08 : archetype === "polished-smart" ? 0.06 : archetype === "structured-autumn" ? 0.035 : 0;
-  if (occasion === "casual") {
-    return archetype === "safe-casual" || archetype === "relaxed-layered" ? 0.05 : archetype === "utility-street" || archetype === "soft-casual" ? 0.04 : 0;
+function occasionTargetFormality(occasion?: StylePreferences["occasion"]): number | null {
+  if (occasion === "casual") return 1.8;
+  if (occasion === "work") return 3.0;
+  if (occasion === "evening") return 3.5;
+  return null;
+}
+
+export type RollingRackOptions = {
+  extraItems?: Item[];
+  catalogItems?: Item[];
+  anchorIds?: string[];
+  recentlyUsedItemIds?: string[];
+  preferences?: StylePreferences;
+  feedback?: OutfitFeedbackEvent[];
+  seed?: number;
+  maxItems?: number;
+};
+
+export type RollingRack = {
+  items: Item[];
+  byRole: {
+    bases: Item[];
+    solo: Item[];
+    mids: Item[];
+    outers: Item[];
+    bottoms: Item[];
+    dresses: Item[];
+    shoes: Item[];
+    accessories: Item[];
+  };
+};
+
+function diversifySlotSample(
+  pool: Item[],
+  quota: number,
+  anchorSet: Set<string>,
+  recentSet: Set<string>,
+  prefs: StylePreferences,
+  feedback: OutfitFeedbackEvent[],
+  rng: () => number,
+  alreadySelected: Set<string>,
+): Item[] {
+  if (pool.length === 0 || quota <= 0) return [];
+  const chosen: Item[] = [];
+  const seenPalettes = new Set<string>();
+  const seenFits = new Set<string>();
+  const targetForm = occasionTargetFormality(prefs.occasion);
+
+  // 1. Always pin anchor items first
+  for (const item of pool) {
+    if (anchorSet.has(item.id) && chosen.length < quota) {
+      chosen.push(item);
+      alreadySelected.add(item.id);
+      if (item.palette) seenPalettes.add(item.palette);
+      if (item.fit) seenFits.add(item.fit);
+    }
   }
-  return 0;
+
+  const candidates = pool.filter((item) => !chosen.some((c) => c.id === item.id));
+  while (chosen.length < quota && candidates.length > 0) {
+    let bestIdx = 0;
+    let bestWeight = -Infinity;
+
+    for (let i = 0; i < candidates.length; i++) {
+      const item = candidates[i]!;
+      let weight = 1.0;
+
+      // Penalize recently used items so re-generating wheels in a fresh rack
+      if (recentSet.has(item.id)) weight *= 0.2;
+
+      // Slight penalty if already pulled into another upper role on the rack
+      if (alreadySelected.has(item.id)) weight *= 0.55;
+
+      // Occasion alignment (soft guide, not rigid block)
+      if (targetForm !== null && typeof item.formality === "number") {
+        const gap = Math.abs(item.formality - targetForm);
+        weight += gap <= 1 ? 0.22 : gap <= 2 ? 0.05 : -0.25;
+      }
+
+      // Live weather & season alignment when weather is provided
+      if (prefs.weather) {
+        const avgTemp = typeof prefs.weather.tempCurrent === "number"
+          ? prefs.weather.tempCurrent
+          : (prefs.weather.tempMin + prefs.weather.tempMax) / 2;
+        const season = prefs.weather.season;
+        if (season && Array.isArray(item.seasons) && item.seasons.length > 0) {
+          if (item.seasons.includes(season) || item.seasons.includes("all-season")) {
+            weight += 0.25;
+          } else {
+            weight -= 0.18;
+          }
+        }
+        const fabWeight = item.semantics?.fabricWeight ?? inferLegacyGarmentSemantics(item).fabricWeight;
+        if (avgTemp <= 14 && (fabWeight === "heavy" || fabWeight === "medium")) weight += 0.22;
+        if (avgTemp >= 24 && fabWeight === "heavy") weight -= 0.35;
+        if (avgTemp >= 24 && fabWeight === "light") weight += 0.22;
+      }
+
+      // Reward color/palette & silhouette diversity on the rack
+      const palKey = `${item.color_role ?? "neutral"}:${item.palette ?? "neutral"}`;
+      if (!seenPalettes.has(palKey)) weight += 0.28;
+      if (item.fit && !seenFits.has(item.fit)) weight += 0.22;
+
+      // User feedback signal adjustment
+      weight += feedbackAdjustment([item.id], feedback);
+
+      // Seeded jitter for variety across clicks
+      weight += rng() * 0.35;
+
+      if (weight > bestWeight) {
+        bestWeight = weight;
+        bestIdx = i;
+      }
+    }
+
+    const picked = candidates.splice(bestIdx, 1)[0]!;
+    chosen.push(picked);
+    alreadySelected.add(picked.id);
+    seenPalettes.add(`${picked.color_role ?? "neutral"}:${picked.palette ?? "neutral"}`);
+    if (picked.fit) seenFits.add(picked.fit);
+  }
+
+  return chosen;
+}
+
+export function buildRollingRack(options: RollingRackOptions = {}): RollingRack {
+  const prefs = options.preferences ?? {};
+  const feedback = options.feedback ?? [];
+  const baseItems = options.catalogItems ?? FIXED;
+  const rawPool = [
+    ...baseItems,
+    ...(options.extraItems ?? []).filter((item, index, values) => values.findIndex((v) => v.id === item.id) === index),
+  ].map((item) =>
+    item.category === "upper" && (!item.slots || item.slots.length <= 1)
+      ? { ...item, slots: inferSmartUpperSlots(item) }
+      : item,
+  );
+
+  const anchorIds = (options.anchorIds ?? []).filter(Boolean);
+  const anchorSet = new Set(anchorIds);
+  const recentSet = new Set((options.recentlyUsedItemIds ?? []).filter((id) => !anchorSet.has(id)));
+  const rng = mulberry32(options.seed ?? 1);
+
+  const anchoredGender = rawPool.find((item) => anchorSet.has(item.id) && item.category !== "accessory" && item.gender)?.gender;
+  const targetGender = prefs.gender && prefs.gender !== "all" ? prefs.gender : anchoredGender;
+  const targetForm = occasionTargetFormality(prefs.occasion);
+
+  const filtered = rawPool.filter((item) => {
+    if (anchorSet.has(item.id)) return true;
+    if (targetGender && item.gender && item.gender !== targetGender) return false;
+    if (targetForm !== null && typeof item.formality === "number" && Math.abs(item.formality - targetForm) >= 3) {
+      return false;
+    }
+    return true;
+  });
+
+  const uppers = filtered.filter((i) => isUpperItem(i));
+  const rawBases = uppers.filter((i) => canBeBaseLayer(i));
+  const rawSolo = uppers.filter((i) => canBeSoloTop(i));
+  const rawMids = uppers.filter((i) => canBeMidLayer(i));
+  const rawOuters = uppers.filter((i) => canBeOuterLayer(i));
+  const rawBottoms = filtered.filter((i) => i.category === "bottom" || hasSlot(i, "bottom"));
+  const rawDresses = filtered.filter((i) => i.category === "dress" || hasSlot(i, "dress"));
+  const rawShoes = filtered.filter((i) => i.category === "shoe" || hasSlot(i, "shoe"));
+  const rawAccessories = filtered.filter((i) => i.category === "accessory" || hasSlot(i, "accessory"));
+
+  const alreadySelected = new Set<string>();
+  const soloAndBasesPool = [...rawSolo, ...rawBases.filter((b) => !rawSolo.some((s) => s.id === b.id))];
+  const sampledTops = diversifySlotSample(soloAndBasesPool, 5, anchorSet, recentSet, prefs, feedback, rng, alreadySelected);
+  const mids = diversifySlotSample(rawMids, 4, anchorSet, recentSet, prefs, feedback, rng, alreadySelected);
+  const outers = diversifySlotSample(rawOuters, 3, anchorSet, recentSet, prefs, feedback, rng, alreadySelected);
+  const bottoms = diversifySlotSample(rawBottoms, 5, anchorSet, recentSet, prefs, feedback, rng, alreadySelected);
+  const dresses = diversifySlotSample(rawDresses, 2, anchorSet, recentSet, prefs, feedback, rng, alreadySelected);
+  const shoes = diversifySlotSample(rawShoes, 4, anchorSet, recentSet, prefs, feedback, rng, alreadySelected);
+  const accessories = diversifySlotSample(rawAccessories, 2, anchorSet, recentSet, prefs, feedback, rng, alreadySelected);
+
+  // Ensure every locked anchor is present on the rack
+  const rackMap = new Map<string, Item>();
+  for (const item of rawPool) {
+    if (anchorSet.has(item.id)) rackMap.set(item.id, item);
+  }
+  const maxItems = options.maxItems ?? 18;
+  for (const item of [...sampledTops, ...bottoms, ...shoes, ...mids, ...outers, ...dresses, ...accessories]) {
+    if (rackMap.size >= maxItems && !anchorSet.has(item.id)) continue;
+    rackMap.set(item.id, item);
+  }
+
+  const items = [...rackMap.values()];
+  return {
+    items,
+    byRole: {
+      bases: items.filter((i) => canBeBaseLayer(i)),
+      solo: items.filter((i) => canBeSoloTop(i)),
+      mids: items.filter((i) => canBeMidLayer(i)),
+      outers: items.filter((i) => canBeOuterLayer(i)),
+      bottoms: items.filter((i) => i.category === "bottom" || hasSlot(i, "bottom")),
+      dresses: items.filter((i) => i.category === "dress" || hasSlot(i, "dress")),
+      shoes: items.filter((i) => i.category === "shoe" || hasSlot(i, "shoe")),
+      accessories: items.filter((i) => i.category === "accessory" || hasSlot(i, "accessory")),
+    },
+  };
+}
+
+export function buildScoreBreakdownFromVisuals(
+  visualScores?: VisualScores,
+  items: Item[] = [],
+  prefs: StylePreferences = {},
+  feedback: OutfitFeedbackEvent[] = [],
+): OutfitScoreBreakdown {
+  const palette = clamp01(visualScores?.palette ?? 0.86);
+  const silhouette = clamp01(visualScores?.silhouette ?? 0.86);
+  const compatibility = clamp01(visualScores?.layering ?? 0.85);
+  const formality = clamp01(visualScores?.occasion ?? 0.86);
+  const style = clamp01((palette + silhouette) / 2);
+  const footwear = clamp01((silhouette + formality) / 2);
+  const preference = clamp01(0.86 + feedbackAdjustment(items.map((item) => item.id), feedback));
+  void prefs;
+  const total = clamp01(
+    0.28 * compatibility +
+    0.16 * palette +
+    0.14 * silhouette +
+    0.16 * formality +
+    0.10 * style +
+    0.10 * footwear +
+    0.06 * preference,
+  );
+  return { compatibility, palette, silhouette, formality, style, footwear, preference, total };
+}
+
+type CandidateValidation = { valid: boolean; violations: string[] };
+
+export function validateOutfitCandidate(formula: string, items: Item[], roles: string[]): CandidateValidation {
+  const violations: string[] = [];
+  if (items.length !== roles.length) violations.push("role-item-count-mismatch");
+  if (new Set(items.map((item) => item.id)).size !== items.length) violations.push("duplicate-item");
+
+  const roleItems = new Map(roles.map((role, index) => [role, items[index]]));
+  const bottoms = items.filter((item) => item.category === "bottom" || hasSlot(item, "bottom"));
+  const dresses = items.filter((item) => item.category === "dress" || hasSlot(item, "dress"));
+  const shoes = items.filter((item) => item.category === "shoe" || hasSlot(item, "shoe"));
+  if (dresses.length ? bottoms.length > 0 || dresses.length !== 1 : bottoms.length !== 1) violations.push("invalid-outfit-core");
+  if (shoes.length > 1) violations.push("multiple-shoes");
+
+  const explicitGenders = new Set(items.map((item) => item.gender).filter(Boolean));
+  if (explicitGenders.size > 1) violations.push("mixed-gender-catalog-items");
+
+  const formalities = items.map((item) => item.formality).filter((value): value is number => typeof value === "number");
+  if (formalities.length && Math.max(...formalities) - Math.min(...formalities) >= 3) violations.push("extreme-formality-gap");
+
+  const base = roleItems.get("base");
+  const overshirt = roleItems.get("overshirt");
+  const outer = roleItems.get("outer");
+  const simpleTop = roleItems.get("top");
+  if ((formula === "Layered" || formula === "Three layer") && (!base || !canBeBaseLayer(base))) {
+    violations.push("invalid-base-layer");
+  }
+  if (formula === "With layer" && (!base || (!canBeBaseLayer(base) && !canBeMidLayer(base)))) {
+    violations.push("invalid-base-layer");
+  }
+  if ((formula === "Layered" || formula === "Three layer") && (!overshirt || !canBeMidLayer(overshirt))) {
+    violations.push("invalid-mid-layer");
+  }
+  if ((formula === "With layer" || formula === "Three layer") && (!outer || !canBeOuterLayer(outer))) {
+    violations.push("invalid-outer-layer");
+  }
+  if (formula === "Simple" && (!simpleTop || !canBeSoloTop(simpleTop))) {
+    violations.push("layer-piece-used-as-solo-top");
+  }
+
+  // Check every adjacent upper layer pair: (base -> overshirt), (overshirt -> outer), or (base -> outer)
+  const orderedUppers = [base, overshirt, outer].filter((x): x is Item => Boolean(x));
+  for (let i = 0; i < orderedUppers.length - 1; i++) {
+    const inner = orderedUppers[i]!;
+    const layer = orderedUppers[i + 1]!;
+    if (isCollaredShirt(inner) && isCollaredShirt(layer) && !isSubstantialLayerPiece(layer)) {
+      violations.push("competing-collared-shirts");
+    }
+    const innerPat = inferPattern(inner);
+    const layerPat = inferPattern(layer);
+    if (innerPat !== "solid" && layerPat !== "solid") {
+      violations.push("competing-upper-patterns");
+    }
+    if (hasHood(inner) && isPulloverLayer(layer)) {
+      violations.push("hood-under-pullover-layer");
+    }
+    if (hasHood(inner) && (formula === "Layered" || isShirtOvershirtOrCardigan(layer))) {
+      violations.push("hoodie-under-shirt-or-overshirt");
+    }
+    if (layerBulk(inner) > layerBulk(layer)) {
+      violations.push("bulky-base-under-lighter-layer");
+    }
+  }
+
+  const uppers = items.filter((item) => isUpperItem(item));
+  if (uppers.some((u) => isPolishedButtonUp(u)) && bottoms.some((b) => isLoungeBottom(b))) {
+    violations.push("polished-shirt-with-lounge-bottom");
+  }
+
+  return { valid: violations.length === 0, violations };
+}
+
+export function repairOutfitFromRack(
+  formula: string,
+  items: Item[],
+  roles: string[],
+  rack: RollingRack,
+  anchorIds: string[] = [],
+): { items: Item[]; roles: string[] } | null {
+  if (validateOutfitCandidate(formula, items, roles).valid) {
+    return { items, roles };
+  }
+  const anchorSet = new Set(anchorIds);
+  const rolePools: Record<string, Item[]> = {
+    base: rack.byRole.bases,
+    top: rack.byRole.solo,
+    overshirt: rack.byRole.mids,
+    outer: rack.byRole.outers,
+    bottom: rack.byRole.bottoms,
+    dress: rack.byRole.dresses,
+    shoes: rack.byRole.shoes,
+    accessory: rack.byRole.accessories,
+  };
+
+  for (let idx = 0; idx < roles.length; idx++) {
+    const current = items[idx]!;
+    if (anchorSet.has(current.id)) continue;
+    const role = roles[idx]!;
+    const alternatives = rolePools[role] ?? [];
+    for (const replacement of alternatives) {
+      if (items.some((it) => it.id === replacement.id)) continue;
+      const nextItems = items.map((it, i) => (i === idx ? replacement : it));
+      if (validateOutfitCandidate(formula, nextItems, roles).valid) {
+        return { items: nextItems, roles };
+      }
+    }
+  }
+  return null;
+}
+
+export function buildReason(formula: string, items: Item[], roles: string[], prefs: StylePreferences): string {
+  const name = (role: string) => items[roles.indexOf(role)]?.title ?? "";
+  const core = formula === "Three layer"
+    ? `${name("base")} layered under ${name("overshirt")} and ${name("outer")}, with ${name("bottom")}`
+    : formula === "Layered"
+      ? `${name("base")} with ${name("overshirt")} layered over it, ${name("bottom")}`
+      : formula === "With layer"
+        ? `${name("base")} under ${name("outer")}, ${name("bottom")}`
+        : formula === "Dress"
+          ? `${name("dress")} with ${name("shoes")}`
+          : `${name("top")} with ${name("bottom")}`;
+  const why: string[] = [];
+  const base = items[roles.indexOf("base")];
+  const layer = items[roles.indexOf("overshirt")] ?? items[roles.indexOf("outer")];
+  if (base && layer && isCollaredShirt(base) && layer.semantics?.collarType === "v-neck") {
+    why.push("the V-neck frames the shirt collar");
+  }
+  if (items.filter((i) => i.color_role === "accent").length <= 1) why.push("balanced palette");
+  const fs = items.map((i) => i.formality ?? 2);
+  if (Math.max(...fs) - Math.min(...fs) <= 1) why.push("consistent formality");
+  if (prefs.weather) {
+    const tempText = typeof prefs.weather.tempCurrent === "number"
+      ? `${prefs.weather.tempCurrent}°C`
+      : `${prefs.weather.tempMin}–${prefs.weather.tempMax}°C`;
+    why.push(`styled for ${tempText} (${prefs.weather.condition.toLowerCase()}) in ${prefs.weather.location}`);
+  }
+  if (prefs.occasion && prefs.occasion !== "any") why.push(`suited to ${prefs.occasion}`);
+  if (prefs.goal && prefs.goal !== "balanced") why.push(`supports your ${prefs.goal.replaceAll("-", " ")} goal`);
+  return `${core}. ${why.join(", ") || "The proportions and textures work together"}.`;
 }
 
 function lookDistance(a: Look, b: Look, anchorIds: Set<string>): number {
@@ -675,95 +842,135 @@ function chooseDistinctCandidate(
   })[0];
 }
 
-function cartesian(pools: Item[][]): Item[][] {
-  return pools.reduce<Item[][]>((acc, pool) => acc.flatMap((previous) => pool.map((item) => [...previous, item])), [[]]);
+function isLoudUnEchoedShoe(shoe: Item, core: Item[]): boolean {
+  const text = itemText(shoe);
+  const isBrightNamed = /\bred\b|crimson|scarlet|pink|magenta|neon|orange|yellow|cobalt|bright|lime/.test(text);
+  if (!isBrightNamed && shoe.color_role !== "accent") return false;
+  return !core.some((item) => item.color_role === "accent" && item.palette === shoe.palette);
 }
 
-type CandidateValidation = { valid: boolean; violations: string[] };
-
-export function validateOutfitCandidate(formula: string, items: Item[], roles: string[]): CandidateValidation {
-  const violations: string[] = [];
-  if (items.length !== roles.length) violations.push("role-item-count-mismatch");
-  if (new Set(items.map((item) => item.id)).size !== items.length) violations.push("duplicate-item");
-
-  const roleItems = new Map(roles.map((role, index) => [role, items[index]]));
-  const bottoms = items.filter((item) => item.category === "bottom" || hasSlot(item, "bottom"));
-  const dresses = items.filter((item) => item.category === "dress" || hasSlot(item, "dress"));
-  const shoes = items.filter((item) => item.category === "shoe" || hasSlot(item, "shoe"));
-  if (dresses.length ? bottoms.length > 0 || dresses.length !== 1 : bottoms.length !== 1) violations.push("invalid-outfit-core");
-  if (shoes.length > 1) violations.push("multiple-shoes");
-
-  const explicitGenders = new Set(items.map((item) => item.gender).filter(Boolean));
-  if (explicitGenders.size > 1) violations.push("mixed-gender-catalog-items");
-
-  const formalities = items.map((item) => item.formality).filter((value): value is number => typeof value === "number");
-  if (formalities.length && Math.max(...formalities) - Math.min(...formalities) >= 3) violations.push("extreme-formality-gap");
-
-  const base = roleItems.get("base");
-  const overshirt = roleItems.get("overshirt");
-  const outer = roleItems.get("outer");
-  const simpleTop = roleItems.get("top");
-  if (formula === "Layered" && (!base || !canBeBaseLayer(base))) violations.push("invalid-base-layer");
-  if (formula === "Layered" && (!overshirt || !canBeMidLayer(overshirt))) violations.push("invalid-mid-layer");
-  if (formula === "With layer" && (!outer || !canBeOuterLayer(outer))) violations.push("invalid-outer-layer");
-  if (formula === "Simple" && (!simpleTop || !canBeSoloTop(simpleTop))) violations.push("layer-piece-used-as-solo-top");
-
-  const layeredUpper = overshirt ?? outer;
-  if (base && layeredUpper) {
-    if (isCollaredShirt(base) && isCollaredShirt(layeredUpper) && !isSubstantialLayerPiece(layeredUpper)) {
-      violations.push("competing-collared-shirts");
-    }
-    const basePat = inferPattern(base);
-    const layerPat = inferPattern(layeredUpper);
-    if (basePat !== "solid" && layerPat !== "solid") {
-      violations.push("competing-upper-patterns");
-    }
-    if (hasHood(base) && isPulloverLayer(layeredUpper)) {
-      violations.push("hood-under-pullover-layer");
-    }
-    if (layerBulk(base) > layerBulk(layeredUpper)) {
-      violations.push("bulky-base-under-lighter-layer");
-    }
-  }
-
-  const uppers = items.filter((item) => isUpperItem(item));
-  if (uppers.some((u) => isPolishedButtonUp(u)) && bottoms.some((b) => isLoungeBottom(b))) {
-    violations.push("polished-shirt-with-lounge-bottom");
-  }
-
-  return { valid: violations.length === 0, violations };
+export function stampOutfitRolesOnItems(items: Item[], roles: string[]): Item[] {
+  return items.map((item, idx) => {
+    const role = roles[idx];
+    if (role === "base") return { ...item, layer: "base" };
+    if (role === "overshirt") return { ...item, layer: "mid" };
+    if (role === "outer") return { ...item, layer: "outer" };
+    if (role === "top") return { ...item, layer: "base" };
+    return item;
+  });
 }
 
-export function buildReason(formula: string, items: Item[], roles: string[], prefs: StylePreferences): string {
-  const name = (role: string) => items[roles.indexOf(role)]?.title ?? "";
-  const core = formula === "Layered"
-    ? `${name("base")} with ${name("overshirt")} layered over it, ${name("bottom")}`
-    : formula === "With layer"
-      ? `${name("base")} under ${name("outer")}, ${name("bottom")}`
-      : formula === "Dress"
-        ? `${name("dress")} with ${name("shoes")}`
-        : `${name("top")} with ${name("bottom")}`;
-  const why: string[] = [];
-  const base = items[roles.indexOf("base")];
-  const layer = items[roles.indexOf("overshirt")] ?? items[roles.indexOf("outer")];
-  if (base && layer && isCollaredShirt(base) && layer.semantics?.collarType === "v-neck") {
-    why.push("the V-neck frames the shirt collar");
-  }
-  if (items.filter((i) => i.color_role === "accent").length <= 1) why.push("controlled color balance");
-  const fs = items.map((i) => i.formality ?? 2);
-  if (Math.max(...fs) - Math.min(...fs) <= 1) why.push("consistent formality");
-  if (prefs.occasion && prefs.occasion !== "any") why.push(`suited to ${prefs.occasion}`);
-  if (prefs.goal && prefs.goal !== "balanced") why.push(`supports your ${prefs.goal.replaceAll("-", " ")} goal`);
-  return `${core}. ${why.join(", ") || "The proportions and palette work together"}.`;
-}
+function buildPrunedRackCandidates(
+  rack: RollingRack,
+  coreAnchors: string[],
+  prefs: StylePreferences,
+  feedback: OutfitFeedbackEvent[],
+): Look[] {
+  const { bases, solo, mids, outers, bottoms, dresses, shoes } = rack.byRole;
+  const shoePool = shoes.length ? shoes : [null];
+  const baseOrMidForOuter = [...bases, ...mids.filter((m) => !bases.some((b) => b.id === m.id))];
 
-function bestAccessory(items: Item[], accessories: Item[]): Item | null {
-  let best: Item | null = null, bestScore = -1;
-  for (const accessory of accessories) {
-    const score = items.reduce((sum, item) => sum + compatibility(item, accessory), 0) / Math.max(1, items.length);
-    if (score > bestScore) { best = accessory; bestScore = score; }
+  const templates: Array<{ name: string; roles: string[]; pools: Array<Array<Item | null>> }> = [
+    ...(bases.length && mids.length && outers.length && bottoms.length
+      ? [{ name: "Three layer", roles: ["base", "overshirt", "outer", "bottom", ...(shoes.length ? ["shoes"] : [])], pools: [bases, mids, outers, bottoms, ...(shoes.length ? [shoePool] : [])] }]
+      : []),
+    ...(bases.length && mids.length && bottoms.length
+      ? [{ name: "Layered", roles: ["base", "overshirt", "bottom", ...(shoes.length ? ["shoes"] : [])], pools: [bases, mids, bottoms, ...(shoes.length ? [shoePool] : [])] }]
+      : []),
+    ...(solo.length && bottoms.length
+      ? [{ name: "Simple", roles: ["top", "bottom", ...(shoes.length ? ["shoes"] : [])], pools: [solo, bottoms, ...(shoes.length ? [shoePool] : [])] }]
+      : []),
+    ...(baseOrMidForOuter.length && outers.length && bottoms.length
+      ? [{ name: "With layer", roles: ["base", "outer", "bottom", ...(shoes.length ? ["shoes"] : [])], pools: [baseOrMidForOuter, outers, bottoms, ...(shoes.length ? [shoePool] : [])] }]
+      : []),
+    ...(dresses.length
+      ? [{ name: "Dress", roles: ["dress", ...(shoes.length ? ["shoes"] : [])], pools: [dresses, ...(shoes.length ? [shoePool] : [])] }]
+      : []),
+  ];
+
+  const built: Look[] = [];
+  const BEAM_WIDTH = 28;
+
+  for (const tpl of templates) {
+    // Pruned Beam Search: prune invalid partial combinations at each slot step
+    let beam: Item[][] = [[]];
+    for (let step = 0; step < tpl.pools.length; step++) {
+      const pool = tpl.pools[step]!.filter((x): x is Item => x !== null);
+      const nextBeam: Item[][] = [];
+      for (const prefix of beam) {
+        for (const candidate of pool) {
+          if (prefix.some((p) => p.id === candidate.id)) continue;
+          const partial = [...prefix, candidate];
+          const explicitGenders = new Set(partial.map((i) => i.gender).filter(Boolean));
+          if (explicitGenders.size > 1) continue;
+          const fs = partial.map((i) => i.formality).filter((v): v is number => typeof v === "number");
+          if (fs.length > 1 && Math.max(...fs) - Math.min(...fs) >= 3) continue;
+          nextBeam.push(partial);
+        }
+      }
+      // Prioritize partial paths that contain locked anchors
+      nextBeam.sort((a, b) => {
+        const aAnchors = coreAnchors.filter((id) => a.some((it) => it.id === id)).length;
+        const bAnchors = coreAnchors.filter((id) => b.some((it) => it.id === id)).length;
+        return bAnchors - aAnchors;
+      });
+      beam = nextBeam.slice(0, BEAM_WIDTH);
+    }
+
+    for (const combo of beam) {
+      if (coreAnchors.some((id) => !combo.some((it) => it.id === id))) continue;
+      if (!validateOutfitCandidate(tpl.name, combo, tpl.roles).valid) continue;
+
+      const shoe = combo.find((i) => i.category === "shoe" || hasSlot(i, "shoe"));
+      const core = combo.filter((i) => i.id !== shoe?.id);
+      const loudShoePenalty = shoe && isLoudUnEchoedShoe(shoe, core) ? 0.16 : 0;
+      const fs = combo.map((i) => i.formality ?? 2);
+      const formSpread = fs.length ? Math.max(...fs) - Math.min(...fs) : 0;
+      let weatherLayerBonus = 0;
+      if (prefs.weather) {
+        const avgTemp = typeof prefs.weather.tempCurrent === "number"
+          ? prefs.weather.tempCurrent
+          : (prefs.weather.tempMin + prefs.weather.tempMax) / 2;
+        const isLayeredFormula = tpl.name === "Three layer" || tpl.name === "With layer" || tpl.name === "Layered";
+        if (avgTemp <= 15) {
+          weatherLayerBonus = tpl.name === "Three layer" ? 0.08 : isLayeredFormula ? 0.06 : -0.05;
+        } else if (avgTemp >= 24) {
+          weatherLayerBonus = tpl.name === "Simple" || tpl.name === "Dress" ? 0.07 : -0.08;
+        } else {
+          weatherLayerBonus = isLayeredFormula ? 0.04 : 0.02;
+        }
+      }
+      const formScore = clamp01(1 - formSpread * 0.12);
+      const palScore = clamp01(0.88 - loudShoePenalty);
+      const scoreBreakdown = buildScoreBreakdownFromVisuals(
+        {
+          palette: palScore,
+          silhouette: 0.88,
+          layering: clamp01(0.86 + weatherLayerBonus),
+          occasion: formScore,
+        },
+        combo,
+        prefs,
+        feedback,
+      );
+      const reason = buildReason(tpl.name, combo, tpl.roles, prefs);
+      const archetype = inferArchetype(tpl.name, combo, prefs);
+      const stampedItems = stampOutfitRolesOnItems(combo, tpl.roles);
+      built.push({
+        formula: tpl.name,
+        archetype,
+        selectionMode: "alternate",
+        items: stampedItems,
+        roles: tpl.roles,
+        score: scoreBreakdown.total,
+        cohesion: scoreBreakdown.compatibility,
+        scoreBreakdown,
+        reason,
+        deterministicReason: reason,
+      });
+    }
   }
-  return best;
+  return built;
 }
 
 export type RecommendOptions = {
@@ -772,6 +979,8 @@ export type RecommendOptions = {
   feedback?: OutfitFeedbackEvent[];
   candidateLimit?: number;
   catalogItems?: Item[];
+  recentlyUsedItemIds?: string[];
+  seed?: number;
 };
 
 export function recommend(
@@ -780,59 +989,32 @@ export function recommend(
   options: RecommendOptions = {},
 ): Look[] {
   const prefs = options.preferences ?? {};
-  const baseItems = options.catalogItems ?? FIXED;
-  const pool = [...baseItems, ...(options.extraItems ?? []).filter((item, index, values) => values.findIndex((v) => v.id === item.id) === index)];
   const ids = (Array.isArray(anchors) ? anchors : anchors ? [anchors] : []).filter(Boolean);
-  const anchoredGender = pool.find((item) => ids.includes(item.id) && item.category !== "accessory" && item.gender)?.gender;
-  const targetGender = prefs.gender && prefs.gender !== "all" ? prefs.gender : anchoredGender;
-  const all = targetGender
-    ? pool.filter((i) => !i.gender || i.gender === targetGender)
-    : pool;
-  const uppers = all.filter((i) => isUpperItem(i));
-  const bottoms = all.filter((i) => i.category === "bottom" || hasSlot(i, "bottom"));
-  const shoes = all.filter((i) => i.category === "shoe" || hasSlot(i, "shoe"));
-  const accessories = all.filter((i) => i.category === "accessory" || hasSlot(i, "accessory"));
-  const dresses = all.filter((i) => i.category === "dress" || hasSlot(i, "dress"));
-  const bases = uppers.filter((i) => canBeBaseLayer(i));
-  const mids = uppers.filter((i) => canBeMidLayer(i));
-  const outers = uppers.filter((i) => canBeOuterLayer(i));
-  const solo = uppers.filter((i) => canBeSoloTop(i));
-  const shoeSlot = shoes.length ? [{ role: "shoes", pool: shoes }] : [];
-  const baseOrMidForOuter = [...bases, ...mids.filter((m) => !bases.some((b) => b.id === m.id))];
-  const formulas = [
-    ...(bases.length && mids.length && bottoms.length ? [{ name: "Layered", slots: [{ role: "base", pool: bases }, { role: "overshirt", pool: mids }, { role: "bottom", pool: bottoms }, ...shoeSlot] }] : []),
-    ...(solo.length && bottoms.length ? [{ name: "Simple", slots: [{ role: "top", pool: solo }, { role: "bottom", pool: bottoms }, ...shoeSlot] }] : []),
-    ...(baseOrMidForOuter.length && outers.length && bottoms.length ? [{ name: "With layer", slots: [{ role: "base", pool: baseOrMidForOuter }, { role: "outer", pool: outers }, { role: "bottom", pool: bottoms }, ...shoeSlot] }] : []),
-    ...(dresses.length ? [{ name: "Dress", slots: [{ role: "dress", pool: dresses }, ...shoeSlot] }] : []),
-  ];
+  const rack = buildRollingRack({
+    extraItems: options.extraItems,
+    catalogItems: options.catalogItems,
+    anchorIds: ids,
+    recentlyUsedItemIds: options.recentlyUsedItemIds,
+    preferences: prefs,
+    feedback: options.feedback,
+    seed: options.seed,
+  });
 
+  const accessories = rack.byRole.accessories;
   const accessoriesById = new Set(accessories.map((a) => a.id));
   const accessoryAnchors = ids.filter((id) => accessoriesById.has(id));
   const coreAnchors = ids.filter((id) => !accessoriesById.has(id));
-  const built: Look[] = [];
-  for (const formula of formulas) {
-    for (const combo of cartesian(formula.slots.map((slot) => slot.pool))) {
-      const roles = formula.slots.map((slot) => slot.role);
-      if (!validateOutfitCandidate(formula.name, combo, roles).valid) continue;
-      const scoreBreakdown = scoreOutfit(combo, prefs, options.feedback);
-      const score = scoreBreakdown.total;
-      const cohesion = scoreBreakdown.compatibility;
-      const reason = buildReason(formula.name, combo, roles, prefs);
-      const archetype = inferArchetype(formula.name, combo, prefs);
-      built.push({ formula: formula.name, archetype, selectionMode: "alternate", items: combo, roles, score, cohesion, scoreBreakdown, reason, deterministicReason: reason });
-    }
-  }
 
-  const included = (look: Look) => coreAnchors.filter((id) => look.items.some((item) => item.id === id)).length;
-  const eligible = coreAnchors.length ? built.filter((look) => included(look) === coreAnchors.length) : built;
+  const built = buildPrunedRackCandidates(rack, coreAnchors, prefs, options.feedback ?? []);
   const anchorSet = new Set(ids);
   const signature = (look: Look) => look.items.filter((item) => !anchorSet.has(item.id)).map((item) => item.id).sort().join("|");
-  const uniqueEligible = [...eligible]
+  const uniqueEligible = [...built]
     .sort((a, b) => b.score - a.score)
     .filter((look, index, values) => values.findIndex((candidate) => signature(candidate) === signature(look)) === index);
+
   const candidateCount = Math.max(k, options.candidateLimit ?? k);
   const chosen: Look[] = [];
-  const strategyRank = (look: Look) => look.score + occasionStrategyBonus(look.archetype, prefs.occasion);
+  const strategyRank = (look: Look) => look.score;
 
   if (candidateCount === 1) {
     const balanced = [...uniqueEligible].sort((a, b) => strategyRank(b) - strategyRank(a))[0];
@@ -841,10 +1023,7 @@ export function recommend(
     const conservativeArchetypes = new Set<OutfitArchetype>(["safe-casual", "soft-casual", "polished-smart", "dress"]);
     const conservative = uniqueEligible.filter((look) => conservativeArchetypes.has(look.archetype));
     const safePool = conservative.length ? conservative : uniqueEligible;
-    const safe = chooseDistinctCandidate(safePool, chosen, anchorSet, (look) => {
-      const stability = Math.min(look.scoreBreakdown.palette, look.scoreBreakdown.formality, look.scoreBreakdown.footwear);
-      return strategyRank(look) + 0.14 * stability;
-    });
+    const safe = chooseDistinctCandidate(safePool, chosen, anchorSet, (look) => look.score + 0.05);
     if (safe) { safe.selectionMode = "safe"; chosen.push(safe); }
 
     const balanced = chooseDistinctCandidate(uniqueEligible, chosen, anchorSet, strategyRank);
@@ -852,10 +1031,9 @@ export function recommend(
 
     if (candidateCount >= 3) {
       const expressive = chooseDistinctCandidate(uniqueEligible, chosen, anchorSet, (look) => {
-        const accents = look.items.filter((item) => item.color_role === "accent").length;
-        const archetypeSignal = look.archetype === "statement-top" || look.archetype === "statement-bottom" || look.archetype === "utility-street" ? 0.12 : 0;
-        const layerSignal = look.formula === "Layered" || look.formula === "With layer" ? 0.06 : 0;
-        return strategyRank(look) + archetypeSignal + layerSignal + Math.min(0.08, accents * 0.04);
+        const layerSignal = look.formula === "Three layer" || look.formula === "Layered" || look.formula === "With layer" ? 0.08 : 0;
+        const archetypeSignal = look.archetype === "statement-top" || look.archetype === "statement-bottom" || look.archetype === "utility-street" ? 0.1 : 0;
+        return look.score + layerSignal + archetypeSignal;
       });
       if (expressive) { expressive.selectionMode = "expressive"; chosen.push(expressive); }
     }
@@ -871,17 +1049,9 @@ export function recommend(
   for (const look of chosen) {
     for (const id of accessoryAnchors) {
       const item = accessories.find((accessory) => accessory.id === id);
-      if (item && !look.items.some((i) => i.id === id)) { look.items.push(item); look.roles.push("accessory"); }
-    }
-    // Only auto-attach an accessory if user explicitly anchored an accessory OR if occasion is evening/work and there is a high-affinity match (>0.6)
-    if (!look.items.some((i) => accessoriesById.has(i.id)) && (accessoryAnchors.length > 0 || prefs.occasion === "evening" || prefs.occasion === "work")) {
-      const item = bestAccessory(look.items, accessories);
-      if (item) {
-        const avgScore = look.items.reduce((sum, it) => sum + compatibility(it, item), 0) / Math.max(1, look.items.length);
-        if (avgScore >= 0.55) {
-          look.items.push(item);
-          look.roles.push("accessory");
-        }
+      if (item && !look.items.some((i) => i.id === id)) {
+        look.items.push(item);
+        look.roles.push("accessory");
       }
     }
   }
