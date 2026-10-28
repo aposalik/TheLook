@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "incremental": false,
+    "isolatedModules": false,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": false,
+    "outDir": ".eval-dist",
+    "rootDir": ".",
+    "target": "ES2022"
+  },
+  "include": [
+    "lib/recommend.ts",
+    "lib/recommend.eval.ts",
+    "lib/recommend.eval.test.ts",
+    "data/*.json"
+  ]
+}

@@ -1,7 +1,7 @@
 // Deterministic outfit constructor. Fixed catalog pairs use the offline CLIP/Polyvore
 // matrix; uploaded wardrobe items use Gemini-generated metadata and explicit style rules.
-import catalogData from "@/data/catalog.json";
-import matrixData from "@/data/compat_matrix.json";
+import catalogData from "../data/catalog.json";
+import matrixData from "../data/compat_matrix.json";
 
 export type Item = {
   id: string;
@@ -182,13 +182,21 @@ function bestAccessory(items: Item[], accessories: Item[]): Item | null {
   return best;
 }
 
+export type RecommendOptions = {
+  extraItems?: Item[];
+  preferences?: StylePreferences;
+  candidateLimit?: number;
+  catalogItems?: Item[];
+};
+
 export function recommend(
   anchors?: string | string[],
   k = 3,
-  options: { extraItems?: Item[]; preferences?: StylePreferences; candidateLimit?: number } = {},
+  options: RecommendOptions = {},
 ): Look[] {
   const prefs = options.preferences ?? {};
-  const pool = [...FIXED, ...(options.extraItems ?? []).filter((item, index, values) => values.findIndex((v) => v.id === item.id) === index)];
+  const baseItems = options.catalogItems ?? FIXED;
+  const pool = [...baseItems, ...(options.extraItems ?? []).filter((item, index, values) => values.findIndex((v) => v.id === item.id) === index)];
   const all = prefs.gender && prefs.gender !== "all"
     ? pool.filter((i) => !i.gender || i.gender === prefs.gender)
     : pool;

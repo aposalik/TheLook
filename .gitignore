@@ -10,6 +10,8 @@ node_modules/
 .next/
 **/.next/
 out/
+web/.eval-dist/
+web/reports/*.json
 *.tsbuildinfo
 next-env.d.ts
 

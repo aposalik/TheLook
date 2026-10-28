@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "fixtures": [
+    {
+      "id": "mens-relaxed-layered-casual",
+      "description": "Muted overshirt, white base, cream wide trouser, and neutral sneakers.",
+      "anchors": ["fixture-olive-overshirt"],
+      "limit": 3,
+      "preferences": { "occasion": "casual", "gender": "men", "goal": "balanced" },
+      "wardrobe": [
+        { "id": "fixture-white-tee", "slot": "top", "title": "White Tee", "color": "#f4f1e8", "palette": "neutral", "image": "/fixtures/white-tee.png", "category": "upper", "layer": "base", "formality": 1, "fit": "regular", "color_role": "neutral", "seasons": ["spring", "summer"], "styles": ["minimal", "streetwear"], "gender": "men" },
+        { "id": "fixture-olive-overshirt", "slot": "top", "slots": ["top", "outerwear"], "title": "Olive Overshirt", "color": "#68704d", "palette": "warm", "image": "/fixtures/olive-overshirt.png", "category": "upper", "layer": "mid", "formality": 2, "fit": "relaxed", "color_role": "accent", "seasons": ["spring", "autumn"], "styles": ["minimal", "utility"], "gender": "men" },
+        { "id": "fixture-navy-knit", "slot": "top", "title": "Navy Knit", "color": "#243247", "palette": "neutral", "image": "/fixtures/navy-knit.png", "category": "upper", "layer": "base", "formality": 2, "fit": "regular", "color_role": "neutral", "seasons": ["autumn", "winter"], "styles": ["minimal"], "gender": "men" },
+        { "id": "fixture-cream-trouser", "slot": "bottom", "title": "Cream Wide Trouser", "color": "#d8cfb8", "palette": "neutral", "image": "/fixtures/cream-trouser.png", "category": "bottom", "formality": 2, "fit": "relaxed", "color_role": "neutral", "seasons": ["spring", "summer", "autumn"], "styles": ["minimal", "smart-casual"], "gender": "men" },
+        { "id": "fixture-washed-jean", "slot": "bottom", "title": "Washed Black Jean", "color": "#48494b", "palette": "neutral", "image": "/fixtures/washed-jean.png", "category": "bottom", "formality": 1, "fit": "baggy", "color_role": "neutral", "seasons": ["all-season"], "styles": ["streetwear"], "gender": "men" },
+        { "id": "fixture-white-sneaker", "slot": "shoe", "title": "White Low-profile Sneaker", "color": "#efede8", "palette": "neutral", "image": "/fixtures/white-sneaker.png", "category": "shoe", "formality": 1, "fit": "regular", "color_role": "neutral", "seasons": ["all-season"], "styles": ["minimal", "streetwear"], "gender": "men" }
+      ],
+      "expect": { "minLooks": 1, "maxLooks": 3, "allLooksContain": ["fixture-olive-overshirt"], "allowedFormulas": ["Layered", "Simple", "With layer"], "requireUniqueItems": true }
+    },
+    {
+      "id": "mens-polished-work",
+      "description": "A burgundy cardigan is locked into a neutral smart-casual work wardrobe.",
+      "anchors": ["fixture-burgundy-cardigan"],
+      "limit": 3,
+      "preferences": { "occasion": "work", "gender": "men", "goal": "vertical-line" },
+      "wardrobe": [
+        { "id": "fixture-white-shirt", "slot": "top", "title": "White Shirt", "color": "#f2f0ea", "palette": "neutral", "image": "/fixtures/white-shirt.png", "category": "upper", "layer": "base", "formality": 3, "fit": "regular", "color_role": "neutral", "seasons": ["all-season"], "styles": ["smart-casual"], "gender": "men" },
+        { "id": "fixture-burgundy-cardigan", "slot": "outerwear", "title": "Burgundy Cardigan", "color": "#6f263d", "palette": "warm", "image": "/fixtures/burgundy-cardigan.png", "category": "upper", "layer": "outer", "formality": 3, "fit": "regular", "color_role": "accent", "seasons": ["autumn", "winter"], "styles": ["smart-casual", "preppy"], "gender": "men" },
+        { "id": "fixture-beige-trouser", "slot": "bottom", "title": "Beige Tailored Trouser", "color": "#b9a98e", "palette": "neutral", "image": "/fixtures/beige-trouser.png", "category": "bottom", "formality": 3, "fit": "relaxed", "color_role": "neutral", "seasons": ["all-season"], "styles": ["smart-casual"], "gender": "men" },
+        { "id": "fixture-black-derby", "slot": "shoe", "title": "Black Derby", "color": "#181818", "palette": "neutral", "image": "/fixtures/black-derby.png", "category": "shoe", "formality": 4, "fit": "regular", "color_role": "neutral", "seasons": ["all-season"], "styles": ["smart-casual"], "gender": "men" }
+      ],
+      "expect": { "minLooks": 1, "maxLooks": 3, "allLooksContain": ["fixture-burgundy-cardigan"], "allowedFormulas": ["With layer"], "requireUniqueItems": true }
+    },
+    {
+      "id": "womens-evening-dress",
+      "description": "A dress-only wardrobe verifies the dress construction path and locked footwear.",
+      "anchors": ["fixture-black-dress", "fixture-burgundy-heel"],
+      "limit": 2,
+      "preferences": { "occasion": "evening", "gender": "women", "goal": "define-waist" },
+      "wardrobe": [
+        { "id": "fixture-black-dress", "slot": "dress", "title": "Black Midi Dress", "color": "#191919", "palette": "neutral", "image": "/fixtures/black-dress.png", "category": "dress", "formality": 4, "fit": "fitted", "color_role": "neutral", "seasons": ["all-season"], "styles": ["minimal", "smart-casual"], "gender": "women" },
+        { "id": "fixture-burgundy-heel", "slot": "shoe", "title": "Burgundy Heel", "color": "#702d42", "palette": "warm", "image": "/fixtures/burgundy-heel.png", "category": "shoe", "formality": 4, "fit": "regular", "color_role": "accent", "seasons": ["all-season"], "styles": ["smart-casual"], "gender": "women" },
+        { "id": "fixture-white-sneaker-w", "slot": "shoe", "title": "White Sneaker", "color": "#eeeeea", "palette": "neutral", "image": "/fixtures/white-sneaker-w.png", "category": "shoe", "formality": 1, "fit": "regular", "color_role": "neutral", "seasons": ["all-season"], "styles": ["casual"], "gender": "women" }
+      ],
+      "expect": { "minLooks": 1, "maxLooks": 2, "allLooksContain": ["fixture-black-dress", "fixture-burgundy-heel"], "allowedFormulas": ["Dress"], "requireUniqueItems": true }
+    },
+    {
+      "id": "incomplete-wardrobe",
+      "description": "A wardrobe without a bottom or dress must return no complete looks.",
+      "anchors": [],
+      "limit": 3,
+      "preferences": { "occasion": "casual", "gender": "women", "goal": "balanced" },
+      "wardrobe": [
+        { "id": "fixture-lone-tee", "slot": "top", "title": "Lone Tee", "color": "#ffffff", "palette": "neutral", "image": "/fixtures/lone-tee.png", "category": "upper", "layer": "base", "formality": 1, "fit": "regular", "color_role": "neutral", "gender": "women" },
+        { "id": "fixture-lone-sneaker", "slot": "shoe", "title": "Lone Sneaker", "color": "#222222", "palette": "neutral", "image": "/fixtures/lone-sneaker.png", "category": "shoe", "formality": 1, "fit": "regular", "color_role": "neutral", "gender": "women" }
+      ],
+      "expect": { "minLooks": 0, "maxLooks": 0, "allLooksContain": [], "allowedFormulas": [], "requireUniqueItems": true }
+    }
+  ]
+}

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "eval:recommend": "sh -c 'rm -rf .eval-dist; tsc -p tsconfig.eval.json && node .eval-dist/lib/recommend.eval.js; status=$?; rm -rf .eval-dist; exit $status'",
+    "test:recommend": "sh -c 'rm -rf .eval-dist; tsc -p tsconfig.eval.json && node --test .eval-dist/lib/recommend.eval.test.js; status=$?; rm -rf .eval-dist; exit $status'"
   },
   "dependencies": {
     "@imgly/background-removal": "^1.7.0",
