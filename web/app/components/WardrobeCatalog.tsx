@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Item } from "@/lib/recommend";
 
+import type { RowKey as AddModeKey } from "./AddItemModal";
+
 type RowKey = "tops" | "bottoms" | "accessories";
 type Row = { key: RowKey; label: string; hint: string; display: "rack" | "shelf"; items: Item[] };
 
@@ -13,17 +15,55 @@ type Props = {
   equipped: Item[];
   activeId: string | null;
   onToggle: (item: Item) => void;
-  onAdd: (category: RowKey) => void;
+  onAdd: (category: AddModeKey) => void;
   onRemoveUserItem: (id: string) => void;
 };
+
+function itemSlotLabel(item: Item): string {
+  if (item.slots && item.slots.length > 1) {
+    return item.slots.join(" · ");
+  }
+  return item.slot;
+}
+
+function itemHasTopSlot(it: Item): boolean {
+  const slots = it.slots && it.slots.length > 0 ? it.slots : [it.slot];
+  return (
+    it.category === "upper" ||
+    slots.some((s) => s === "innerwear" || s === "top" || s === "outerwear")
+  );
+}
+
+function itemHasBottomSlot(it: Item): boolean {
+  const slots = it.slots && it.slots.length > 0 ? it.slots : [it.slot];
+  return it.category === "bottom" || slots.includes("bottom");
+}
+
+function itemHasAccessoryOrDressSlot(it: Item): boolean {
+  const slots = it.slots && it.slots.length > 0 ? it.slots : [it.slot];
+  return (
+    it.category === "shoe" ||
+    it.category === "accessory" ||
+    it.category === "dress" ||
+    slots.some((s) => s === "shoe" || s === "accessory" || s === "dress")
+  );
+}
 
 function partition(all: Item[]): Record<RowKey, Item[]> {
   const tops: Item[] = [], bottoms: Item[] = [], accessories: Item[] = [];
   for (const it of all) {
-    const cat = it.category ?? it.slot;
-    if (cat === "upper" || it.slot === "top" || it.slot === "outerwear") tops.push(it);
-    else if (cat === "bottom") bottoms.push(it);
-    else accessories.push(it);
+    let matched = false;
+    if (itemHasTopSlot(it)) {
+      tops.push(it);
+      matched = true;
+    }
+    if (itemHasBottomSlot(it)) {
+      bottoms.push(it);
+      matched = true;
+    }
+    if (itemHasAccessoryOrDressSlot(it) || !matched) {
+      accessories.push(it);
+    }
   }
   return { tops, bottoms, accessories };
 }
@@ -50,7 +90,7 @@ export default function WardrobeCatalog({ catalog, userItems, equipped, activeId
   const rows: Row[] = useMemo(() => {
     const p = partition(merged);
     return [
-      { key: "tops", label: "Tops", hint: "shirts · tees · knits · outerwear", display: "rack", items: p.tops },
+      { key: "tops", label: "Tops", hint: "innerwear · shirts · tees · knits · outerwear", display: "rack", items: p.tops },
       { key: "bottoms", label: "Bottoms", hint: "trousers · jeans · skirts", display: "rack", items: p.bottoms },
       { key: "accessories", label: "Shoes & accessories", hint: "shoes · bags · belts", display: "shelf", items: p.accessories },
     ];
@@ -125,7 +165,7 @@ function ManageDrawer({
   demoCount: number;
   onToggleDemo: () => void;
   onRemove: (id: string) => void;
-  onAdd: (c: RowKey) => void;
+  onAdd: (c: AddModeKey) => void;
   onClose: () => void;
 }) {
   const [selectedCat, setSelectedCat] = useState<"all" | "tops" | "bottoms" | "accessories">("all");
@@ -142,14 +182,11 @@ function ManageDrawer({
     return userItems.filter((item) => {
       // Category filter
       if (selectedCat === "tops") {
-        const cat = item.category ?? item.slot;
-        if (!(cat === "upper" || item.slot === "top" || item.slot === "outerwear")) return false;
+        if (!itemHasTopSlot(item)) return false;
       } else if (selectedCat === "bottoms") {
-        const cat = item.category ?? item.slot;
-        if (cat !== "bottom") return false;
+        if (!itemHasBottomSlot(item)) return false;
       } else if (selectedCat === "accessories") {
-        const cat = item.category ?? item.slot;
-        if (cat === "upper" || item.slot === "top" || item.slot === "outerwear" || cat === "bottom") return false;
+        if (!itemHasAccessoryOrDressSlot(item)) return false;
       }
 
       // Gender filter (strictly men or women)
@@ -162,9 +199,10 @@ function ManageDrawer({
         const q = searchQuery.toLowerCase();
         const matchesTitle = item.title.toLowerCase().includes(q);
         const matchesSlot = item.slot.toLowerCase().includes(q);
+        const matchesSlots = item.slots?.some((s) => s.toLowerCase().includes(q)) ?? false;
         const matchesCategory = item.category?.toLowerCase().includes(q) ?? false;
         const matchesMaterial = item.material?.toLowerCase().includes(q) ?? false;
-        if (!matchesTitle && !matchesSlot && !matchesCategory && !matchesMaterial) return false;
+        if (!matchesTitle && !matchesSlot && !matchesSlots && !matchesCategory && !matchesMaterial) return false;
       }
 
       return true;
@@ -381,7 +419,7 @@ function ManageDrawer({
                       )}
                       {/* Category tag */}
                       <span className="absolute top-2 right-2 rounded-full bg-white/90 border border-[#E8E3DB] px-1.5 py-0.5 text-[9px] font-medium text-[#8A8480] uppercase">
-                        {item.slot}
+                        {itemSlotLabel(item)}
                       </span>
                     </div>
 
@@ -418,16 +456,28 @@ function ManageDrawer({
 
         {/* Footer */}
         <div className="pt-3 border-t border-[#E8E3DB] flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              onAdd("tops");
-            }}
-            className="flex items-center gap-1.5 rounded-full border border-[#E8E3DB] px-3.5 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F5F0] transition"
-          >
-            + Add New Piece
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onAdd("single");
+              }}
+              className="flex items-center gap-1.5 rounded-full border border-[#E8E3DB] px-3.5 py-1.5 text-xs font-semibold text-[#1A1A1A] hover:bg-[#F7F5F0] transition"
+            >
+              + Add New Piece
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onAdd("bulk");
+              }}
+              className="flex items-center gap-1.5 rounded-full border border-[#C4A882] bg-[#FBF8F1] px-3.5 py-1.5 text-xs font-semibold text-[#735F43] hover:bg-[#F3EADA] transition"
+            >
+              ++ Add in Bulk
+            </button>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -443,7 +493,7 @@ function ManageDrawer({
 
 // ── Add new menu ───────────────────────────────────────────────────────────────
 
-function AddNewMenu({ onAdd }: { onAdd: (c: RowKey) => void }) {
+function AddNewMenu({ onAdd }: { onAdd: (c: AddModeKey) => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -467,19 +517,26 @@ function AddNewMenu({ onAdd }: { onAdd: (c: RowKey) => void }) {
       {open && (
         <div
           role="menu"
-          className="absolute right-0 top-full mt-2 w-44 overflow-hidden rounded-xl border border-[#E8E3DB] bg-white shadow-lg z-20"
+          className="absolute right-0 top-full mt-2 w-56 overflow-hidden rounded-2xl border border-[#E8E3DB] bg-white shadow-xl z-20 p-1"
         >
-          {(["tops", "bottoms", "accessories"] as const).map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => { setOpen(false); onAdd(key); }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-[#1A1A1A] hover:bg-[#F7F5F0]"
-              role="menuitem"
-            >
-              {{ tops: "Top", bottoms: "Bottom", accessories: "Shoe / accessory" }[key]}
-            </button>
-          ))}
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onAdd("single"); }}
+            className="flex w-full flex-col gap-0.5 rounded-xl px-3 py-2 text-left hover:bg-[#F7F5F0] transition"
+            role="menuitem"
+          >
+            <span className="text-xs font-semibold text-[#1A1A1A]">+ Add Single Piece</span>
+            <span className="text-[10px] text-[#8A8480]">AI auto-suggests category after upload</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onAdd("bulk"); }}
+            className="flex w-full flex-col gap-0.5 rounded-xl px-3 py-2 text-left hover:bg-[#F7F5F0] transition"
+            role="menuitem"
+          >
+            <span className="text-xs font-semibold text-[#1A1A1A]">++ Add New as Bulk</span>
+            <span className="text-[10px] text-[#8A8480]">Upload multiple clothes at once</span>
+          </button>
         </div>
       )}
     </div>
@@ -690,7 +747,7 @@ function HangingItem({ item, index, equipped, isUserOwned, isDemo, onToggle }: {
         </div>
         <div className="mt-2 w-full text-center">
           <p className={`truncate text-[12px] font-semibold ${equipped ? "text-[#1A1A1A]" : "text-[#2A2622]"}`}>{item.title}</p>
-          <p className="truncate text-[10px] uppercase tracking-wide text-[#8A8480]">{item.slot}{item.palette ? ` · ${item.palette}` : ""}</p>
+          <p className="truncate text-[10px] uppercase tracking-wide text-[#8A8480]">{itemSlotLabel(item)}{item.palette ? ` · ${item.palette}` : ""}</p>
           {equipped && (
             <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-[#1A1A1A]">
               <span className="h-1.5 w-1.5 rounded-full bg-[#1A1A1A]" /> in look
@@ -740,7 +797,7 @@ function ShelfItem({ item, equipped, isUserOwned, isDemo, onToggle }: {
         </div>
         <div className="mt-2 w-full text-center">
           <p className={`truncate text-[12px] font-semibold ${equipped ? "text-[#1A1A1A]" : "text-[#2A2622]"}`}>{item.title}</p>
-          <p className="truncate text-[10px] uppercase tracking-wide text-[#8A8480]">{item.slot}{item.palette ? ` · ${item.palette}` : ""}</p>
+          <p className="truncate text-[10px] uppercase tracking-wide text-[#8A8480]">{itemSlotLabel(item)}{item.palette ? ` · ${item.palette}` : ""}</p>
           {equipped && (
             <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold text-[#1A1A1A]">
               <span className="h-1.5 w-1.5 rounded-full bg-[#1A1A1A]" /> in look

@@ -166,13 +166,22 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
           wRows.map(async (row: Record<string, unknown>) => {
             const res = await fetch(`/api/wardrobe/${row.id}/url`);
             const d = await res.json() as { signedUrl?: string };
+            const rawStyles = (row.styles as string[]) ?? [];
+            const storedSlots = rawStyles
+              .filter((s) => s.startsWith("slot:"))
+              .map((s) => s.slice(5));
+            const cleanStyles = rawStyles.filter((s) => !s.startsWith("slot:"));
+            const defaultSlot =
+              (row.category as string) === "bottom" ? "bottom"
+              : (row.category as string) === "shoe" ? "shoe"
+              : (row.category as string) === "accessory" ? "accessory"
+              : (row.category as string) === "dress" ? "dress"
+              : (row.layer as string) === "outer" ? "outerwear" : "top";
+            const slots = storedSlots.length > 0 ? storedSlots : [defaultSlot];
             return {
               id: row.id as string,
-              slot: (row.category as string) === "bottom" ? "bottom"
-                : (row.category as string) === "shoe" ? "shoe"
-                : (row.category as string) === "accessory" ? "accessory"
-                : (row.category as string) === "dress" ? "dress"
-                : (row.layer as string) === "outer" ? "outerwear" : "top",
+              slot: slots[0] ?? defaultSlot,
+              slots,
               title: row.title as string,
               color: (row.dominant_color as string) ?? "#8A8480",
               palette: (row.palette as string) ?? "neutral",
@@ -184,25 +193,28 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
               color_role: (row.color_role as string) ?? "neutral",
               subcategory: row.subcategory as string | undefined,
               seasons: (row.seasons as string[]) ?? [],
-              styles: (row.styles as string[]) ?? [],
+              styles: cleanStyles,
               material: row.material as string | undefined,
               description: row.description as string | undefined,
               source: "user" as const,
             };
           }),
         );
-        for (const item of items) hydrationItems.set(item.id, item);
-        setUserItems(items);
-        localStorage.setItem(userKey(WARDROBE_KEY, user.id), JSON.stringify(items));
+        const dbIds = new Set(items.map((i) => i.id));
+        const cached = JSON.parse(localStorage.getItem(userKey(WARDROBE_KEY, user.id)) ?? "[]") as Item[];
+        const merged = [...items, ...cached.filter((c) => !dbIds.has(c.id))];
+        for (const item of merged) hydrationItems.set(item.id, item);
+        setUserItems(merged);
+        safeSetStorage(userKey(WARDROBE_KEY, user.id), JSON.stringify(merged));
       } else {
         const cached = JSON.parse(localStorage.getItem(userKey(WARDROBE_KEY, user.id)) ?? "[]") as Item[];
         for (const item of cached) hydrationItems.set(item.id, item);
-        setUserItems(cached);
+        setUserItems((prev) => (prev.length > 0 && cached.length === 0 ? prev : cached));
       }
     } catch {
       const cached = JSON.parse(localStorage.getItem(userKey(WARDROBE_KEY, user.id)) ?? "[]") as Item[];
       for (const item of cached) hydrationItems.set(item.id, item);
-      setUserItems(cached);
+      setUserItems((prev) => (prev.length > 0 && cached.length === 0 ? prev : cached));
     }
 
     // Preferences
@@ -302,16 +314,79 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   function persistUserItems(next: Item[]) {
     if (!user) return;
     setUserItems(next);
-    localStorage.setItem(userKey(WARDROBE_KEY, user.id), JSON.stringify(next));
+    safeSetStorage(userKey(WARDROBE_KEY, user.id), JSON.stringify(next));
   }
 
-  function addUserItem(item: Item) {
-    persistUserItems([item, ...userItems]);
-    showToast(`Added "${item.title}" to your wardrobe`);
+  function addUserItem(itemOrItems: Item | Item[]) {
+    const incoming = Array.isArray(itemOrItems) ? itemOrItems : [itemOrItems];
+    if (!incoming.length) return;
+
+    setUserItems((prev) => {
+      const next = [...incoming, ...prev];
+      if (user) {
+        safeSetStorage(userKey(WARDROBE_KEY, user.id), JSON.stringify(next));
+      }
+      return next;
+    });
+
+    if (incoming.length === 1) {
+      showToast(`Added "${incoming[0]!.title}" to your wardrobe`);
+    } else {
+      showToast(`Added ${incoming.length} pieces to your wardrobe`);
+    }
+
+    // Persist each item to Supabase Storage + wardrobe_items table
+    if (user && !isGuest) {
+      const uid = user.id;
+      void (async () => {
+        let failed = 0;
+        for (const item of incoming) {
+          if (!item.image || !item.image.startsWith("data:")) continue;
+          try {
+            const res = await fetch("/api/wardrobe/upload", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                imageBase64: item.image,
+                itemId: item.id,
+                item,
+              }),
+            });
+            if (!res.ok) {
+              failed++;
+              continue;
+            }
+            const data = await res.json() as { signedUrl?: string; itemId?: string };
+            if (data.signedUrl) {
+              setUserItems((prev) => {
+                const updated = prev.map((existing) =>
+                  existing.id === item.id
+                    ? { ...existing, id: data.itemId ?? existing.id, image: data.signedUrl! }
+                    : existing,
+                );
+                safeSetStorage(userKey(WARDROBE_KEY, uid), JSON.stringify(updated));
+                return updated;
+              });
+            }
+          } catch {
+            failed++;
+          }
+        }
+        if (failed > 0) {
+          showToast(`Warning: ${failed} item(s) could not be synced to cloud storage`);
+        }
+      })();
+    }
   }
 
   function removeUserItem(id: string) {
-    persistUserItems(userItems.filter((i) => i.id !== id));
+    setUserItems((prev) => {
+      const next = prev.filter((i) => i.id !== id);
+      if (user) {
+        safeSetStorage(userKey(WARDROBE_KEY, user.id), JSON.stringify(next));
+      }
+      return next;
+    });
     setEquipped((prev) => prev.filter((i) => i.id !== id));
     if (activeItem?.id === id) setActiveItem(null);
     // Delete from DB + Storage in background
@@ -321,7 +396,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   function persistAvatars(next: Avatar[]) {
     if (!user) return;
     setAvatars(next);
-    localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(next));
+    safeSetStorage(userKey(AV_KEY, user.id), JSON.stringify(next));
   }
 
   async function handleSaveAvatarFromModal(url: string, isCutout: boolean) {
@@ -344,12 +419,12 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ imageBase64: url, avatarId: av.id, isCutout }),
-      }).then((r) => r.json()).then((d: { storagePath?: string; error?: string }) => {
+      }).then((r) => r.json()).then((d: { storagePath?: string; signedUrl?: string; error?: string }) => {
         if (d.error) { showToast(`Avatar upload: ${d.error}`); return; }
         if (d.storagePath) {
           setAvatars((prev) => {
             const updated = prev.map((a) => a.id === av.id ? { ...a, storagePath: d.storagePath, isCutout } : a);
-            if (user) localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(updated));
+            if (user) safeSetStorage(userKey(AV_KEY, user.id), JSON.stringify(updated));
             return updated;
           });
         }
@@ -409,11 +484,25 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         if (user) safeSetStorage(userKey(EQUIPPED_KEY, user.id), JSON.stringify(next.map(stripItemImages)));
         return next;
       }
-      // Allow a real layered outfit: one base, one mid and one outer. Bottoms,
-      // shoes and dresses remain mutually exclusive; accessories can stack.
+      // Allow a real layered outfit: one base (innerwear), one mid (top) and one outer (outerwear).
+      // Bottoms, shoes and dresses remain mutually exclusive; accessories can stack.
+      const isUpper = (value: Item) =>
+        value.category === "upper" ||
+        value.slot === "innerwear" ||
+        value.slot === "top" ||
+        value.slot === "outerwear" ||
+        value.slots?.some((s) => s === "innerwear" || s === "top" || s === "outerwear");
+
+      const upperRoleFor = (value: Item): "base" | "mid" | "outer" => {
+        if (value.slot === "innerwear") return "base";
+        if (value.slot === "outerwear" || value.layer === "outer") return "outer";
+        if (value.layer === "mid") return "mid";
+        return "base";
+      };
+
       const key = (value: Item) => {
         const category = value.category ?? value.slot;
-        if (category === "upper" || value.slot === "top" || value.slot === "outerwear") return `upper:${value.layer ?? "base"}`;
+        if (isUpper(value)) return `upper:${upperRoleFor(value)}`;
         if (category === "accessory") return `accessory:${value.id}`;
         return category;
       };

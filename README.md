@@ -249,8 +249,9 @@ Raw IP addresses are not persisted by the quota helper. Cache hits do not create
 
 ### Data boundaries
 
-- Guest data is browser-local until the user deliberately starts a separate permanent account.
+- Guest data is browser-local until the user deliberately starts a separate permanent account; guest UI paths do not call the cloud upload routes.
 - Permanent-account avatars, wardrobe cutouts, and renders are intended for private Supabase Storage.
+- Permanent upload handlers write Storage and metadata in order, return a signed URL only after both succeed, and remove partial artifacts on failure.
 - Real try-on inputs are sent to Perfect Corp to perform Cloth-v4 processing.
 - External API credentials remain server-side.
 

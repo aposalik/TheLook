@@ -6,6 +6,7 @@ import matrixData from "@/data/compat_matrix.json";
 export type Item = {
   id: string;
   slot: string;
+  slots?: string[];
   title: string;
   color: string;
   palette: string;
@@ -77,17 +78,30 @@ function metadataCompat(a: Item, b: Item): number {
   return Math.max(0, Math.min(1, score));
 }
 
+function hasSlot(item: Item, s: string): boolean {
+  return item.slot === s || (Array.isArray(item.slots) && item.slots.includes(s));
+}
+
+function isUpperItem(item: Item): boolean {
+  return (
+    item.category === "upper" ||
+    hasSlot(item, "innerwear") ||
+    hasSlot(item, "top") ||
+    hasSlot(item, "outerwear")
+  );
+}
+
 function compatibility(a: Item, b: Item): number {
   if (a.id === b.id) return 1;
-  const aIsUpper = a.category === "upper" || a.slot === "top" || a.slot === "outerwear";
-  const bIsUpper = b.category === "upper" || b.slot === "top" || b.slot === "outerwear";
+  const aIsUpper = isUpperItem(a);
+  const bIsUpper = isUpperItem(b);
   if (aIsUpper && bIsUpper) {
-    // Two uppers layered together (e.g. base + mid or base + outer).
+    // Two uppers layered together (e.g. innerwear/base + mid/top or base + outer).
     // The Polyvore matrix was trained only on single-piece tops vs bottoms,
     // so raw matrix lookup yields artificially low scores (~0.35).
     // For layering, evaluate style & color synergy plus layering harmony.
     const meta = metadataCompat(a, b);
-    const layerSynergy = a.layer && b.layer && a.layer !== b.layer ? 0.15 : 0;
+    const layerSynergy = a.layer && b.layer && a.layer !== b.layer ? 0.15 : 0.1;
     return Math.min(1, Math.max(0.65, meta + layerSynergy));
   }
   const fixed = M[a.id]?.[b.id] ?? M[b.id]?.[a.id];
@@ -178,15 +192,15 @@ export function recommend(
   const all = prefs.gender && prefs.gender !== "all"
     ? pool.filter((i) => !i.gender || i.gender === prefs.gender)
     : pool;
-  const uppers = all.filter((i) => i.category === "upper" || i.slot === "top" || i.slot === "outerwear");
-  const bottoms = all.filter((i) => i.category === "bottom" || i.slot === "bottom");
-  const shoes = all.filter((i) => i.category === "shoe" || i.slot === "shoe");
-  const accessories = all.filter((i) => i.category === "accessory" || i.slot === "accessory");
-  const dresses = all.filter((i) => i.category === "dress" || i.slot === "dress");
-  const bases = uppers.filter((i) => (i.layer ?? "base") === "base");
-  const mids = uppers.filter((i) => i.layer === "mid");
-  const outers = uppers.filter((i) => i.layer === "outer");
-  const solo = uppers.filter((i) => i.layer !== "outer");
+  const uppers = all.filter((i) => isUpperItem(i));
+  const bottoms = all.filter((i) => i.category === "bottom" || hasSlot(i, "bottom"));
+  const shoes = all.filter((i) => i.category === "shoe" || hasSlot(i, "shoe"));
+  const accessories = all.filter((i) => i.category === "accessory" || hasSlot(i, "accessory"));
+  const dresses = all.filter((i) => i.category === "dress" || hasSlot(i, "dress"));
+  const bases = uppers.filter((i) => hasSlot(i, "innerwear") || hasSlot(i, "top") || (i.layer ?? "base") === "base");
+  const mids = uppers.filter((i) => i.layer === "mid" || (hasSlot(i, "top") && (hasSlot(i, "outerwear") || hasSlot(i, "innerwear"))));
+  const outers = uppers.filter((i) => i.layer === "outer" || hasSlot(i, "outerwear"));
+  const solo = uppers.filter((i) => hasSlot(i, "top") || (i.layer !== "outer" && !hasSlot(i, "innerwear")));
   const shoeSlot = shoes.length ? [{ role: "shoes", pool: shoes }] : [];
   const formulas = [
     ...(bases.length && mids.length && bottoms.length ? [{ name: "Layered", slots: [{ role: "base", pool: bases }, { role: "overshirt", pool: mids }, { role: "bottom", pool: bottoms }, ...shoeSlot] }] : []),

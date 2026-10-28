@@ -390,11 +390,15 @@ Permanent accounts retain data until the user deletes it. The UI must provide:
 - Replace base64/local file references with storage paths.
 - Add authenticated downloads/signed URLs.
 - Add delete operations and rollback on partial upload failure.
+- Keep guest uploads browser-local; only permanent-account UI actions call cloud upload routes.
+- Validate UUID/path shapes before signing or deleting user-owned objects.
 
 **Done bar**
 
 - Images persist across refresh and devices for permanent accounts.
 - One user cannot list or download another user's images.
+- Guest uploads remain local and never create cloud rows or objects.
+- Upload failure cleanup removes the Storage object and metadata row when either post-upload step fails.
 - No production route writes to `public/results`.
 
 **Learning checkpoint**

@@ -8,9 +8,15 @@ type Props = {
   onSaveAvatar: (url: string, isCutout: boolean) => void;
 };
 
-function downscaleDataUrl(src: string, max = 900): Promise<string> {
+function downscaleImageSource(
+  src: string,
+  max = 1080,
+  format: "image/jpeg" | "image/png" = "image/jpeg",
+  quality = 0.86
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    img.crossOrigin = "anonymous";
     img.onload = () => {
       const s = Math.min(1, max / Math.max(img.width, img.height));
       const c = document.createElement("canvas");
@@ -21,19 +27,37 @@ function downscaleDataUrl(src: string, max = 900): Promise<string> {
         resolve(src);
         return;
       }
+      if (format === "image/jpeg") {
+        ctx.fillStyle = "#F7F5F0";
+        ctx.fillRect(0, 0, c.width, c.height);
+      }
       ctx.drawImage(img, 0, 0, c.width, c.height);
-      resolve(c.toDataURL("image/png"));
+      resolve(c.toDataURL(format, quality));
     };
     img.onerror = reject;
     img.src = src;
   });
 }
 
-async function removeBgFromImage(dataUrl: string): Promise<string> {
-  const scaled = await downscaleDataUrl(dataUrl, 900);
+async function removeBgFromImage(
+  dataUrl: string,
+  onProgress?: (text: string) => void
+): Promise<string> {
+  // Downscale to 640px JPEG for fast segmentation inference
+  const scaled = await downscaleImageSource(dataUrl, 640, "image/jpeg", 0.85);
   const { removeBackground } = await import("@imgly/background-removal");
   const blob = await removeBackground(scaled, {
-    output: { format: "image/png", quality: 0.9 },
+    model: "isnet_quint8",
+    output: { format: "image/png", quality: 0.85 },
+    progress: (key: string, current: number, total: number) => {
+      if (!onProgress) return;
+      if (key.includes("fetch") && total > 0) {
+        const pct = Math.min(99, Math.round((current / total) * 100));
+        onProgress(`Loading AI model (${pct}%)…`);
+      } else if (key.includes("compute")) {
+        onProgress("Removing background…");
+      }
+    },
   });
   return new Promise((resolve, reject) => {
     const r = new FileReader();
@@ -46,7 +70,8 @@ async function removeBgFromImage(dataUrl: string): Promise<string> {
 export default function AvatarUploadModal({ open, onClose, onSaveAvatar }: Props) {
   const [rawPreview, setRawPreview] = useState<string | null>(null);
   const [cutoutPreview, setCutoutPreview] = useState<string | null>(null);
-  const [removeBg, setRemoveBg] = useState(true);
+  // Default to false so the user explicitly chooses whether to remove the background
+  const [removeBg, setRemoveBg] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [statusText, setStatusText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -67,35 +92,23 @@ export default function AvatarUploadModal({ open, onClose, onSaveAvatar }: Props
     if (!file) return;
 
     setError(null);
+    setCutoutPreview(null);
+    setRemoveBg(false);
     setIsProcessing(true);
     setStatusText("Preparing photo…");
 
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = reader.result as string;
-      setRawPreview(dataUrl);
-
-      if (removeBg) {
-        setStatusText("Removing background with AI…");
-        try {
-          const cutout = await removeBgFromImage(dataUrl);
-          setCutoutPreview(cutout);
-        } catch (err) {
-          setError(
-            err instanceof Error
-              ? `Background removal failed: ${err.message}`
-              : "Could not remove background. You can save the original photo."
-          );
-        } finally {
-          setIsProcessing(false);
-          setStatusText("");
-        }
-      } else {
-        setIsProcessing(false);
-        setStatusText("");
-      }
-    };
-    reader.readAsDataURL(file);
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      // Immediately downscale to a compact, fast JPEG (~100KB instead of a multi-MB raw/PNG blob)
+      const compactDataUrl = await downscaleImageSource(objectUrl, 1080, "image/jpeg", 0.86);
+      setRawPreview(compactDataUrl);
+    } catch {
+      setError("Could not read that photo. Please try a JPG or PNG image.");
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+      setIsProcessing(false);
+      setStatusText("");
+    }
   }
 
   async function handleToggleRemoveBg() {
@@ -107,9 +120,10 @@ export default function AvatarUploadModal({ open, onClose, onSaveAvatar }: Props
       setError(null);
       setStatusText("Removing background with AI…");
       try {
-        const cutout = await removeBgFromImage(rawPreview);
+        const cutout = await removeBgFromImage(rawPreview, (text) => setStatusText(text));
         setCutoutPreview(cutout);
       } catch (err) {
+        setRemoveBg(false);
         setError(
           err instanceof Error
             ? `Background removal failed: ${err.message}`
@@ -129,15 +143,13 @@ export default function AvatarUploadModal({ open, onClose, onSaveAvatar }: Props
       onSaveAvatar(cutoutPreview, true);
       handleClose();
     } else if (removeBg && !cutoutPreview) {
-      // Process if not yet processed
       setIsProcessing(true);
       setStatusText("Removing background…");
       try {
-        const cutout = await removeBgFromImage(rawPreview);
+        const cutout = await removeBgFromImage(rawPreview, (text) => setStatusText(text));
         onSaveAvatar(cutout, true);
         handleClose();
       } catch {
-        // Fallback to original
         onSaveAvatar(rawPreview, false);
         handleClose();
       } finally {
@@ -145,9 +157,8 @@ export default function AvatarUploadModal({ open, onClose, onSaveAvatar }: Props
         setStatusText("");
       }
     } else {
-      // Original photo without background removal
-      const scaled = await downscaleDataUrl(rawPreview, 1200);
-      onSaveAvatar(scaled, false);
+      // rawPreview is already downscaled and compressed to JPEG
+      onSaveAvatar(rawPreview, false);
       handleClose();
     }
   }
@@ -155,6 +166,7 @@ export default function AvatarUploadModal({ open, onClose, onSaveAvatar }: Props
   function handleClose() {
     setRawPreview(null);
     setCutoutPreview(null);
+    setRemoveBg(false);
     setIsProcessing(false);
     setStatusText("");
     setError(null);

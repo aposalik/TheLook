@@ -89,20 +89,76 @@ export async function dbInsertWardrobeItem(
   supabase: SupabaseClient,
   item: Item,
   storagePath: string,
+  userId?: string,
 ): Promise<void> {
+  let uid = userId;
+  if (!uid) {
+    const { data } = await supabase.auth.getUser();
+    uid = data?.user?.id;
+  }
+  if (!uid) {
+    throw new Error("dbInsertWardrobeItem: Authenticated user ID is required");
+  }
+
+  const rawCat = item.category ?? item.slot;
+  const category =
+    rawCat === "bottom" ? "bottom"
+    : rawCat === "dress" ? "dress"
+    : rawCat === "shoe" ? "shoe"
+    : rawCat === "accessory" ? "accessory"
+    : "upper";
+
+  const layer =
+    category === "upper" && (item.layer === "base" || item.layer === "mid" || item.layer === "outer")
+      ? item.layer
+      : category === "upper"
+        ? "base"
+        : null;
+
+  const fit =
+    item.fit === "baggy" || item.fit === "oversized" ? "oversized"
+    : item.fit === "slim" ? "slim"
+    : item.fit === "relaxed" ? "relaxed"
+    : "regular";
+
+  const dominantColor =
+    item.color && /^#[0-9A-Fa-f]{6}$/.test(item.color) ? item.color : "#8A8480";
+
+  const palette =
+    item.palette === "warm" || item.palette === "cool" || item.palette === "neutral"
+      ? item.palette
+      : "neutral";
+
+  const colorRole =
+    item.color_role === "accent" || item.color_role === "statement" || item.color_role === "neutral"
+      ? item.color_role
+      : "neutral";
+
+  const formality =
+    typeof item.formality === "number"
+      ? Math.max(1, Math.min(5, Math.round(item.formality)))
+      : 2;
+
+  const baseStyles = (item.styles ?? []).filter((s) => !s.startsWith("slot:"));
+  const slotTags = (item.slots && item.slots.length > 0 ? item.slots : [item.slot])
+    .filter(Boolean)
+    .map((s) => `slot:${s}`);
+  const mergedStyles = Array.from(new Set([...baseStyles, ...slotTags]));
+
   const { error } = await supabase.from("wardrobe_items").upsert({
     id: item.id,
+    user_id: uid,
     storage_path: storagePath,
-    title: item.title,
-    category: item.category ?? item.slot,
+    title: (item.title || "Wardrobe item").slice(0, 120),
+    category,
     subcategory: item.subcategory ?? null,
-    layer: item.layer ?? null,
-    dominant_color: item.color ?? null,
-    palette: item.palette ?? null,
-    color_role: item.color_role ?? null,
-    fit: item.fit ?? null,
-    formality: item.formality ?? null,
-    styles: item.styles ?? [],
+    layer,
+    dominant_color: dominantColor,
+    palette,
+    color_role: colorRole,
+    fit,
+    formality,
+    styles: mergedStyles,
     seasons: item.seasons ?? [],
     material: item.material ?? null,
     description: item.description ?? null,
