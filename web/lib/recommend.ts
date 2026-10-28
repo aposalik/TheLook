@@ -2,6 +2,7 @@
 // matrix; uploaded wardrobe items use Gemini-generated metadata and explicit style rules.
 import catalogData from "../data/catalog.json";
 import matrixData from "../data/compat_matrix.json";
+import type { StylistVerdict, SwapRole, VisualScores } from "./stylist-judge";
 
 export type Item = {
   id: string;
@@ -68,6 +69,10 @@ export type Look = {
   deterministicReason?: string;
   aiReason?: string;
   stylistTitle?: string;
+  stylistVerdict?: StylistVerdict;
+  visualScores?: VisualScores;
+  stylistIssues?: string[];
+  preferredSwapRole?: SwapRole;
 };
 
 const FIXED = catalogData as Item[];

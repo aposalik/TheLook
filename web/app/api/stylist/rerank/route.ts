@@ -3,14 +3,10 @@ import path from "node:path";
 import { readFile } from "node:fs/promises";
 import sharp from "sharp";
 import { askGeminiJson, geminiConfigured, parseDataImage } from "@/lib/gemini";
+import { assertAvailableSwapRoles, parseStylistJudgment, rankJudgedCandidates } from "@/lib/stylist-judge";
 import type { Item, Look, StylePreferences } from "@/lib/recommend";
 
 export const runtime = "nodejs";
-
-type Verdict = {
-  rankedLookIds: string[];
-  verdicts: Array<{ lookId: string; title: string; reason: string; tip: string }>;
-};
 
 async function imagePart(item: Item) {
   let bytes: Buffer;
@@ -31,7 +27,7 @@ export async function POST(req: NextRequest) {
   const { candidates, preferences = {} } = await req.json() as { candidates: Look[]; preferences?: StylePreferences };
   if (!Array.isArray(candidates) || !candidates.length) return NextResponse.json({ error: "candidates[] required" }, { status: 400 });
   const limited = candidates.slice(0, 5).map((look, index) => ({ ...look, lookId: `look_${index + 1}` }));
-  if (!geminiConfigured()) return NextResponse.json({ looks: limited.slice(0, 3), source: "deterministic" });
+  if (!geminiConfigured()) return NextResponse.json({ looks: limited.slice(0, 3), rejected: [], source: "deterministic" });
 
   try {
     const unique = new Map<string, Item>();
@@ -41,15 +37,27 @@ export async function POST(req: NextRequest) {
     const facts = limited.map((look) => ({
       id: look.lookId,
       formula: look.formula,
+      archetype: look.archetype,
+      selectionMode: look.selectionMode,
       deterministicScore: Number(look.score.toFixed(3)),
-      cohesion: Number(look.cohesion.toFixed(3)),
+      deterministicScores: Object.fromEntries(Object.entries(look.scoreBreakdown).map(([name, score]) => [name, Number(score.toFixed(3))])),
+      roles: look.roles,
       items: look.items.map(({ id, title, category, subcategory, color, palette, layer, fit, formality, styles, seasons }) => ({ id, title, category, subcategory, color, palette, layer, fit, formality, styles, seasons })),
     }));
     const imageOrder = imageItems.map((item, index) => ({ image: index + 1, itemId: item.id, title: item.title }));
 
-    const verdict = await askGeminiJson<Verdict>({
+    const raw = await askGeminiJson<unknown>({
       images,
-      prompt: `Act as a careful ecommerce stylist and rerank ONLY the candidate outfits below. Never invent, remove, or rename products. Respect the deterministic score as evidence, then evaluate color harmony, silhouette balance, valid layering, formality, occasion and the user's optional styling goal. Product images follow after this prompt in IMAGE ORDER.
+      prompt: `Act as a strict visual critic for already-validated outfit candidates. The deterministic engine has already enforced ownership, garment roles, locked items, and hard constraints. Judge only visible palette, silhouette, layering, and occasion fit.
+
+RULES:
+- Judge every supplied look exactly once and use only its provided lookId.
+- Never invent, remove, rename, or move a product.
+- Never overrule deterministic constraints or scores; use them as evidence.
+- Use verdict "reject" only for a visible styling conflict serious enough that the look should not be shown.
+- preferredSwapRole must be one role listed on that candidate, or "none".
+- Each visual score must be a number from 0 to 1.
+- Rank values must be unique integers from 1 through the candidate count.
 
 USER PREFERENCES:
 ${JSON.stringify(preferences)}
@@ -60,29 +68,48 @@ ${JSON.stringify(facts)}
 IMAGE ORDER:
 ${JSON.stringify(imageOrder)}
 
-Return JSON exactly:
+Return JSON exactly in this shape:
 {
-  "rankedLookIds": ["look_2","look_1","look_3"],
-  "verdicts": [
-    {"lookId":"look_2","title":"2-4 word style verdict","reason":"two grounded sentences naming specific pieces and why they work","tip":"one optional styling tip"}
+  "judgments": [
+    {
+      "lookId": "look_1",
+      "rank": 1,
+      "verdict": "strong",
+      "visualScores": {
+        "palette": 0.0,
+        "silhouette": 0.0,
+        "layering": 0.0,
+        "occasion": 0.0
+      },
+      "issues": ["specific visible issue, or an empty array"],
+      "preferredSwapRole": "none",
+      "title": "2-4 word verdict title",
+      "reason": "One or two concise sentences grounded in the supplied garments"
+    }
   ]
-}
-Rank every supplied candidate exactly once. Keep language positive and specific.`,
-      temperature: 0.2,
+}`,
+      temperature: 0.1,
     });
 
-    const rank = new Map(verdict.rankedLookIds.map((id, index) => [id, index]));
-    const notes = new Map((verdict.verdicts ?? []).map((v) => [v.lookId, v]));
-    const ordered = [...limited].sort((a, b) => (rank.get(a.lookId) ?? 99) - (rank.get(b.lookId) ?? 99));
-    const looks = ordered.slice(0, 3).map((look) => {
-      const note = notes.get(look.lookId);
-      const aiReason = note ? `${note.reason}${note.tip ? ` Tip: ${note.tip}` : ""}` : undefined;
-      return { ...look, reason: aiReason ?? look.reason, aiReason, stylistTitle: note?.title };
-    });
-    return NextResponse.json({ looks, source: "gemini" });
+    const judgment = parseStylistJudgment(raw, limited.map((look) => look.lookId));
+    assertAvailableSwapRoles(limited, judgment);
+    const ranked = rankJudgedCandidates(limited, judgment);
+    const rejected = judgment.judgments
+      .filter((entry) => entry.verdict === "reject")
+      .map(({ lookId, issues, preferredSwapRole, reason }) => ({ lookId, issues, preferredSwapRole, reason }));
+    if (!ranked.length) {
+      return NextResponse.json({
+        looks: limited.slice(0, 3),
+        rejected,
+        source: "deterministic",
+        warning: "Gemini rejected every candidate; preserved deterministic results.",
+      });
+    }
+    return NextResponse.json({ looks: ranked.slice(0, 3), rejected, source: "gemini" });
   } catch (error) {
     return NextResponse.json({
       looks: limited.slice(0, 3),
+      rejected: [],
       source: "deterministic",
       warning: error instanceof Error ? error.message : String(error),
     });

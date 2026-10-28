@@ -1,0 +1,29 @@
+{
+  "task": "Outfit Generator v2 — Phase 5 structured Gemini judging",
+  "status": "completed",
+  "completedSteps": [
+    "Replaced free-form rankedLookIds output with a strict per-candidate judgment schema",
+    "Passed archetype, selection mode, deterministic total, full score breakdown, roles, and garment facts to Gemini",
+    "Added strict runtime validation for complete candidate coverage, known IDs, unique ranks, verdict enum, bounded visual scores, issue limits, title/reason bounds, and swap-role enum",
+    "Restricted swap suggestions to roles that actually exist in the candidate",
+    "Allowed Gemini to mark visible conflicts as reject while preserving every accepted candidate's exact item set",
+    "Added deterministic fallback for malformed Gemini output, API failure, unavailable swap roles, or an all-rejected response",
+    "Added structured AI fields to Look for verdict, visual scores, issues, and preferred swap role"
+  ],
+  "judgmentContract": {
+    "verdicts": ["strong", "acceptable", "reject"],
+    "visualScores": ["palette", "silhouette", "layering", "occasion"],
+    "scoreRange": "0..1",
+    "swapRoles": ["base", "top", "overshirt", "outer", "bottom", "shoes", "accessory", "none"]
+  },
+  "verification": {
+    "tests": "8 passed, 0 failed",
+    "fixtureEvaluation": "8 passed, 0 failed",
+    "typecheck": "passed",
+    "lint": "passed with 31 pre-existing warnings and 0 errors",
+    "productionBuild": "passed",
+    "liveGeminiCall": "not run; avoids external API cost and nondeterminism during the local verification gate"
+  },
+  "nextStep": "Phase 6 — add user feedback and item-level lock/swap controls, persist explicit preferences, and regenerate only unlocked roles.",
+  "updatedAt": "2026-10-28T13:15:00+03:00"
+}
