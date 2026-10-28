@@ -31,12 +31,24 @@ export type StylePreferences = {
   gender?: "all" | "men" | "women";
 };
 
+export type OutfitScoreBreakdown = {
+  compatibility: number;
+  palette: number;
+  silhouette: number;
+  formality: number;
+  style: number;
+  footwear: number;
+  preference: number;
+  total: number;
+};
+
 export type Look = {
   formula: string;
   items: Item[];
   roles: string[];
   score: number;
   cohesion: number;
+  scoreBreakdown: OutfitScoreBreakdown;
   reason: string;
   deterministicReason?: string;
   aiReason?: string;
@@ -116,20 +128,9 @@ function pairWeight(a: Item, b: Item): number {
   return 1;
 }
 
-function prefBonus(items: Item[], prefs: StylePreferences): number {
-  let bonus = 0;
-  const formality = items.map((i) => i.formality ?? 2);
-  const avg = formality.reduce((a, b) => a + b, 0) / Math.max(1, formality.length);
-  if (prefs.occasion === "casual") bonus += avg <= 2.5 ? 0.08 : -0.05;
-  if (prefs.occasion === "work") bonus += avg >= 2 && avg <= 4 ? 0.08 : -0.05;
-  if (prefs.occasion === "evening") bonus += avg >= 3 ? 0.08 : -0.04;
-  if (prefs.goal === "vertical-line") bonus += items.some((i) => i.layer === "mid" || i.layer === "outer") ? 0.06 : 0;
-  if (prefs.goal === "shoulder-structure") bonus += items.some((i) => i.layer === "outer" || /blazer|jacket/i.test(i.subcategory ?? i.title)) ? 0.07 : 0;
-  if (prefs.goal === "define-waist") bonus += items.some((i) => /fitted|belt|cinch/i.test(`${i.fit} ${i.description}`)) ? 0.07 : 0;
-  return bonus;
-}
+const clamp01 = (value: number) => Math.max(0, Math.min(1, value));
 
-function scoreOutfit(items: Item[], prefs: StylePreferences): { score: number; cohesion: number } {
+function compatibilityScore(items: Item[]): number {
   let weighted = 0, weightTotal = 0, weakest = 1, pairs = 0;
   for (let i = 0; i < items.length; i++) {
     for (let j = i + 1; j < items.length; j++) {
@@ -139,16 +140,102 @@ function scoreOutfit(items: Item[], prefs: StylePreferences): { score: number; c
     }
   }
   const mean = weightTotal ? weighted / weightTotal : 0;
-  const cohesion = pairs ? 0.72 * mean + 0.28 * weakest : 0;
-  let score = cohesion;
-  const accents = items.filter((i) => i.color_role === "accent").length;
-  score += accents <= 1 ? 0.05 : -0.12;
-  const fs = items.map((i) => i.formality).filter((x): x is number => typeof x === "number");
-  const range = fs.length ? Math.max(...fs) - Math.min(...fs) : 0;
-  score += range <= 1 ? 0.05 : range >= 3 ? -0.1 : 0;
-  score += items.filter((i) => i.fit === "baggy").length >= 2 ? -0.06 : 0.03;
-  score += prefBonus(items, prefs);
-  return { score, cohesion };
+  return clamp01(pairs ? 0.72 * mean + 0.28 * weakest : 0);
+}
+
+function paletteScore(items: Item[]): number {
+  const accents = items.filter((item) => item.color_role === "accent").length;
+  const accentBalance = accents === 1 ? 1 : accents === 0 ? 0.86 : accents === 2 ? 0.5 : 0.2;
+  const neutralRatio = items.filter((item) => item.palette === "neutral" || item.color_role === "neutral").length / Math.max(1, items.length);
+  const neutralAnchor = neutralRatio >= 0.5 ? 1 : neutralRatio > 0 ? 0.72 : 0.45;
+  return clamp01(0.72 * accentBalance + 0.28 * neutralAnchor);
+}
+
+function silhouetteScore(items: Item[]): number {
+  const upper = items.find((item) => isUpperItem(item) && item.layer !== "outer");
+  const bottom = items.find((item) => item.category === "bottom" || hasSlot(item, "bottom"));
+  if (!upper || !bottom) return 0.82;
+  const upperFit = upper.fit ?? "regular";
+  const bottomFit = bottom.fit ?? "regular";
+  if (upperFit === "fitted" && (bottomFit === "relaxed" || bottomFit === "baggy")) return 0.96;
+  if (upperFit === "baggy" && bottomFit === "baggy") return 0.72;
+  if (upperFit === bottomFit) return upperFit === "regular" ? 0.92 : 0.86;
+  return 0.88;
+}
+
+function formalityScore(items: Item[], prefs: StylePreferences): number {
+  const values = items.map((item) => item.formality).filter((value): value is number => typeof value === "number");
+  if (!values.length) return 0.65;
+  const range = Math.max(...values) - Math.min(...values);
+  const consistency = range === 0 ? 1 : range === 1 ? 0.9 : range === 2 ? 0.62 : 0;
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+  let occasionFit = 0.8;
+  if (prefs.occasion === "casual") occasionFit = average <= 2.5 ? 1 : average <= 3 ? 0.7 : 0.35;
+  if (prefs.occasion === "work") occasionFit = average >= 2 && average <= 4 ? 1 : 0.45;
+  if (prefs.occasion === "evening") occasionFit = average >= 3 ? 1 : average >= 2 ? 0.65 : 0.35;
+  return clamp01(0.62 * consistency + 0.38 * occasionFit);
+}
+
+function styleScore(items: Item[]): number {
+  const tagged = items.filter((item) => item.styles?.length);
+  if (tagged.length < 2) return 0.65;
+  let overlapTotal = 0, pairs = 0;
+  for (let i = 0; i < tagged.length; i++) {
+    for (let j = i + 1; j < tagged.length; j++) {
+      const a = new Set(tagged[i]!.styles);
+      const b = new Set(tagged[j]!.styles);
+      const intersection = [...a].filter((tag) => b.has(tag)).length;
+      const union = new Set([...a, ...b]).size;
+      overlapTotal += union ? intersection / union : 0;
+      pairs++;
+    }
+  }
+  return clamp01(0.55 + 0.45 * (pairs ? overlapTotal / pairs : 0));
+}
+
+function footwearScore(items: Item[]): number {
+  const shoe = items.find((item) => item.category === "shoe" || hasSlot(item, "shoe"));
+  if (!shoe) return 0.68;
+  const core = items.filter((item) => item.id !== shoe.id && item.category !== "accessory");
+  const formalities = core.map((item) => item.formality).filter((value): value is number => typeof value === "number");
+  const coreFormality = formalities.length ? formalities.reduce((sum, value) => sum + value, 0) / formalities.length : 2;
+  const gap = Math.abs((shoe.formality ?? 2) - coreFormality);
+  const formalityFit = gap <= 0.5 ? 1 : gap <= 1 ? 0.9 : gap <= 2 ? 0.58 : 0.2;
+  const coreStyles = new Set(core.flatMap((item) => item.styles ?? []));
+  const styleFit = shoe.styles?.some((style) => coreStyles.has(style)) ? 1 : coreStyles.size && shoe.styles?.length ? 0.55 : 0.72;
+  return clamp01(0.78 * formalityFit + 0.22 * styleFit);
+}
+
+function preferenceScore(items: Item[], prefs: StylePreferences): number {
+  if (!prefs.goal || prefs.goal === "balanced") return 0.86;
+  if (prefs.goal === "vertical-line") return items.some((item) => item.layer === "mid" || item.layer === "outer") ? 1 : 0.5;
+  if (prefs.goal === "shoulder-structure") {
+    return items.some((item) => item.layer === "outer" || /blazer|jacket/i.test(item.subcategory ?? item.title)) ? 1 : 0.5;
+  }
+  if (prefs.goal === "define-waist") {
+    return items.some((item) => /fitted|belt|cinch/i.test(`${item.fit} ${item.description}`)) ? 1 : 0.5;
+  }
+  return 0.75;
+}
+
+export function scoreOutfit(items: Item[], prefs: StylePreferences): OutfitScoreBreakdown {
+  const compatibility = compatibilityScore(items);
+  const palette = paletteScore(items);
+  const silhouette = silhouetteScore(items);
+  const formality = formalityScore(items, prefs);
+  const style = styleScore(items);
+  const footwear = footwearScore(items);
+  const preference = preferenceScore(items, prefs);
+  const total = clamp01(
+    0.28 * compatibility +
+    0.16 * palette +
+    0.14 * silhouette +
+    0.16 * formality +
+    0.10 * style +
+    0.10 * footwear +
+    0.06 * preference,
+  );
+  return { compatibility, palette, silhouette, formality, style, footwear, preference, total };
 }
 
 function cartesian(pools: Item[][]): Item[][] {
@@ -258,9 +345,11 @@ export function recommend(
     for (const combo of cartesian(formula.slots.map((slot) => slot.pool))) {
       const roles = formula.slots.map((slot) => slot.role);
       if (!validateOutfitCandidate(formula.name, combo, roles).valid) continue;
-      const { score, cohesion } = scoreOutfit(combo, prefs);
+      const scoreBreakdown = scoreOutfit(combo, prefs);
+      const score = scoreBreakdown.total;
+      const cohesion = scoreBreakdown.compatibility;
       const reason = buildReason(formula.name, combo, roles, prefs);
-      built.push({ formula: formula.name, items: combo, roles, score, cohesion, reason, deterministicReason: reason });
+      built.push({ formula: formula.name, items: combo, roles, score, cohesion, scoreBreakdown, reason, deterministicReason: reason });
     }
   }
 

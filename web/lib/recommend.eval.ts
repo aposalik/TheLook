@@ -39,6 +39,7 @@ type EvaluatedLook = {
   itemIds: string[];
   score: number;
   cohesion: number;
+  scoreBreakdown: Look["scoreBreakdown"];
 };
 
 export type FixtureEvaluation = {
@@ -67,11 +68,15 @@ function assertion(name: string, passed: boolean, expected: string, actual: stri
 }
 
 function summarizeLook(look: Look): EvaluatedLook {
+  const roundedBreakdown = Object.fromEntries(
+    Object.entries(look.scoreBreakdown).map(([name, value]) => [name, Number(value.toFixed(4))]),
+  ) as Look["scoreBreakdown"];
   return {
     formula: look.formula,
     itemIds: look.items.map((item) => item.id),
     score: Number(look.score.toFixed(4)),
     cohesion: Number(look.cohesion.toFixed(4)),
+    scoreBreakdown: roundedBreakdown,
   };
 }
 
