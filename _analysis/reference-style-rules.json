@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "source": {
+    "analyzedAt": "2026-10-28",
+    "referenceBoards": 20,
+    "estimatedOutfitExamples": "220-240",
+    "scope": ["contemporary casual", "streetwear", "smart-casual"],
+    "note": "Derived visual rules only; no source imagery is retained in product data."
+  },
+  "silhouetteProfiles": {
+    "relaxed-column": {"topVolume": ["relaxed", "oversized"], "bottomVolume": ["relaxed", "oversized"], "requires": ["straight-or-wide-bottom", "low-profile-or-chunky-shoe"]},
+    "relaxed-layered": {"requires": ["visible-base", "open-mid-or-outer", "relaxed-bottom"]},
+    "top-focal": {"requires": ["focal-top-or-outer", "quiet-bottom", "quiet-shoe"]},
+    "bottom-focal": {"requires": ["quiet-top", "focal-bottom", "quiet-shoe"]},
+    "waist-defined": {"requires": ["tucked-or-fitted-or-cropped-top", "high-rise-wide-bottom"]}
+  },
+  "layerOrder": ["base", "mid", "outer"],
+  "palette": {
+    "baseNeutralFamilies": ["cream", "white", "black", "charcoal", "navy", "denim", "beige"],
+    "supportFamilies": ["olive", "brown", "grey", "faded-blue", "camel"],
+    "accentFamilies": ["burgundy", "red", "forest-green", "pink", "mustard", "graphic", "plaid"],
+    "maxHighIntensityFocalPieces": 1,
+    "preferredDeliberateEchoes": ["base-to-shoe", "outer-to-bag", "top-accent-to-accessory"],
+    "avoid": ["busy-pattern-top-with-busy-pattern-bottom", "three-or-more-unrelated-accents"]
+  },
+  "footwearFamilies": {
+    "low-profile-sneaker": ["casual", "clean-smart-casual", "relaxed-layered"],
+    "chunky-or-work-boot": ["utility", "streetwear", "denim", "cargo"],
+    "loafer-derby-pointed": ["polished", "smart-casual", "tailored"]
+  },
+  "candidateArchetypes": ["safe-casual", "relaxed-layered", "polished-smart", "utility-street", "soft-casual", "structured-autumn", "statement-top", "statement-bottom"],
+  "outputModes": ["safe", "balanced", "expressive"],
+  "qualityPolicy": {
+    "scoreOnlyAfterHardConstraints": true,
+    "returnNearDuplicates": false,
+    "allowAiToCreateItems": false,
+    "allowAiToOverrideHardConstraints": false,
+    "showUncalibratedCohesionPercentage": false
+  }
+}
