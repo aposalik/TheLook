@@ -1,72 +1,82 @@
-# TheLook — Development Phases (v1, clothes-only)
+# TheLook — Development and Submission Phases
 
-Go phase by phase. Don't start a phase until the previous one's **Done bar** is met.
-Deadline: **2026-11-02**. Today: 2026-10-02 (~4 weeks). Credit budget: 1,000 (spend only where noted).
+**Audit date:** 2026-10-29
+**HackTown deadline:** 2026-11-02
+**Credit policy:** use `MOCK=1` for local development; spend YouCam credits only during one controlled acceptance run.
 
-Legend: 🧱 build-time/local (free) · 🌐 app · 💳 spends YouCam credits · 🔑 needs API key
+Legend: 🧱 local/free · 🌐 app/hosted · 💳 may spend YouCam credits · 🔑 credential required
 
----
+## Completed engineering phases
 
-## Phase 0 — Spike: prove the risky unknown  🔑💳 ✅ DONE
-- YouCam Cloth-v4 key confirmed working.
-- Multi-garment strategy resolved: sequential renders (upper collage → upper_body render → chain lower_body). Implemented in `/api/tryon-look`.
-- Latency ~5–15s per render. Credits: ~15 spent in spike.
+### Phase 0 — Risk spike 🔑💳 ✅
 
-## Phase 1 — Catalog pipeline  🧱 ✅ DONE
-- Curated capsule catalog assembled (men + women, tops/bottoms/shoes/accessories).
-- `catalog_pipeline.py`: rembg cutouts → OpenCLIP embeds → Polyvore MLP compat scores → `catalog.json` + `compat_matrix.json` + `/public/cutouts`.
-- Slot logic fixed (top+bottom OR dress, never both).
-- Compat threshold calibrated on real catalog.
+- Confirmed YouCam Cloth-v4 integration.
+- Resolved multi-garment strategy: upper collage → upper-body render → lower-body chaining.
+- Measured render latency and protected later development with mock/cache paths.
 
-## Phase 2 — App skeleton (walking skeleton)  🌐💳🔑 ✅ DONE
-- Next.js 16 App Router application scaffolded; production deployment and durable storage remain Phase 5 work.
-- `/api/tryon` + `/api/tryon-look` proxy with dev mock mode + SHA1 result cache.
-- Full UI shell: FittingRoom, AvatarStage, WearingPanel, WardrobeCatalog, BagDrawer, Lookbook, LookDetail.
+### Phase 1 — Catalog and compatibility pipeline 🧱 ✅
 
-## Phase 3 — Recommender + Complete-the-Look screen  🌐 ✅ DONE
-- `lib/recommend.ts`: weighted pairwise CLIP compat + 3 outfit formulas (Simple/Layered/With layer/Dress) + diversity rules + `StylePreferences` (occasion, goal).
-- `metadataCompat()` for uploaded items (color distance, palette, formality, seasons, styles).
-- `/api/recommend` POST: accepts `wardrobeItems` + `preferences`, returns 5 candidates.
-- `/api/stylist/rerank`: Gemini Vision reranks candidates with item images, returns reasons + stylist titles. Falls back to deterministic silently.
-- `/api/wardrobe/analyze`: Gemini Vision tags uploaded garments (title, category, layer, color, fit, formality, styles, seasons). Falls back to placeholder.
-- `/api/wardrobe/fetch`: secure server-side image fetcher (SSRF-safe).
-- AddItemModal: client-side bg removal (@imgly/background-removal WASM) + Gemini analyze + AI/fallback badge.
-- WardrobeCatalog: Manage drawer replaces inline remove buttons. Pendulum spring physics on hanger hover.
-- **Bug fixed:** GEMINI_MODEL default was `gemini-3.5-flash-lite` (404) → changed to `gemini-2.5-flash`.
+- Built the curated catalog, cutouts, embeddings, compatibility matrix, and slot logic.
+- Added catalog footwear/accessories and calibrated compatibility thresholds.
 
-## Phase 4 — Try-on viewer + cart  🌐💳 ✅ DONE
-- `/api/tryon-look`: upper collage → upper_body render → chain lower_body. Dress = single full_body. Result cached by SHA1(photo+items).
-- AvatarStage: multi-avatar switcher, photo upload, try-on trigger, save to lookbook.
-- BagDrawer: multi-item cart + mock checkout.
-- Lookbook: saved looks persisted to localStorage, detail view.
-- **Reliability fixes:** Show On Me strips catalog image blobs from the request, opts external YouCam/Gemini calls out of Next.js fetch caching, reports the failing API stage, and safely retries pre-connection timeouts without duplicating billable tasks.
+### Phase 2 — Application skeleton 🌐 ✅
 
-## Phase 5 — Production foundation, polish + submit  🌐 ← CURRENT
+- Built the Next.js 16 App Router application and fitting-room UI.
+- Added avatar stage, wardrobe, wearing panel, bag, lookbook, authentication surfaces, and API route structure.
 
-The production build is split into Phases A–H in [`PRODUCTION-ARCHITECTURE.md`](PRODUCTION-ARCHITECTURE.md), with a learning checkpoint after every phase.
+### Phase 3 — Hybrid outfit intelligence 🌐🔑 ✅
 
-- [ ] Complete production Phases A–G: Supabase foundation, auth, private Storage, PostgreSQL migration, credit protection, Vercel deployment, and cleanup operations.
-## Phase 5 — Polish + submit  🌐 ← CURRENT
-- [ ] UX polish, responsive, loading/empty/error states, mobile check.
-- [ ] Private durable storage + render cache and public-API credit protection.
-- [x] CI workflow for lint, typecheck, and production build.
-- [x] README + setup instructions.
-- [ ] Screenshots.
-- [ ] 1–3 min demo video (script the end-to-end flow).
-- [ ] Devpost write-up (tie features to retail value + name APIs used).
-- [ ] Final deploy + submit before Nov 2.
-- **Credits remaining:** ~965 (most dev done in mock mode).
+- Deterministic formulas: Simple, Layered, With layer, Three layer, and Dress.
+- Hard constraints for ownership, duplicate garments, gender consistency, formality, collars, patterns, loungewear, bulk, neckline, and layer geometry.
+- Rich semantic garment analysis and legacy inference.
+- Explainable scores, archetypes, diversity selection, weather-aware scoring, feedback adjustment, item locks, and role-level swaps.
+- Gemini Vision structured judging with strict validation and deterministic fallback.
+- Rolling Rack curation and Style Assistant weather/chat flow.
 
----
+### Phase 4 — Try-on, persistence, and protection 🌐💳🔑 ✅ locally
 
-### Actual timeline
-- **Wk1 (Oct 2–8):** Phase 0 + Phase 1 ✅
-- **Wk2 (Oct 9–15):** Phase 2 + Phase 3 core ✅
-- **Wk3 (Oct 16–22):** Phase 3 Gemini layer + Phase 4 ✅
-- **Wk4 (Oct 23–Nov 2):** Phase 5 — polish + submit ← NOW
+- Three-layer collage/synthesis and YouCam Cloth-v4 route.
+- Cache fingerprinting/versioning, signed render URLs, diagnostics, and omission checks.
+- Supabase Auth, private Storage/Postgres routes, RLS-oriented ownership checks, saved looks, feedback persistence, and quota protection.
+- Guest/permanent-account separation documented and implemented in the application.
 
-### Key risks
-- **Multi-garment rendering** (resolved in Phase 0) — may force "one hero garment + recommended cards" instead
-  of a fully layered outfit. Design degrades gracefully either way.
-- **Credit burn** — always dev against mock + cache; only real-render on demand.
-- **Catalog quality** — a weak/incoherent catalog makes the recommender look bad; invest in Phase 1 curation.
+## Current phase — Phase 5: freeze, verify, submit 🌐💳🔑
+
+### Done locally
+
+- [x] User-facing wardrobe categories and UX polish.
+- [x] Responsive loading, error, fallback, and empty states in the main fitting-room flow.
+- [x] CI workflow for lint, typecheck, and build.
+- [x] README, architecture, setup, privacy, and current-status documentation.
+- [x] Deterministic test suite and golden evaluation suite.
+
+### Remaining before submission
+
+- [ ] Confirm Supabase migration state and hosted environment variables.
+- [ ] Browser smoke test guest session, permanent account, private Storage, and no-merge behavior.
+- [ ] Run one controlled real YouCam Show On Me test on the final deployment.
+- [ ] Verify Gemini from the deployed environment; HTTP 503 is a temporary provider-capacity condition and must remain a graceful fallback, not a submission blocker.
+- [ ] Confirm production/demo URL and reset any stale local cached suggestions before recording.
+- [ ] Capture screenshots.
+- [ ] Record the 1–3 minute demo video.
+- [ ] Write and submit Devpost entry before 2026-11-02.
+
+## Verified on 2026-10-29
+
+From `web/` with `MOCK=1`:
+
+```text
+30 recommendation/grammar/try-on/feedback tests passed
+11/11 recommendation fixtures passed
+TypeScript passed
+ESLint passed with 0 errors and 30 existing warnings
+Production build passed
+```
+
+## Operational blockers
+
+- The local protected egress proxy has previously produced expired-certificate/TLS and transport failures for Gemini and Supabase CLI calls.
+- Gemini can independently return HTTP 503 during model demand spikes; the UI reports deterministic fallback rather than pretending Gemini judged the outfit.
+- Real YouCam acceptance consumes credits and must be performed once, deliberately, after deployment configuration is confirmed.
+
+See [`PROJECT-STATUS.md`](PROJECT-STATUS.md) for the single current submission checklist and demo narrative.

@@ -102,7 +102,14 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
 
   const [userItems, setUserItems] = useState<Item[]>([]);
   const [preferences, setPreferences] = useState<StylePreferences>({ occasion: "any", goal: "balanced" });
-  const [locationPromptEnabled, setLocationPromptEnabled] = useState<boolean>(true);
+  const [locationPromptEnabled, setLocationPromptEnabled] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try {
+      return window.localStorage.getItem(LOCATION_PROMPT_KEY) !== "false";
+    } catch {
+      return true;
+    }
+  });
   const [pendingGenerateAnchors, setPendingGenerateAnchors] = useState<string[] | null>(null);
   const [weatherLoading, setWeatherLoading] = useState<boolean>(false);
   const [manualCityInput, setManualCityInput] = useState<string>("");
@@ -117,16 +124,6 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
   }
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(LOCATION_PROMPT_KEY);
-      if (saved === "false") setLocationPromptEnabled(false);
-      else if (saved === "true") setLocationPromptEnabled(true);
-    } catch {
-      // ignore storage errors
-    }
-  }, []);
 
   function toggleLocationPrompt(enabled: boolean) {
     setLocationPromptEnabled(enabled);

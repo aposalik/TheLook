@@ -3,7 +3,7 @@
 <div align="center">
 
 [![CI Pipeline](https://github.com/aposalik/TheLook/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/aposalik/TheLook/actions/workflows/ci.yml)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black?style=flat&logo=next.js)](https://nextjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat&logo=next.js)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-blue?style=flat&logo=typescript)](https://www.typescriptlang.org/)
 [![Gemini Multimodal](https://img.shields.io/badge/Google_Gemini-2.5_Flash-orange?style=flat&logo=google)](https://deepmind.google/technologies/gemini/)
 [![Perfect Corp](https://img.shields.io/badge/YouCam-Cloth--v4_VTO-purple?style=flat)](https://www.perfectcorp.com/)
@@ -25,7 +25,10 @@ Most automated fashion recommender systems suffer from the **"Algorithm Outfit" 
 
 Furthermore, virtual try-on models (like YouCam Cloth-v4) operate on individual garments, creating a severe hurdle when attempting to realistically render complete 3-layer looks (e.g. White Crew Tee + Cable-Knit Sweater + Leather Bomber).
 
-**TheLook** solves these fundamental challenges through a four-stage hybrid architecture:
+**TheLook** solves these fundamental challenges through a four-stage hybrid architecture.
+
+For the current HackTown readiness audit, verified checks, blockers, and submission checklist, see [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
+
 
 ```
 [ User Wardrobe / Studio Closet ]
@@ -49,7 +52,7 @@ Furthermore, virtual try-on models (like YouCam Cloth-v4) operate on individual 
 
 ```mermaid
 flowchart TB
-    subgraph Client["Client-Side Layer (Next.js 15 App Router)"]
+    subgraph Client["Client-Side Layer (Next.js 16 App Router)"]
         UI["Modern Fitting Room & Atelier UI"]
         BG["Client Background Removal\n(@imgly/background-removal)"]
         CHAT["Style Assistant Drawer\n(Chat & Weather Ingestion)"]
@@ -118,10 +121,9 @@ Instead of brute-force combinatorial iteration ($O(N^k)$ explosion) or flat rand
 The server renders a real-time high-density visual **Contact Sheet** of the candidate outfits using `sharp` and feeds it directly into Google Gemini Vision models:
 - **Visual Texture & Color Theory**: Evaluates color balance (sandwiching, complementary contrasts), pattern scale collisions (houndstooth over paisley), and silhouette balance.
 - **Structured JSON Output**: Employs constrained JSON schemas with custom thinking budgets and token truncations recovery.
-- **Resilient Fallback Cascade**: If the primary model encounters rate limits (429) or regional outages, the system automatically cascades through:
-  $$\text{gemini-2.5-flash} \longrightarrow \text{gemini-2.5-flash-lite} \longrightarrow \text{gemini-3.5-flash-lite} \longrightarrow \text{gemini-3.5-flash}$$
-- **2-Minute Rate-Limit Cooldown**: In-memory rate-limit tripwire prevents hammering exhausted quotas and seamlessly falls back to deterministic heuristic ranking.
-- **Guardrail Self-Repair**: If Gemini proposes a swap that introduces an incompatible layer, the engine intercepts the judgment, performs a rack swap, and repairs the outfit before delivery.
+- **Graceful Gemini fallback**: Gemini receives already-valid candidates for visual judging and structured explanations. If the model is unavailable, overloaded, malformed, or blocked by the runtime network, deterministic ranking remains authoritative and the UI labels the fallback honestly.
+- **Hard guardrails before AI**: Ownership, duplicate-item, gender, formality, neckline, collar, fabric-weight, silhouette-volume, loungewear, and layer-geometry constraints are enforced before Gemini can judge a candidate.
+- **Role-safe swaps**: User lock/swap actions regenerate only the requested role while preserving locked garments; any AI suggestion is validated against the same deterministic rules.
 
 ### 3. Live Weather & Geo-Aware Styling
 Incorporates real-time microclimate intelligence using Open-Meteo reverse geocoding:
@@ -273,7 +275,7 @@ TheLook maintains a strict deterministic evaluation suite to ensure that grammar
 ### Running Test Harnesses
 
 ```bash
-# Run 30 comprehensive unit tests covering grammar, semantics, and feedback
+# Run the deterministic grammar, semantics, feedback, try-on, and rolling-rack tests
 npm --prefix web run test:recommend
 
 # Run 11 golden fixture integration evaluations
@@ -382,7 +384,7 @@ TheLook/
 │   ├── lib/
 │   │   ├── recommend.ts            # Rolling rack & 15+ physical grammar rules
 │   │   ├── collage.ts              # Centered open-front composite engine
-│   │   ├── gemini.ts               # Gemini client & multi-model fallback cascade
+│   │   ├── gemini.ts               # Gemini JSON client with deterministic caller fallback
 │   │   ├── youcam.ts               # Perfect Corp Cloth-v4 API client
 │   │   ├── weather.ts              # Open-Meteo weather client & thermal maps
 │   │   ├── storage.ts              # Supabase private storage & signed URLs

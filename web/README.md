@@ -1,6 +1,6 @@
 # TheLook web application
 
-The Next.js application lives in this directory. Project overview, architecture, setup, privacy notes, and contribution workflow are documented in the [repository README](../README.md).
+The Next.js 16 application lives in this directory. Project overview, architecture, setup, privacy notes, and contribution workflow are documented in the [repository README](../README.md). The current HackTown audit and submission checklist are in [PROJECT-STATUS.md](../PROJECT-STATUS.md).
 
 ## Development
 
@@ -30,4 +30,6 @@ Guests receive an anonymous Supabase identity automatically. Before switching to
 npm run lint
 npx tsc --noEmit
 npm run build
+npm run test:recommend
+npm run eval:recommend
 ```
