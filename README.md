@@ -1,4 +1,4 @@
-# TheLook
+# TheLook — Autonomous AI Wardrobe Stylist & Virtual Try-On Studio
 
 [![CI](https://github.com/aposalik/TheLook/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/aposalik/TheLook/actions/workflows/ci.yml)
 
@@ -9,6 +9,22 @@ TheLook is a web application built for the **YouCam API Skin AI & eCommerce VTO 
 ```text
 Wardrobe → valid outfit construction → AI stylist explanation → user selects a look → Show On Me → virtual try-on
 ```
+[ User Wardrobe / Studio Closet ]
+              │
+              ▼
+    1. Rolling Rack™ Curation & Pruning          (Sub-sampling, anchor pinning, anti-fatigue rotation)
+              │
+              ▼
+    2. Physical Layering Grammar Engine         (15+ hard physics constraints, collar/closure checks)
+              │
+              ▼
+    3. Gemini Multimodal Stylist Composer       (Sharp contact sheet, vision grading, auto-repair)
+              │
+              ▼
+    4. Centered Open-Front Mannequin Composite   (Flood-fill alpha, parted placket, YouCam Cloth-v4)
+```
+
+---
 
 The project combines deterministic outfit rules, Gemini Vision, Perfect Corp YouCam Cloth-v4, Supabase, and a Next.js interface designed around private, user-owned wardrobes.
 
@@ -118,7 +134,7 @@ This avoids unsafe ownership reassignment and ambiguous account-conflict logic. 
 
 ## Quick start
 
-### Requirements
+## Quickstart & Deployment
 
 - Node.js 22+
 - npm
@@ -132,11 +148,9 @@ This avoids unsafe ownership reassignment and ambiguous account-conflict logic. 
 git clone https://github.com/aposalik/TheLook.git
 cd TheLook/web
 npm ci
-cp .env.local.example .env.local
-npm run dev
 ```
 
-Open <http://localhost:3000>.
+### 2. Environment Configuration
 
 > [!IMPORTANT]
 > `.env.local` is ignored by Git. Keep all credentials in that local file or in protected deployment environment variables. Never paste credentials into an issue, pull request, terminal command, screenshot, or chat.
@@ -255,14 +269,16 @@ Raw IP addresses are not persisted by the quota helper. Cache hits do not create
 - Real try-on inputs are sent to Perfect Corp to perform Cloth-v4 processing.
 - External API credentials remain server-side.
 
-## Verification
+Apply the versioned SQL migrations located in `supabase/migrations/`:
+1. `20261019000000_supabase_foundation.sql` (Creates tables, RLS policies, private buckets: `avatars`, `wardrobe`, `renders`)
+2. `20261019120000_render_quota_controls.sql` (Atomic quota reservation stored procedures)
+3. `20261028152000_wardrobe_item_semantics.sql` (Rich garment physical semantics)
+4. `20261028154500_outfit_feedback.sql` (User preference and rating feedback persistence)
 
-From `web/`:
+### 4. Run Development Server
 
 ```bash
-npm run lint
-npx tsc --noEmit
-npm run build
+npm run dev
 ```
 
 GitHub Actions runs lint, typecheck, and production build for pushes and pull requests targeting `main`.
