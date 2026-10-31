@@ -53,18 +53,44 @@ function stripLookImages(look: Look): Look {
   return { ...look, items: look.items.map(stripItemImages) };
 }
 
+function stripSavedLookImages(look: SavedLook): SavedLook {
+  return {
+    ...look,
+    image: look.image?.startsWith("data:image/") ? "" : look.image,
+    items: (look.items ?? []).map(stripItemImages),
+  };
+}
+
 function hydrateItemImage(item: Item, byId: Map<string, Item>): Item {
   if (item.image) return item;
   const existing = byId.get(item.id);
   return existing?.image ? { ...item, image: existing.image } : item;
 }
 
-/** Safe localStorage write that catches QuotaExceededError silently without crashing */
+/** Safe localStorage write that catches QuotaExceededError, clears transient caches, and avoids crashing */
 function safeSetStorage(key: string, value: string) {
   try {
     localStorage.setItem(key, value);
   } catch {
-    // Quota reached or storage disabled: non-fatal, session remains in memory
+    try {
+      // If quota is exceeded, clear transient or legacy cache keys
+      const transientPrefixes = [
+        "thelook_recommended_looks",
+        "thelook_current_look",
+        "thelook_equipped",
+        "thelook_outfit_feedback",
+      ];
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && transientPrefixes.some((p) => k.startsWith(p)) && k !== key) {
+          localStorage.removeItem(k);
+        }
+      }
+      // Retry writing the key after clearing transient caches
+      localStorage.setItem(key, value);
+    } catch {
+      // Quota reached or storage disabled: non-fatal, session remains safely in memory
+    }
   }
 }
 
@@ -159,7 +185,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
             return {
               id: row.id,
               storagePath: row.storage_path,
-              url: existing?.url?.startsWith("data:") ? existing.url : (d.signedUrl ?? existing?.url ?? ""),
+              url: d.signedUrl ?? (existing?.url?.startsWith("data:") ? existing.url : existing?.url ?? ""),
               isCutout: existing?.isCutout ?? false,
             };
           }),
@@ -170,7 +196,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
           || null;
         setActiveAvatarId(chosen?.id ?? null);
         setCustomPhoto(chosen?.url ?? null);
-        localStorage.setItem(userKey(AV_KEY, user.id), JSON.stringify(loaded));
+        safeSetStorage(userKey(AV_KEY, user.id), JSON.stringify(loaded));
       } else {
         // Fall back to localStorage (guest or first visit)
         setAvatars(cached);
@@ -312,7 +338,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       if (prefRow) {
         const prefs: StylePreferences = { occasion: prefRow.occasion, goal: prefRow.styling_goal };
         setPreferences(prefs);
-        localStorage.setItem(userKey(PREFS_KEY, user.id), JSON.stringify(prefs));
+        safeSetStorage(userKey(PREFS_KEY, user.id), JSON.stringify(prefs));
       } else {
         const cached = JSON.parse(localStorage.getItem(userKey(PREFS_KEY, user.id)) ?? '{"occasion":"any","goal":"balanced"}') as StylePreferences;
         setPreferences(cached);
@@ -351,7 +377,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
             items: (l.items ?? []).map((entry) => hydrateItemImage(entry, hydrationItems)),
           }));
           setSavedLooks(hydratedLooks);
-          safeSetStorage(userKey(LOOKS_KEY, user.id), JSON.stringify(hydratedLooks));
+          safeSetStorage(userKey(LOOKS_KEY, user.id), JSON.stringify(hydratedLooks.map(stripSavedLookImages)));
         } else {
           setSavedLooks([]);
           safeSetStorage(userKey(LOOKS_KEY, user.id), "[]");
@@ -408,6 +434,18 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
       }
     }
   }, [user, catalog]);
+
+  useEffect(() => {
+    // One-time cleanup of legacy or unversioned keys that may consume localStorage quota
+    try {
+      const legacyKeys = ["thelook_recommended_looks", "thelook_current_look", "thelook_equipped"];
+      for (const lk of legacyKeys) {
+        localStorage.removeItem(lk);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -575,7 +613,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
         if (d.error) { showToast(`Avatar upload: ${d.error}`); return; }
         if (d.storagePath) {
           setAvatars((prev) => {
-            const updated = prev.map((a) => a.id === av.id ? { ...a, storagePath: d.storagePath, isCutout } : a);
+            const updated = prev.map((a) => (a.id === av.id ? { ...a, storagePath: d.storagePath, url: d.signedUrl ?? a.url, isCutout } : a));
             if (user) safeSetStorage(userKey(AV_KEY, user.id), JSON.stringify(updated));
             return updated;
           });
@@ -667,7 +705,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   function updatePreferences(next: StylePreferences) {
     if (!user) return;
     setPreferences(next);
-    localStorage.setItem(userKey(PREFS_KEY, user.id), JSON.stringify(next));
+    safeSetStorage(userKey(PREFS_KEY, user.id), JSON.stringify(next));
     // Persist to DB in background
     fetch("/api/preferences", {
       method: "POST",
@@ -1072,7 +1110,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
   function persistLooks(next: SavedLook[]) {
     if (!user) return;
     setSavedLooks(next);
-    localStorage.setItem(userKey(LOOKS_KEY, user.id), JSON.stringify(next));
+    safeSetStorage(userKey(LOOKS_KEY, user.id), JSON.stringify(next.map(stripSavedLookImages)));
   }
   const lookItems = () => (equipped.length ? equipped : currentLook?.items ?? []);
 
