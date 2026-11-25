@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { AdminRenderSettings, AdminSnapshot, AdminUserSummary, AdminWardrobeSummary } from "@/lib/admin-types";
+import { useAuth } from "@/app/components/auth/AuthProvider";
 
 type Section = "overview" | "users" | "wardrobe" | "renders" | "intelligence" | "storage" | "feedback" | "settings";
 type IconName = Section | "search" | "bell" | "more" | "shield" | "pulse" | "lock" | "refresh" | "warning" | "check" | "x";
@@ -137,9 +139,10 @@ function ConfirmDialog({ action, busy, onClose, onConfirm }: { action: Exclude<C
 }
 
 function LoadingScreen() { return <div className="grid min-h-screen place-items-center bg-[#eeece6]"><div className="text-center"><div className="mx-auto h-10 w-10 animate-spin rounded-full border-2 border-[#d5c6ac] border-t-[#292822]" /><p className="mt-4 font-serif text-xl">Opening the control room</p><p className="mt-1 text-[10px] text-[#8a847b]">Authenticating and loading operational data</p></div></div>; }
-function ErrorScreen({ status, message, retry }: { status: number | null; message: string; retry: () => void }) { return <div className="grid min-h-screen place-items-center bg-[#eeece6] p-6"><Card className="max-w-lg p-8 text-center"><div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-rose-50 text-rose-700"><Icon name={status === 403 ? "lock" : "warning"} className="h-6 w-6" /></div><p className="mt-5 text-[9px] font-bold uppercase tracking-[.2em] text-rose-600">{status === 403 ? "Access denied" : status === 401 ? "Authentication required" : "Control room unavailable"}</p><h1 className="mt-2 font-serif text-3xl">{status === 403 ? "This account is not an admin." : "The admin backend needs attention."}</h1><p className="mt-3 text-xs leading-6 text-[#777168]">{message}</p><button onClick={retry} className="mt-6 rounded-full bg-[#292822] px-5 py-2.5 text-xs font-bold text-white">Try again</button></Card></div>; }
+function ErrorScreen({ status, message, identity, retry }: { status: number | null; message: string; identity: string; retry: () => void }) { return <div className="grid min-h-screen place-items-center bg-[#eeece6] p-6"><Card className="max-w-lg p-8 text-center"><div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-rose-50 text-rose-700"><Icon name={status === 403 ? "lock" : "warning"} className="h-6 w-6" /></div><p className="mt-5 text-[9px] font-bold uppercase tracking-[.2em] text-rose-600">{status === 403 ? "Access denied" : status === 401 ? "Authentication required" : "Control room unavailable"}</p><h1 className="mt-2 font-serif text-3xl">{status === 403 ? "This account is not an admin." : "The admin backend needs attention."}</h1><p className="mt-3 text-xs leading-6 text-[#777168]">{message}</p><p className="mt-3 rounded-xl bg-[#f2eee6] px-3 py-2 font-mono text-[10px] text-[#766f65]">Browser identity: {identity}</p><div className="mt-6 flex justify-center gap-2"><Link href="/" className="rounded-full border border-[#d7d1c7] px-5 py-2.5 text-xs font-bold">Open account sign-in</Link><button onClick={retry} className="rounded-full bg-[#292822] px-5 py-2.5 text-xs font-bold text-white">Try again</button></div></Card></div>; }
 
 export default function AdminControlCenter() {
+  const { session, user, isGuest } = useAuth();
   const [section, setSection] = useState<Section>("overview");
   const [mobileNav, setMobileNav] = useState(false);
   const [snapshot, setSnapshot] = useState<AdminSnapshot | null>(null);
@@ -150,12 +153,17 @@ export default function AdminControlCenter() {
   const [mutating, setMutating] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const current = useMemo(() => NAV.find((item) => item.id === section)!, [section]);
+  const accessToken = session?.access_token ?? "";
+  const bearerHeaders = useMemo<Record<string, string>>(
+    (): Record<string, string> => accessToken ? { authorization: `Bearer ${accessToken}` } : {},
+    [accessToken],
+  );
 
   const load = useCallback(async () => {
     setLoading((value) => snapshot ? value : true);
     setError(null);
     try {
-      const response = await fetch("/api/admin/overview", { cache: "no-store" });
+      const response = await fetch("/api/admin/overview", { cache: "no-store", headers: bearerHeaders });
       const body = await response.json() as AdminSnapshot & { error?: string };
       if (!response.ok) throw Object.assign(new Error(body.error ?? "Could not load admin data."), { status: response.status });
       setSnapshot(body);
@@ -163,7 +171,7 @@ export default function AdminControlCenter() {
       const typed = loadError as Error & { status?: number };
       setError({ status: typed.status ?? null, message: typed.message });
     } finally { setLoading(false); }
-  }, [snapshot]);
+  }, [bearerHeaders, snapshot]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
@@ -178,7 +186,7 @@ export default function AdminControlCenter() {
       const userAction = confirmAction.kind === "user";
       const response = await fetch(userAction ? "/api/admin/users" : "/api/admin/wardrobe", {
         method: userAction ? "PATCH" : "DELETE",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...bearerHeaders },
         body: JSON.stringify(userAction ? { userId: confirmAction.user.id, action: confirmAction.action, reason, confirmation } : { itemId: confirmAction.item.id, reason, confirmation }),
       });
       const body = await response.json() as { error?: string; warning?: string };
@@ -193,7 +201,7 @@ export default function AdminControlCenter() {
   async function saveSettings(settings: AdminRenderSettings, reason: string, confirmation: string) {
     setSettingsSaving(true);
     try {
-      const response = await fetch("/api/admin/settings", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ settings, reason, confirmation }) });
+      const response = await fetch("/api/admin/settings", { method: "PATCH", headers: { "content-type": "application/json", ...bearerHeaders }, body: JSON.stringify({ settings, reason, confirmation }) });
       const body = await response.json() as { error?: string };
       if (!response.ok) throw new Error(body.error ?? "Could not save settings.");
       setNotice("Production controls updated and audited.");
@@ -203,7 +211,7 @@ export default function AdminControlCenter() {
   }
 
   if (loading && !snapshot) return <LoadingScreen />;
-  if (error && !snapshot) return <ErrorScreen status={error.status} message={error.message} retry={() => void load()} />;
+  if (error && !snapshot) return <ErrorScreen status={error.status} message={error.message} identity={isGuest ? "anonymous guest" : user?.email ?? "no browser session"} retry={() => void load()} />;
   if (!snapshot) return null;
 
   const content = section === "overview" ? <Overview data={snapshot} />

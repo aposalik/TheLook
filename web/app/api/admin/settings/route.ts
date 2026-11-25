@@ -26,7 +26,7 @@ function parseSettings(value: unknown): AdminRenderSettings | null {
 export async function PATCH(req: NextRequest) {
   const originRejection = rejectCrossOriginMutation(req);
   if (originRejection) return originRejection;
-  const auth = await requireAdmin();
+  const auth = await requireAdmin(req);
   if (auth.response || !auth.user || !auth.admin) return auth.response!;
 
   try {

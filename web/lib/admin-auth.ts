@@ -36,9 +36,13 @@ export function adminConfigured(): boolean {
   return normalizedSet(process.env.ADMIN_USER_IDS).size > 0 || normalizedSet(process.env.ADMIN_EMAILS).size > 0;
 }
 
-export async function requireAdmin() {
+export async function requireAdmin(req?: NextRequest) {
   const sessionClient = await createClient();
-  const { data, error } = await sessionClient.auth.getUser();
+  const authorization = req?.headers.get("authorization") ?? "";
+  const bearerToken = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+  const { data, error } = bearerToken
+    ? await sessionClient.auth.getUser(bearerToken)
+    : await sessionClient.auth.getUser();
   if (error || !data.user) {
     return {
       user: null,

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin-auth";
 import type { AdminSnapshot } from "@/lib/admin-types";
 
@@ -9,8 +9,8 @@ function numberOrZero(value: number | null) {
   return typeof value === "number" ? value : 0;
 }
 
-export async function GET() {
-  const auth = await requireAdmin();
+export async function GET(req: NextRequest) {
+  const auth = await requireAdmin(req);
   if (auth.response || !auth.user || !auth.admin) return auth.response!;
   const admin = auth.admin;
 

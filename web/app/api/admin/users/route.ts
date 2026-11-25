@@ -5,7 +5,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin(req);
   if (auth.response || !auth.admin) return auth.response!;
   const page = Math.max(1, Number(req.nextUrl.searchParams.get("page") ?? 1));
   const perPage = Math.min(100, Math.max(10, Number(req.nextUrl.searchParams.get("perPage") ?? 50)));
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const originRejection = rejectCrossOriginMutation(req);
   if (originRejection) return originRejection;
-  const auth = await requireAdmin();
+  const auth = await requireAdmin(req);
   if (auth.response || !auth.user || !auth.admin) return auth.response!;
 
   try {
