@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { assertAvailableSwapRoles, parseStylistJudgment, rankJudgedCandidates } from "./stylist-judge";
+import {
+  allowedSwapRolesForCandidate,
+  assertAvailableSwapRoles,
+  buildCriticResponseSchema,
+  parseStylistJudgment,
+  rankJudgedCandidates,
+} from "./stylist-judge";
 
 const rawJudgment = {
   judgments: [
@@ -83,4 +89,23 @@ test("ranks accepted candidates without changing their item sets", () => {
   assert.deepEqual(ranked[0]!.items, candidates[1]!.items);
   assert.equal(ranked[1]!.preferredSwapRole, "shoes");
   assert.equal(ranked.some((candidate) => candidate.lookId === "look_3"), false);
+});
+
+test("rejects duplicate, zero, fractional, or out-of-range ranks and builds schema with candidate enum", () => {
+  const rankInvalidCases = [
+    { ...rawJudgment, judgments: rawJudgment.judgments.map((entry, idx) => idx === 0 ? { ...entry, rank: 0 } : entry) },
+    { ...rawJudgment, judgments: rawJudgment.judgments.map((entry, idx) => idx === 0 ? { ...entry, rank: 4 } : entry) },
+    { ...rawJudgment, judgments: rawJudgment.judgments.map((entry, idx) => idx === 0 ? { ...entry, rank: 1.5 } : entry) },
+    { ...rawJudgment, judgments: rawJudgment.judgments.map((entry, idx) => idx === 1 ? { ...entry, rank: 1 } : entry) },
+  ];
+  for (const invalid of rankInvalidCases) {
+    assert.throws(() => parseStylistJudgment(invalid, ["look_1", "look_2", "look_3"]));
+  }
+
+  const schema = buildCriticResponseSchema(["candidate_1", "candidate_2"]);
+  const lookIdSchema = ((schema.properties as Record<string, unknown>).judgments as {
+    items: { properties: { lookId: { enum: string[] } } };
+  }).items.properties.lookId;
+  assert.deepEqual(lookIdSchema.enum, ["candidate_1", "candidate_2"]);
+  assert.deepEqual(allowedSwapRolesForCandidate(["base", "overshirt", "bottom"]), ["none", "base", "overshirt", "bottom"]);
 });

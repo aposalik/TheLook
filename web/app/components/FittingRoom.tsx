@@ -765,7 +765,7 @@ export default function FittingRoom({ catalog }: { catalog: Item[] }) {
     void generateOutfit(anchors);
   }
 
-  // Deterministic constructor creates grounded candidates; Gemini Vision composes/reranks them.
+  // Deterministic constructor creates grounded candidates; Gemini Vision critiques and reranks them.
   function resolveDefaultAnchors(anchorOverride?: string[]): string[] {
     return anchorOverride?.length
       ? anchorOverride

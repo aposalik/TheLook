@@ -1,4 +1,7 @@
-type InlineImage = { data: string; mimeType: string };
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
+export type InlineImage = { data: string; mimeType: string };
 
 const PRIMARY_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 const FALLBACK_MODELS = Array.from(
@@ -48,8 +51,53 @@ function extractJson(text: string): unknown {
   throw new Error(`Gemini returned no JSON object: ${cleaned.slice(0, 180)}`);
 }
 
+function stripQuotes(value: string): string {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1).trim();
+  }
+  return trimmed;
+}
+
+function readLocalEnvGeminiKey(): string | undefined {
+  try {
+    const raw = readFileSync(path.resolve(process.cwd(), ".env.local"), "utf8");
+    let theLookKey: string | undefined;
+    let geminiKey: string | undefined;
+    for (const line of raw.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const eq = trimmed.indexOf("=");
+      if (eq <= 0) continue;
+      const name = trimmed.slice(0, eq).trim();
+      const val = stripQuotes(trimmed.slice(eq + 1));
+      if (!val) continue;
+      if (name === "THELOOK_GEMINI_API_KEY") theLookKey = val;
+      else if (name === "GEMINI_API_KEY") geminiKey = val;
+    }
+    return theLookKey || geminiKey || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+export function resolveGeminiApiKey(): string | undefined {
+  const explicitKey = process.env.THELOOK_GEMINI_API_KEY?.trim();
+  if (explicitKey) return explicitKey;
+
+  const envKey = process.env.GEMINI_API_KEY?.trim();
+  if (process.env.NODE_ENV !== "production" || !envKey || envKey.startsWith("oc-")) {
+    const localKey = readLocalEnvGeminiKey();
+    if (localKey) return localKey;
+  }
+  return envKey && !envKey.startsWith("oc-") ? envKey : undefined;
+}
+
 export function geminiConfigured(): boolean {
-  return Boolean(process.env.GEMINI_API_KEY);
+  return Boolean(resolveGeminiApiKey());
 }
 
 export async function askGeminiJson<T>({
@@ -63,7 +111,7 @@ export async function askGeminiJson<T>({
   temperature?: number;
   responseSchema?: Record<string, unknown>;
 }): Promise<T> {
-  const key = process.env.GEMINI_API_KEY;
+  const key = resolveGeminiApiKey();
   if (!key) throw new Error("GEMINI_API_KEY is not configured");
 
   const parts: Array<Record<string, unknown>> = [{ text: prompt }];

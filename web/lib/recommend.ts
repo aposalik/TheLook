@@ -1,6 +1,7 @@
-// Rolling Rack + Hard Physical Guardrail architecture.
-// TypeScript curates a diverse Rolling Rack (12-20 items) and enforces hard physical/layering
-// constraints via validateOutfitCandidate(); Gemini Vision acts as the primary creative stylist.
+// Stage 1 Rolling Rack + Hard Physical Guardrail architecture.
+// TypeScript curates a diverse Rolling Rack, constructs valid candidates via pruned beam search,
+// and enforces hard physical/layering constraints via validateOutfitCandidate(); Gemini Vision
+// acts strictly as a Stage 2 visual critic/reranker over those deterministic candidates.
 import catalogData from "../data/catalog.json";
 import { feedbackAdjustment, type OutfitFeedbackEvent } from "./outfit-feedback";
 import type { StylistVerdict, SwapRole, VisualScores } from "./stylist-judge";

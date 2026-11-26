@@ -23,9 +23,56 @@ export type StylistJudgment = {
   judgments: StylistJudgmentEntry[];
 };
 
+export const VALID_SWAP_ROLES: readonly SwapRole[] = ["base", "top", "overshirt", "outer", "bottom", "shoes", "accessory", "none"];
 const VERDICTS = new Set<StylistVerdict>(["strong", "acceptable", "reject"]);
-const SWAP_ROLES = new Set<SwapRole>(["base", "top", "overshirt", "outer", "bottom", "shoes", "accessory", "none"]);
+const SWAP_ROLES = new Set<SwapRole>(VALID_SWAP_ROLES);
 const VISUAL_SCORE_NAMES = ["palette", "silhouette", "layering", "occasion"] as const;
+
+export function allowedSwapRolesForCandidate(roles: string[]): SwapRole[] {
+  const validSpecific = roles.filter((role): role is SwapRole => SWAP_ROLES.has(role as SwapRole) && role !== "none");
+  return Array.from(new Set<SwapRole>(["none", ...validSpecific]));
+}
+
+export function buildCriticResponseSchema(validLookIds: string[]): Record<string, unknown> {
+  return {
+    type: "OBJECT",
+    required: ["judgments"],
+    properties: {
+      judgments: {
+        type: "ARRAY",
+        items: {
+          type: "OBJECT",
+          required: ["lookId", "rank", "verdict", "visualScores", "issues", "preferredSwapRole", "title", "reason"],
+          properties: {
+            lookId: { type: "STRING", enum: validLookIds },
+            rank: { type: "INTEGER" },
+            verdict: { type: "STRING", enum: ["strong", "acceptable", "reject"] },
+            visualScores: {
+              type: "OBJECT",
+              required: ["palette", "silhouette", "layering", "occasion"],
+              properties: {
+                palette: { type: "NUMBER" },
+                silhouette: { type: "NUMBER" },
+                layering: { type: "NUMBER" },
+                occasion: { type: "NUMBER" },
+              },
+            },
+            issues: {
+              type: "ARRAY",
+              items: { type: "STRING" },
+            },
+            preferredSwapRole: {
+              type: "STRING",
+              enum: [...VALID_SWAP_ROLES],
+            },
+            title: { type: "STRING" },
+            reason: { type: "STRING" },
+          },
+        },
+      },
+    },
+  };
+}
 
 function record(value: unknown, label: string): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} must be an object`);
