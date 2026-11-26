@@ -15,8 +15,11 @@
     "lib/recommend.ts",
     "lib/recommend.eval.ts",
     "lib/recommend.eval.test.ts",
+    "lib/gemini.ts",
     "lib/stylist-judge.ts",
     "lib/stylist-judge.test.ts",
+    "lib/stylist-critic.ts",
+    "lib/stylist-critic.test.ts",
     "lib/garment-semantics.test.ts",
     "lib/wardrobe-analysis.ts",
     "lib/wardrobe-analysis.test.ts",
@@ -26,6 +29,16 @@
     "lib/collage.test.ts",
     "lib/tryon-plan.ts",
     "lib/tryon-plan.test.ts",
+    "lib/studio/editor.ts",
+    "lib/studio/editor.test.ts",
+    "lib/studio/document.ts",
+    "lib/studio/document.test.ts",
+    "lib/studio/drafts.ts",
+    "lib/studio/drafts.test.ts",
+    "lib/studio/persistence.ts",
+    "lib/studio/persistence.test.ts",
+    "lib/studio/analysis.ts",
+    "lib/studio/analysis.test.ts",
     "data/*.json"
   ]
 }

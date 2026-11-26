@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
 import type { WeatherContext } from "@/lib/recommend";
 
@@ -39,12 +40,18 @@ export default function TopBar({
     <header className="sticky top-0 z-40 border-b border-[#E8E3DB] bg-[#F7F5F0]/95 backdrop-blur-md">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between px-4 py-1.5 sm:px-8">
         <div className="flex min-w-0 items-center gap-3">
-          <img
-            src="/brand/thelook-logo-light.png"
-            alt="TheLook"
-            className="h-14 w-[94px] shrink-0 object-contain"
-          />
-          <span className="hidden rounded-full bg-[#EDE5D8] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest text-[#8A8480] sm:inline-flex">Fitting Room</span>
+          <Link href="/" aria-label="TheLook Fitting Room" className="shrink-0">
+            <img
+              src="/brand/thelook-logo-light.png"
+              alt="TheLook"
+              className="h-14 w-[94px] object-contain"
+            />
+          </Link>
+          <nav className="hidden items-center gap-1 rounded-xl border border-[#E8E3DB] bg-white p-1 sm:flex" aria-label="Product areas">
+            <span className="rounded-lg bg-[#1A1A1A] px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-white">Fitting Room</span>
+            <Link href="/studio" className="rounded-lg px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#72695F] transition hover:bg-[#EDE5D8] hover:text-[#1A1A1A]">Outfit Studio</Link>
+          </nav>
+          <Link href="/studio" className="rounded-lg border border-[#E8E3DB] bg-white px-2 py-1.5 text-[9px] font-bold uppercase tracking-wider text-[#1A1A1A] sm:hidden">Studio</Link>
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
           <button

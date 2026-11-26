@@ -14,6 +14,7 @@ web/.eval-dist/
 web/reports/*.json
 *.tsbuildinfo
 next-env.d.ts
+.worktrees/
 
 # ── python experiments ───────────────────────────────────
 _experiments/.venv/

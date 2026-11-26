@@ -1,0 +1,28 @@
+{
+  "task": "Implement TheLook secured admin control room",
+  "status": "code_complete_migration_pending",
+  "completedSteps": [
+    "Added server-only admin allowlisting with verified permanent-account enforcement",
+    "Added same-origin mutation checks for privileged endpoints",
+    "Added service-role-only admin audit migration",
+    "Added live overview API for users, wardrobe, looks, feedback, renders, usage, settings, integrations, and audit events",
+    "Added audited render-limit and real-render kill-switch controls",
+    "Added confirmed user suspension/restoration with self-suspension prevention",
+    "Added confirmed wardrobe deletion with private Storage cleanup",
+    "Connected the responsive /admin UI to live data with loading, access-denied, degraded, confirmation, and mutation states",
+    "Documented admin setup and security model"
+  ],
+  "verification": {
+    "typecheck": "passed",
+    "lint": "0 errors; 30 pre-existing warnings",
+    "recommendationTests": "40 passed, 0 failed",
+    "recommendationFixtures": "11/11 passed",
+    "productionBuild": "passed",
+    "unauthenticatedAdminRead": "HTTP 401",
+    "crossOriginMutation": "HTTP 403",
+    "sameOriginUnauthenticatedMutation": "HTTP 401"
+  },
+  "blocker": "Supabase CLI migration listing failed with TransportError, so 20261125231500_admin_control_room.sql could not be applied from this runtime. The dashboard can load read-only with an audit-migration warning, but privileged mutations fail safely until the migration is applied.",
+  "nextStep": "Apply the admin migration from a healthy Supabase CLI/dashboard connection, restart the deployed app with ADMIN_USER_IDS or ADMIN_EMAILS, then run an authenticated two-account acceptance test.",
+  "updatedAt": "2026-11-25T23:55:00+03:00"
+}

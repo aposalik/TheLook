@@ -27,7 +27,7 @@ Furthermore, virtual try-on models (like YouCam Cloth-v4) operate on individual 
 
 **TheLook** solves these fundamental challenges through a four-stage hybrid architecture.
 
-For the current HackTown readiness audit, verified checks, blockers, and submission checklist, see [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
+For the current HackTown readiness audit, verified checks, blockers, and submission checklist, see [`PROJECT-STATUS.md`](PROJECT-STATUS.md). The proposed Canva-like manual outfit editor is specified in [`OUTFIT-STUDIO-ARCHITECTURE.md`](OUTFIT-STUDIO-ARCHITECTURE.md).
 
 
 ```
@@ -334,7 +334,8 @@ Populate the required secrets:
 | :--- | :--- | :--- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Public / Client | Hosted Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public / Client | Supabase publishable anonymous key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Private / Server | Supabase service role key (bypasses RLS for admin storage) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Private / Server | Supabase service role key; use only after server authorization |
+| `ADMIN_USER_IDS` / `ADMIN_EMAILS` | Private / Server | Comma-separated control-room allowlist; prefer immutable IDs in production |
 | `PERFECTCORP_KEY` | Private / Server | Perfect Corp Cloth-v4 API bearer token |
 | `GEMINI_API_KEY` | Private / Server | Google Gemini API key |
 | `GEMINI_MODEL` | Private / Server | Defaults to `gemini-2.5-flash` |
@@ -344,10 +345,13 @@ Populate the required secrets:
 ### 3. Database & Storage Initialization
 
 Apply the versioned SQL migrations located in `supabase/migrations/`:
-1. `20261019000000_supabase_foundation.sql` (Creates tables, RLS policies, private buckets: `avatars`, `wardrobe`, `renders`)
-2. `20261019120000_render_quota_controls.sql` (Atomic quota reservation stored procedures)
+1. `20261011231000_foundation.sql` (Tables, RLS policies, and private Storage buckets)
+2. `20261023000000_quota.sql` (Atomic quota reservation and render lifecycle procedures)
 3. `20261028152000_wardrobe_item_semantics.sql` (Rich garment physical semantics)
 4. `20261028154500_outfit_feedback.sql` (User preference and rating feedback persistence)
+5. `20261125231500_admin_control_room.sql` (Service-role-only privileged action audit trail)
+
+See [`ADMIN.md`](ADMIN.md) for control-room access, safety, and production acceptance guidance.
 
 ### 4. Run Development Server
 
@@ -366,6 +370,7 @@ TheLook/
 ├── web/
 │   ├── app/
 │   │   ├── api/
+│   │   │   ├── admin/              # Authorized metrics, users, moderation & audited controls
 │   │   │   ├── avatar/             # Multi-avatar upload & signed URL resolution
 │   │   │   ├── chat/               # Gemini AI Style Assistant with weather context
 │   │   │   ├── feedback/           # Outfit ratings & learning feedback loop
@@ -374,7 +379,9 @@ TheLook/
 │   │   │   ├── tryon-look/         # YouCam Cloth-v4 layered try-on orchestrator
 │   │   │   ├── wardrobe/           # Wardrobe ingestion & Gemini semantics analysis
 │   │   │   └── weather/            # Open-Meteo reverse geocoding & forecast
+│   │   ├── admin/                  # TheLook control-room route
 │   │   ├── components/
+│   │   │   ├── admin/              # Operational control-room interface
 │   │   │   ├── FittingRoom.tsx     # Primary atelier interactive workspace
 │   │   │   ├── WearingPanel.tsx    # Layer roles, lock toggles, swap controls
 │   │   │   ├── WardrobeCatalog.tsx # Granular categories, gender filters, bulk add
