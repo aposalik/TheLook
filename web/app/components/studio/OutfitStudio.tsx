@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/app/components/auth/AuthProvider";
+import { useStudioPersistence } from "@/app/hooks/useStudioPersistence";
 import type { Item } from "@/lib/recommend";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -34,6 +35,15 @@ function userStorageKey(userId: string): string {
 function defaultSlot(category: string, layer: string | null): string {
   if (category === "bottom" || category === "shoe" || category === "accessory" || category === "dress") return category;
   return layer === "outer" ? "outerwear" : "top";
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error ?? new Error("Could not encode the outfit preview."));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function rowToItem(row: Record<string, unknown>, image: string): Item {
@@ -95,11 +105,12 @@ function ToolButton({ label, icon, disabled, active, onClick }: {
 }
 
 export default function OutfitStudio({ catalog }: { catalog: Item[] }) {
-  const { user, isGuest } = useAuth();
+  const { user, isGuest, isVerifiedAccount } = useAuth();
   const [editor, setEditor] = useState<StudioEditorState>(() => createEditorState());
   const [userItems, setUserItems] = useState<Item[]>([]);
   const [wardrobeLoading, setWardrobeLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [savingLook, setSavingLook] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = useCallback((message: string) => {
@@ -151,12 +162,22 @@ export default function OutfitStudio({ catalog }: { catalog: Item[] }) {
     return [...userItems, ...catalog.filter((item) => !userIds.has(item.id)).map((item) => ({ ...item, source: item.source ?? "catalog" as const }))];
   }, [catalog, userItems]);
 
+  const persistence = useStudioPersistence({
+    userId: user?.id ?? null,
+    isVerifiedAccount,
+    items: wardrobe,
+    itemsLoading: wardrobeLoading,
+    editor,
+    setEditor,
+  });
+
+  const syncNow = persistence.syncNow;
   const selected = editor.present.nodes.find((node) => node.id === editor.present.selectedNodeId) ?? null;
   const orderedLayers = editor.present.nodes.slice().sort((a, b) => b.zIndex - a.zIndex);
 
   const addItem = useCallback((item: Item, position?: { x: number; y: number }) => {
     if (editor.present.nodes.length >= MAX_STUDIO_NODES) {
-      showToast(`Phase 0 supports up to ${MAX_STUDIO_NODES} pieces per look.`);
+      showToast(`Outfit Studio supports up to ${MAX_STUDIO_NODES} pieces per look.`);
       return;
     }
     setEditor((current) => addGarment(current, item, position));
@@ -166,7 +187,12 @@ export default function OutfitStudio({ catalog }: { catalog: Item[] }) {
     function onKeyDown(event: KeyboardEvent) {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
       const command = event.metaKey || event.ctrlKey;
-      if (command && event.key.toLowerCase() === "z") {
+      if (command && event.key.toLowerCase() === "s") {
+        event.preventDefault();
+        void syncNow().then(() => showToast(isVerifiedAccount ? "Draft synced." : "Draft saved on this device.")).catch((error) => {
+          showToast(error instanceof Error ? error.message : "Draft save failed.");
+        });
+      } else if (command && event.key.toLowerCase() === "z") {
         event.preventDefault();
         setEditor((current) => event.shiftKey ? redo(current) : undo(current));
       } else if (event.key === "Delete" || event.key === "Backspace") {
@@ -180,7 +206,29 @@ export default function OutfitStudio({ catalog }: { catalog: Item[] }) {
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [isVerifiedAccount, showToast, syncNow]);
+
+  async function saveToLooks() {
+    if (!editor.present.nodes.length) {
+      showToast("Add at least one wardrobe piece before saving.");
+      return;
+    }
+    if (!isVerifiedAccount) {
+      showToast("Sign in with a permanent account to save Looks across devices.");
+      return;
+    }
+    setSavingLook(true);
+    try {
+      const blob = await exportStudioPreview(editor.present.nodes);
+      const previewDataUrl = await blobToDataUrl(blob);
+      const result = await persistence.saveToLooks(previewDataUrl);
+      showToast(result.previewUploaded ? "Saved to Looks with a private preview." : "Look saved; preview upload can be retried later.");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Could not save this Look.");
+    } finally {
+      setSavingLook(false);
+    }
+  }
 
   async function exportPreview() {
     if (!editor.present.nodes.length) {
@@ -219,21 +267,80 @@ export default function OutfitStudio({ catalog }: { catalog: Item[] }) {
           </div>
           <div className="flex min-w-0 items-center gap-2">
             <div className="hidden text-right md:block">
-              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#9a9185]">Phase 0</p>
-              <p className="max-w-44 truncate text-[11px] font-semibold">{isGuest ? "Guest workspace" : user?.email ?? "Your wardrobe"}</p>
+              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-[#9a9185]">Phase 2 · {persistence.syncState}</p>
+              <p className="max-w-52 truncate text-[11px] font-semibold">{persistence.message}</p>
             </div>
+            <button
+              type="button"
+              onClick={() => void saveToLooks()}
+              disabled={savingLook || !editor.present.nodes.length || !persistence.ready}
+              title={isGuest ? "Sign in to save Looks across devices" : "Save this editable outfit to Looks"}
+              className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#292621] px-3 text-xs font-bold text-white shadow-sm transition hover:bg-black disabled:cursor-not-allowed disabled:opacity-45 sm:px-3.5"
+            >
+              <span aria-hidden="true">◇</span><span className="hidden sm:inline">{savingLook ? "Saving…" : persistence.lookId ? "Update Look" : "Save to Looks"}</span>
+            </button>
             <button
               type="button"
               aria-label={exporting ? "Exporting outfit preview" : "Export outfit as WebP"}
               onClick={() => void exportPreview()}
               disabled={exporting || !editor.present.nodes.length}
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#1f6b55] px-3 text-xs font-bold text-white shadow-sm transition hover:bg-[#195b48] disabled:cursor-not-allowed disabled:opacity-45 sm:px-3.5"
+              className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#d9d2c7] bg-white px-3 text-xs font-bold text-[#3f3932] shadow-sm transition hover:border-[#a78f6d] disabled:cursor-not-allowed disabled:opacity-45 sm:px-3.5"
             >
-              <Icon name="export" /><span className="hidden sm:inline">{exporting ? "Exporting…" : "Export WebP"}</span>
+              <Icon name="export" /><span className="hidden xl:inline">{exporting ? "Exporting…" : "Export WebP"}</span>
             </button>
           </div>
         </div>
       </header>
+
+      <div className="overflow-x-auto border-b border-[#ded8cd] bg-white px-3 py-2 sm:px-5">
+        <div className="mx-auto flex w-max min-w-full max-w-[1600px] items-center gap-2">
+          <select
+            aria-label="Open outfit document"
+            value={persistence.document?.id ?? ""}
+            disabled={!persistence.ready}
+            onChange={(event) => persistence.openDocument(event.target.value)}
+            className="h-9 max-w-48 rounded-xl border border-[#ddd7cc] bg-[#f8f6f1] px-3 text-[11px] font-semibold outline-none focus:border-[#9d805a]"
+          >
+            {persistence.documents.map((entry) => <option key={entry.id} value={entry.id}>{entry.title}</option>)}
+          </select>
+          <input
+            aria-label="Outfit title"
+            value={persistence.document?.title ?? ""}
+            disabled={!persistence.ready}
+            onChange={(event) => persistence.renameDocument(event.target.value)}
+            className="h-9 w-48 rounded-xl border border-[#ddd7cc] bg-white px-3 text-[11px] font-semibold outline-none focus:border-[#9d805a] sm:w-64"
+            placeholder="Outfit title"
+            maxLength={120}
+          />
+          <button type="button" onClick={persistence.newDocument} disabled={!persistence.ready} className="h-9 rounded-xl border border-[#ddd7cc] bg-white px-3 text-[10px] font-bold hover:border-[#a88d67] disabled:opacity-40">New</button>
+          <button type="button" onClick={persistence.duplicateCurrent} disabled={!persistence.document} className="h-9 rounded-xl border border-[#ddd7cc] bg-white px-3 text-[10px] font-bold hover:border-[#a88d67] disabled:opacity-40">Duplicate</button>
+          <button
+            type="button"
+            onClick={() => void persistence.syncNow().then(() => showToast(isVerifiedAccount ? "Draft synced." : "Draft saved on this device.")).catch((error) => showToast(error instanceof Error ? error.message : "Draft save failed."))}
+            disabled={!persistence.document || persistence.syncState === "saving"}
+            className="h-9 rounded-xl border border-[#bfd0c5] bg-[#edf5f0] px-3 text-[10px] font-bold text-[#355f4e] hover:border-[#789b88] disabled:opacity-40"
+          >
+            {isVerifiedAccount ? "Save draft" : "Save locally"}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!window.confirm("Delete this outfit document? This cannot be undone.")) return;
+              void persistence.removeCurrent().catch((error) => showToast(error instanceof Error ? error.message : "Could not delete the outfit."));
+            }}
+            disabled={!persistence.document}
+            className="h-9 rounded-xl border border-[#ead0cb] bg-white px-3 text-[10px] font-bold text-[#9b4b40] hover:bg-[#fff5f3] disabled:opacity-40"
+          >Delete</button>
+          <span className="ml-auto text-[10px] font-semibold text-[#81786d] md:hidden">{persistence.message}</span>
+          {persistence.syncState === "conflict" && (
+            <div className="flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-2 py-1">
+              <span className="text-[10px] font-semibold text-amber-800">Newer cloud version</span>
+              <button type="button" onClick={() => void persistence.reloadRemote().catch((error) => showToast(error instanceof Error ? error.message : "Reload failed."))} className="rounded-lg bg-white px-2 py-1 text-[9px] font-bold text-amber-900">Reload</button>
+              <button type="button" onClick={persistence.saveAsCopy} className="rounded-lg bg-white px-2 py-1 text-[9px] font-bold text-amber-900">Save copy</button>
+            </div>
+          )}
+        </div>
+      </div>
 
       <div className="overflow-x-auto border-b border-[#ded8cd] bg-[#f7f4ef] px-3 py-2 sm:px-5">
         <div className="mx-auto flex w-max min-w-full max-w-[1600px] items-center justify-between gap-3">
@@ -314,7 +421,7 @@ export default function OutfitStudio({ catalog }: { catalog: Item[] }) {
                 ))}
               </div>
               <div className="mt-5 rounded-xl border border-[#dce5df] bg-[#edf5f0] p-3 text-[9px] leading-4 text-[#496455]">
-                Canvas order is visual only. Physical wearing roles arrive in Phase 4 analysis.
+                Visual stacking and physical wearing roles are stored separately, so future analysis cannot confuse front/back order with how garments are worn.
               </div>
             </div>
           ) : (

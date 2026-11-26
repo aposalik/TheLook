@@ -29,7 +29,7 @@ async function withStorageRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<
 
 /** Upload bytes to a private bucket. Overwrites if the path already exists. */
 export async function uploadToStorage(
-  bucket: "avatars" | "wardrobe" | "renders",
+  bucket: "avatars" | "wardrobe" | "renders" | "look-previews",
   path: string,
   data: Buffer,
   contentType: string,
@@ -46,7 +46,7 @@ export async function uploadToStorage(
 
 /** Generate a signed URL valid for the given number of seconds (default 1 hour). */
 export async function signedUrl(
-  bucket: "avatars" | "wardrobe" | "renders",
+  bucket: "avatars" | "wardrobe" | "renders" | "look-previews",
   path: string,
   expiresIn = 3600,
 ): Promise<string> {
@@ -60,7 +60,7 @@ export async function signedUrl(
 
 /** Delete an object from a private bucket. Silently ignores not-found. */
 export async function deleteFromStorage(
-  bucket: "avatars" | "wardrobe" | "renders",
+  bucket: "avatars" | "wardrobe" | "renders" | "look-previews",
   path: string,
 ): Promise<void> {
   await withStorageRetry(async () => {

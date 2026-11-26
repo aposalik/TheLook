@@ -28,6 +28,12 @@
     "lib/tryon-plan.test.ts",
     "lib/studio/editor.ts",
     "lib/studio/editor.test.ts",
+    "lib/studio/document.ts",
+    "lib/studio/document.test.ts",
+    "lib/studio/drafts.ts",
+    "lib/studio/drafts.test.ts",
+    "lib/studio/persistence.ts",
+    "lib/studio/persistence.test.ts",
     "data/*.json"
   ]
 }

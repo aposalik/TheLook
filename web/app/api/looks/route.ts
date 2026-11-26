@@ -15,7 +15,7 @@ export async function GET() {
 
     const { data: lookRows, error: looksError } = await supabase
       .from("saved_looks")
-      .select("id, render_path, formula, stylist_title, cohesion, created_at, saved_look_items(item_snapshot, position)")
+      .select("id, render_path, preview_path, outfit_document_id, origin, formula, stylist_title, cohesion, created_at, saved_look_items(item_snapshot, position)")
       .order("created_at", { ascending: false });
 
     if (looksError) throw new Error(looksError.message);
@@ -33,7 +33,7 @@ export async function GET() {
         let renderPath = row.render_path as string | null;
 
         // Auto-heal missing render_path if possible
-        if (!renderPath && completedJobs && completedJobs.length > 0) {
+        if (!renderPath && row.origin !== "manual" && completedJobs && completedJobs.length > 0) {
           const rowItems = ((row.saved_look_items as Array<{ item_snapshot: Item; position: number }> | null) ?? []);
           const rowItemIds = new Set(rowItems.map((entry) => entry.item_snapshot.id));
           const matchingJob = completedJobs.find((job) => {
@@ -47,10 +47,17 @@ export async function GET() {
           }
         }
 
+        const previewPath = row.preview_path as string | null;
         let image = "";
         if (renderPath) {
           try {
             image = await signedUrl("renders", renderPath);
+          } catch {
+            image = "";
+          }
+        } else if (previewPath) {
+          try {
+            image = await signedUrl("look-previews", previewPath);
           } catch {
             image = "";
           }
@@ -64,6 +71,9 @@ export async function GET() {
           id: row.id as string,
           image,
           renderPath,
+          previewPath,
+          outfitDocumentId: row.outfit_document_id as string | null,
+          origin: row.origin as "generated" | "manual" | "assistant",
           formula: row.formula as string,
           stylistTitle: row.stylist_title as string | null,
           cohesion: row.cohesion as number | null,

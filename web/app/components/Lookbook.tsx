@@ -1,10 +1,14 @@
 "use client";
+import Link from "next/link";
 import type { Item } from "@/lib/recommend";
 
 export type SavedLook = {
   id: string;
   image: string;
   renderPath?: string | null;
+  previewPath?: string | null;
+  outfitDocumentId?: string | null;
+  origin?: "generated" | "manual" | "assistant";
   items: Item[];
   createdAt: number;
   formula?: string;
@@ -33,7 +37,7 @@ export default function Lookbook({
           <div className="grid grid-cols-2 gap-3 overflow-y-auto p-4">
             {looks.map((l) => (
               <div key={l.id} className="relative">
-                <button onClick={() => onOpen(l)} className="block w-full overflow-hidden rounded-2xl border border-[#E8E3DB] bg-[#F7F5F0]" style={{ aspectRatio: "9 / 16" }}>
+                <button onClick={() => onOpen(l)} className="block w-full overflow-hidden rounded-2xl border border-[#E8E3DB] bg-[#F7F5F0]" style={{ aspectRatio: l.origin === "manual" ? "4 / 5" : "9 / 16" }}>
                   {l.image ? (
                     <img src={l.image} alt="saved look" className="h-full w-full object-cover" />
                   ) : (
@@ -60,6 +64,14 @@ export default function Lookbook({
                   )}
                 </button>
                 <button onClick={() => onRemove(l.id)} aria-label="Remove" className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 text-xs text-white">×</button>
+                {l.origin === "manual" && l.outfitDocumentId && (
+                  <Link
+                    href={`/studio?document=${encodeURIComponent(l.outfitDocumentId)}`}
+                    className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-[#1f6b55] px-3 py-1.5 text-[9px] font-bold text-white shadow-md"
+                  >
+                    Edit in Studio
+                  </Link>
+                )}
               </div>
             ))}
           </div>

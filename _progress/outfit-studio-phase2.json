@@ -1,0 +1,39 @@
+{
+  "task": "Build TheLook Outfit Studio Phase 2 persistence and Looks integration",
+  "completedSteps": [
+    "Created feat/outfit-studio-phase-2 from verified Phase 0 commit 433daca without touching dirty main",
+    "Added schemaVersion 1 normalized outfit documents with strict validation, fresh URL hydration, duplication, and URL-free serialization",
+    "Added owner-scoped IndexedDB autosave, reload recovery, local document listing, and guest-only local persistence",
+    "Added automatic 2.5 second cloud draft synchronization for permanent accounts with optimistic revisions and conflict recovery",
+    "Added Supabase outfit_documents and outfit_document_nodes tables, RLS, ownership validation, optimistic RPCs, saved_looks extensions, and private look-previews bucket",
+    "Added document list/get/create/update/delete APIs and atomic manual Look save API with private WebP upload cleanup",
+    "Added Save to Looks, update existing Look, reopen from Lookbook, new/duplicate/delete document controls, Cmd/Ctrl+S, and mobile document controls",
+    "Verified unit, database, lint, build, desktop, IndexedDB reload, guest guard, and true 390px mobile behavior"
+  ],
+  "nextStep": "Review commit, then merge the feature branches and apply migration 20261126180000_outfit_studio_persistence.sql before enabling permanent-account cloud saving in the deployed app.",
+  "outputFiles": [
+    "supabase/migrations/20261126180000_outfit_studio_persistence.sql",
+    "supabase/tests/database/rls.sql",
+    "web/lib/studio/document.ts",
+    "web/lib/studio/drafts.ts",
+    "web/lib/studio/persistence.ts",
+    "web/lib/studio/server-persistence.ts",
+    "web/app/hooks/useStudioPersistence.ts",
+    "web/app/api/studio/documents/route.ts",
+    "web/app/api/studio/documents/[id]/route.ts",
+    "web/app/api/studio/looks/route.ts",
+    "web/app/components/studio/OutfitStudio.tsx",
+    "web/app/components/Lookbook.tsx"
+  ],
+  "verification": {
+    "applicationTests": "45 passed, 0 failed",
+    "databaseTests": "18 pgTAP tests passed, including RLS, ownership, optimistic revisions, and atomic manual Look persistence",
+    "databaseLint": "No Outfit Studio warnings; two unrelated pre-existing render function warnings",
+    "lint": "0 errors; 30 existing baseline warnings",
+    "build": "Next.js 16.3.8 production build passed with all three studio APIs",
+    "browser": "IndexedDB saved two-node draft without image URLs, reload restored it, duplicate regenerated identities, guest cloud save was guarded",
+    "responsive": "Desktop visual QA passed; true 390px viewport had bodyScrollWidth 390 and a 340px artboard"
+  },
+  "deploymentNote": "The migration was applied only to a disposable local Supabase database for verification. No remote database or production environment was modified.",
+  "updatedAt": "2026-11-26T18:28:00+03:00"
+}
