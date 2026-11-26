@@ -27,7 +27,7 @@ Furthermore, virtual try-on models (like YouCam Cloth-v4) operate on individual 
 
 **TheLook** solves these fundamental challenges through a four-stage hybrid architecture.
 
-For the current HackTown readiness audit, verified checks, blockers, and submission checklist, see [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
+For the current HackTown readiness audit, verified checks, blockers, and submission checklist, see [`PROJECT-STATUS.md`](PROJECT-STATUS.md). The proposed Canva-like manual outfit editor is specified in [`OUTFIT-STUDIO-ARCHITECTURE.md`](OUTFIT-STUDIO-ARCHITECTURE.md).
 
 
 ```
