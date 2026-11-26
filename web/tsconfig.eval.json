@@ -34,6 +34,8 @@
     "lib/studio/drafts.test.ts",
     "lib/studio/persistence.ts",
     "lib/studio/persistence.test.ts",
+    "lib/studio/analysis.ts",
+    "lib/studio/analysis.test.ts",
     "data/*.json"
   ]
 }

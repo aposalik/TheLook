@@ -23,6 +23,7 @@ import {
   type StudioEditorState,
 } from "@/lib/studio/editor";
 import { exportStudioPreview } from "@/lib/studio/export-preview";
+import { analyzeManualLook, type ManualLookAnalysis } from "@/lib/studio/analysis";
 import StudioArtboard from "./StudioArtboard";
 import WardrobeDock from "./WardrobeDock";
 
@@ -111,6 +112,7 @@ export default function OutfitStudio({ catalog }: { catalog: Item[] }) {
   const [wardrobeLoading, setWardrobeLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [savingLook, setSavingLook] = useState(false);
+  const [analysis, setAnalysis] = useState<ManualLookAnalysis | null>(null);
   const [toast, setToast] = useState<string | null>(null);
 
   const showToast = useCallback((message: string) => {
@@ -208,6 +210,18 @@ export default function OutfitStudio({ catalog }: { catalog: Item[] }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isVerifiedAccount, showToast, syncNow]);
 
+  const analyzeCurrent = useCallback(async () => {
+    const document = persistence.currentSnapshot;
+    if (!document || !document.nodes.length) { showToast("Add garments before analyzing."); return; }
+    const next = analyzeManualLook(document);
+    setAnalysis(next);
+    if (isVerifiedAccount && persistence.lookId) {
+      const response = await fetch(`/api/studio/looks/${persistence.lookId}/analyze`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ document }) });
+      if (!response.ok) throw new Error("Analysis could not be saved.");
+    }
+    showToast(next.hardValid ? "Deterministic analysis complete." : "Analysis found creative compatibility warnings.");
+  }, [isVerifiedAccount, persistence.currentSnapshot, persistence.lookId, showToast]);
+
   async function saveToLooks() {
     if (!editor.present.nodes.length) {
       showToast("Add at least one wardrobe piece before saving.");
@@ -222,6 +236,7 @@ export default function OutfitStudio({ catalog }: { catalog: Item[] }) {
       const blob = await exportStudioPreview(editor.present.nodes);
       const previewDataUrl = await blobToDataUrl(blob);
       const result = await persistence.saveToLooks(previewDataUrl);
+      setAnalysis(analyzeManualLook(result.document));
       showToast(result.previewUploaded ? "Saved to Looks with a private preview." : "Look saved; preview upload can be retried later.");
     } catch (error) {
       showToast(error instanceof Error ? error.message : "Could not save this Look.");
@@ -279,6 +294,7 @@ export default function OutfitStudio({ catalog }: { catalog: Item[] }) {
             >
               <span aria-hidden="true">◇</span><span className="hidden sm:inline">{savingLook ? "Saving…" : persistence.lookId ? "Update Look" : "Save to Looks"}</span>
             </button>
+            <button type="button" onClick={() => void analyzeCurrent().catch((error) => showToast(error instanceof Error ? error.message : "Analysis failed."))} disabled={!editor.present.nodes.length} className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#bfd0c5] bg-[#edf5f0] px-3 text-xs font-bold text-[#355f4e] disabled:opacity-45 sm:px-3.5"><span>✦</span><span className="hidden lg:inline">Analyze</span></button>
             <button
               type="button"
               aria-label={exporting ? "Exporting outfit preview" : "Export outfit as WebP"}
@@ -430,6 +446,7 @@ export default function OutfitStudio({ catalog }: { catalog: Item[] }) {
         </aside>
       </div>
 
+      {analysis && <section aria-label="Outfit analysis" className="mx-auto mb-3 w-[calc(100%-1.5rem)] max-w-[1600px] rounded-2xl border border-[#ded8cd] bg-white p-4 sm:px-5"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-[#8b8174]">Deterministic analysis</p><p className="mt-1 text-sm font-bold">{analysis.hardValid ? "Physically compatible" : "Creative look · compatibility warnings"} <span className="text-[#1f6b55]">{Math.round(analysis.scores.total * 100)}%</span></p></div><div className="flex gap-2">{analysis.tags.map((tag) => <span key={tag} className="rounded-full bg-[#f1ede6] px-2.5 py-1 text-[10px] font-semibold">{tag}</span>)}</div></div><p className="mt-2 text-xs text-[#675f55]">{analysis.explanation}</p>{analysis.issues.length > 0 && <ul className="mt-3 space-y-1 text-xs text-[#8d5145]">{analysis.issues.map((issue) => <li key={issue.code}>• {issue.message}</li>)}</ul>}<div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">{Object.entries(analysis.scores).filter(([key]) => key !== "total").map(([key, value]) => <div key={key} className="rounded-lg bg-[#f8f6f1] px-2 py-1.5 text-center"><p className="text-[8px] uppercase text-[#91877a]">{key}</p><p className="text-xs font-bold">{Math.round(value * 100)}%</p></div>)}</div></section>}
       <WardrobeDock items={wardrobe} loading={wardrobeLoading} onAdd={(item) => addItem(item)} />
 
       {toast && <div role="status" className="fixed bottom-40 left-1/2 z-50 -translate-x-1/2 rounded-full bg-[#292621] px-4 py-2.5 text-xs font-semibold text-white shadow-xl">{toast}</div>}
